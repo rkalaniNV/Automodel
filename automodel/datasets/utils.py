@@ -77,7 +77,7 @@ def default_collater(batch, pad_token_id=0, pad_seq_len_divisible=None):
             torch.LongTensor(
                 pad_within_micro(
                     extract_key_from_dicts(batch, key),
-                    pad_token_id if key != "loss_mask" else 0,
+                    (0 if key == "attention_mask" else (-100 if key == "labels" else pad_token_id)),
                     pad_seq_len_divisible,
                 )
             )
