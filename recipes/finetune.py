@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-
+import wandb
 from automodel.config.loader import load_yaml_config
 from automodel.training.init_utils import initialize_distributed
 from automodel.base_recipe import BaseRecipe
@@ -97,6 +97,16 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             NotImplemented: Raises if it tries to restore a checkpoint; will be removed.
         """
         self.dist = build_distributed(self.cfg.get("distributed", {}))
+
+        if self.dist.is_main and hasattr(self.cfg, 'logger'):
+            wandb.init(
+                project=self.cfg.logger.get("wandb_project", "default_project"),
+                entity=self.cfg.logger.get("wandb_entity"),
+                name=self.cfg.logger.get("wandb_exp_name"),
+                dir=self.cfg.logger.get("wandb_save_dir"),
+                config=self.cfg,
+            )
+
         torch.manual_seed(self.cfg.get("seed", 42) + self.dist.rank)
 
         # Build components
@@ -127,8 +137,18 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 # if self.dist.is_main and is_ckpt:
                 #     self._save_checkpoint()
                 if self.dist.is_main and is_grad:
-                    print(f"step {self.scheduler.step} | loss {loss.item():.4f}", flush=True)
+                    log_data = {
+                        "train_loss": loss.item(),
+                        "scheduler_step": self.scheduler.step,
+                        "epoch": self.scheduler.epoch,
+                    }
+                    if self.optimizer.param_groups:
+                        log_data["learning_rate"] = self.optimizer.param_groups[0]['lr']
 
+                    if wandb.run is not None:
+                        wandb.log(log_data)
+                        
+                    print(f"step {self.scheduler.step} | epoch {self.scheduler.epoch} | loss {loss.item():.4f}", flush=True)
 
     # ------------------ helpers ------------------
     def _run_train_step(self, batch, is_grad):
