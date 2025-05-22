@@ -1,5 +1,5 @@
 import torch
-
+import math
 def batchify(tensor):
     """Ensures that the input tensor has at least two dimensions by adding an extra batch dimension if necessary.
 
@@ -151,7 +151,7 @@ class SFTSingleTurnPreprocessor:
     def _compute_dataset_max_len(self, tokenized_ds):
         max_len = max(map(lambda x: len(x['input_ids']), tokenized_ds))
         # make multiple of 8
-        max_len = (max_len // 8 + 1) * 8
+        max_len = math.ceil(max_len / 8) * 8
         # respect model block size
         if self.block_size is not None:
             max_len = min(max_len, self.block_size)
@@ -163,17 +163,19 @@ class SFTSingleTurnPreprocessor:
         def _pad(examples):
             pad_id = tk.pad_token_id or 0
             examples["input_ids"] = [
-                ids + [pad_id] * (max_len - len(ids)) for ids in examples["input_ids"]
+                (ids[:max_len] + [pad_id] * max(0, max_len - len(ids)))
+                for ids in examples["input_ids"]
             ]
             examples["attention_mask"] = [
-                [1] * len(ids) + [0] * (max_len - len(ids))
+                ([1] * min(len(ids), max_len) + [0] * max(0, max_len - len(ids)))
                 for ids in examples["attention_mask"]
             ]
             examples["labels"] = [
-                lbl + [-100] * (max_len - len(lbl)) for lbl in examples["labels"]
+                (lbl[:max_len] + [-100] * max(0, max_len - len(lbl)))
+                for lbl in examples["labels"]
             ]
-            # truncate (safety)
-            return {k: v[:max_len] for k, v in examples.items()}
+            # return dictionary with sequences all exactly `max_len` long
+            return examples
 
         return _pad
 
