@@ -1,8 +1,8 @@
 training:
   _target_: config.common.TrainingConfig
-  train_iters: 250
-  eval_interval: 1000
-  eval_iters: 4
+  epochs: 1
+  val_frequency: 20  # will run every x number of gradient steps
+  grad_acc_steps: 4
   exit_signal_handler: true
 
 distributed:
@@ -31,18 +31,20 @@ dataset:
 dataloader:
   _target_: torchdata.stateful_dataloader.StatefulDataLoader
   collate_fn: automodel.datasets.utils.default_collater
-  batch_size: 1
+  batch_size: 64
 
 validation_dataset:
-  _target_: automodel.datasets.hellaswag.hellaswag
+  _target_: automodel.datasets.hellaswag.HellaSwag
   path_or_dataset: rowan/hellaswag
-  split: train
+  split: validation[:64]
   tokenizer:
     _target_: transformers.AutoTokenizer.from_pretrained
     pretrained_model_name_or_path: meta-llama/Llama-3.2-1B
 
 validation_dataloader:
   _target_: torchdata.stateful_dataloader.StatefulDataLoader
+  collate_fn: automodel.datasets.utils.default_collater
+  batch_size: 64
 
 optimizer:
   _target_: torch.optim.Adam
