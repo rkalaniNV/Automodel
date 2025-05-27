@@ -1,7 +1,12 @@
 from __future__ import annotations
+import sys
+sys.path.insert(0, '/mnt/4tb/nemo_lm/')
+
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 import time
+
+import os
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -20,11 +25,13 @@ import torch.profiler as prof
 #  Stateless helper functions
 # ---------------------------
 
-def build_model(device, cfg_model) -> nn.Module:
+def build_model(device, model_wrapper, cfg_model) -> nn.Module:
     model = cfg_model.instantiate()
     # for m in model.modules():
     #     if isinstance(m, nn.Embedding):
     #         m.weight.requires_grad_(False)
+    if model_wrapper is not None:
+        model = model_wrapper.parallelize(model)
     return model.to(device)
 
 def build_optimizer(device, cfg_opt, model) -> Optimizer:
@@ -126,9 +133,14 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         Raises:
             NotImplemented: Raises if it tries to restore a checkpoint; will be removed.
         """
-        self.dist = build_distributed(self.cfg.get("distributed", {}))
+        self.dist_env = build_distributed(self.cfg.get("dist_env", {}))
+        model_wrapper = None
+        if 'distributed' in self.cfg:
+            model_wrapper = self.cfg.distributed.instantiate(world_size=self.dist_env.world_size)
+            print(model_wrapper)
+        torch.manual_seed(self.cfg.get("seed", 42) + self.dist_env.rank)
 
-        if self.dist.is_main and hasattr(self.cfg, 'logger'):
+        if self.dist_env.is_main and hasattr(self.cfg, 'logger'):
             wandb.init(
                 project=self.cfg.logger.get("wandb_project", "default_project"),
                 entity=self.cfg.logger.get("wandb_entity"),
@@ -137,15 +149,13 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 config=self.cfg,
             )
 
-        torch.manual_seed(self.cfg.get("seed", 42) + self.dist.rank)
+        torch.manual_seed(self.cfg.get("seed", 42) + self.dist_env.rank)
 
         # Build components
-        self.model = build_model(self.dist.device, self.cfg.model)
-        self.optimizer = build_optimizer(self.dist.device, self.cfg.optimizer, self.model)
-        self.loss_fn   = build_loss_fn(self.dist.device, self.cfg.loss_fn)
-        self.dataloader = build_dataloader(
-            self.dist.device, self.cfg.dataset, self.cfg.dataloader
-        )
+        self.model = build_model(self.dist_env.device, model_wrapper, self.cfg.model)
+        self.optimizer = build_optimizer(self.dist_env.device, self.cfg.optimizer, self.model)
+        self.loss_fn   = build_loss_fn(self.dist_env.device, self.cfg.loss_fn)
+        self.dataloader = build_dataloader(self.dist_env.device, self.cfg.dataset, self.cfg.dataloader)
 
         # Build validation dataloader if the config provides it
         self.val_dataloader = None
@@ -153,7 +163,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         val_dl_cfg = self.cfg.get("validation_dataloader")
         if val_ds_cfg is not None and val_dl_cfg is not None:
             self.val_dataloader = build_dataloader(
-                self.dist.device, val_ds_cfg, val_dl_cfg
+                self.dist_env.device, val_ds_cfg, val_dl_cfg
             )
         self.total_num_tokens = torch.zeros([], dtype=torch.int, device="cuda")
         self.forward_data_store = []
@@ -185,7 +195,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
                 _, grad_norm = self._run_train_step(batch, is_grad)
 
-                if self.dist.is_main and is_grad:
+                if self.dist_env.is_main and is_grad:
                     total_loss, total_num_tokens = reduce_loss(
                         self.forward_data_store, self.total_num_tokens, per_token_loss=self.cfg.training.get("calculate_per_token_loss", False)
                     )
@@ -212,7 +222,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 # --------- Periodic validation based on val_frequency ---------
                 if is_eval and self.val_dataloader is not None:
                     val_loss = self._run_validation_epoch()
-                    if self.dist.is_main:
+                    if self.dist_env.is_main:
                         if wandb.run is not None:
                             wandb.log({"val_loss": val_loss, "step": self.scheduler.step, "epoch": self.scheduler.epoch})
                         print(
@@ -222,7 +232,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             # ---------------- Validation pass at the end of each epoch ----------------
             if self.val_dataloader is not None:
                 val_loss = self._run_validation_epoch()
-                if self.dist.is_main:
+                if self.dist_env.is_main:
                     if wandb.run is not None:
                         wandb.log({"val_loss": val_loss, "epoch": self.scheduler.epoch})
                     print(
@@ -231,7 +241,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
     # ------------------ helpers ------------------
     def _run_train_step(self, batch, is_grad):
-        batch = {k: v.to(self.dist.device, non_blocking=True) for k, v in batch.items()}
+        batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
         labels = batch.pop("labels")
         mask   = batch.pop("loss_mask", None)
         assert mask is not None, "loss_mask is required for training"
@@ -296,7 +306,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
         with torch.no_grad():
             for batch in self.val_dataloader:
-                batch = {k: v.to(self.dist.device, non_blocking=True) for k, v in batch.items()}
+                batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
                 labels = batch.pop("labels")
                 mask = batch.pop("loss_mask", None)
 
@@ -312,7 +322,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
         # Aggregate across ranks if distributed is initialized
         if dist.is_initialized():
-            tensor = torch.tensor([total_loss, total_tokens], device=self.dist.device)
+            tensor = torch.tensor([total_loss, total_tokens], device=self.dist_env.device)
             dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
             total_loss, total_tokens = tensor.tolist()
 
