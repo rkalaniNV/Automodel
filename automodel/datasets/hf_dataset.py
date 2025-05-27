@@ -9,7 +9,9 @@ from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from automodel.utils.common_utils import log_single_rank
+from automodel.utils.dist_utils import log_single_rank
+
+from automodel.datasets.utils import pad_within_micro, extract_key_from_dicts, batchify
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +273,7 @@ class HFDatasetBuilder(DataloaderConfig):
                 torch.LongTensor(
                     pad_within_micro(
                         extract_key_from_dicts(batch, key),
-                        pad_token_id if key != "loss_mask" else 0,
+                        (0 if key == "attention_mask" else (-100 if key == "labels" else pad_token_id)),
                         pad_seq_len_divisible,
                     )
                 )
@@ -329,7 +331,7 @@ class HFDatasetBuilder(DataloaderConfig):
             Optional[DistributedSampler]: A sampler for distributed training, or None.
         """
         if self.use_dist_sampler or has_dist_env_init_or_rank_env_var():
-            return DistributedSampler(dataset, num_replicas=world_size, rank=rank)
+            return DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=False)
         else:
             return None
 

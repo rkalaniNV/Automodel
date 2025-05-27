@@ -1,15 +1,19 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
-
+import time
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import wandb
 import torch.distributed as dist  # For aggregating validation metrics
 from automodel.config.loader import load_yaml_config
-from automodel.training.init_utils import initialize_distributed
+from automodel.training.init_utils import initialize_distributed, get_world_size_safe
+from automodel.training.train_utils import reduce_loss
 from automodel.base_recipe import BaseRecipe
+import contextlib
+import os
+import torch.profiler as prof
 
 
 # ---------------------------
@@ -18,9 +22,9 @@ from automodel.base_recipe import BaseRecipe
 
 def build_model(device, cfg_model) -> nn.Module:
     model = cfg_model.instantiate()
-    for m in model.modules():
-        if isinstance(m, nn.Embedding):
-            m.weight.requires_grad_(False)
+    # for m in model.modules():
+    #     if isinstance(m, nn.Embedding):
+    #         m.weight.requires_grad_(False)
     return model.to(device)
 
 def build_optimizer(device, cfg_opt, model) -> Optimizer:
@@ -151,6 +155,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             self.val_dataloader = build_dataloader(
                 self.dist.device, val_ds_cfg, val_dl_cfg
             )
+        self.total_num_tokens = torch.zeros([], dtype=torch.int, device="cuda")
+        self.forward_data_store = []
 
         # Scheduler
         self.scheduler = StepScheduler(
@@ -176,15 +182,22 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             for batch_idx, batch in enumerate(self.dataloader):
                 # Scheduler returns (is_grad_step, is_ckpt_step, is_eval_step)
                 is_grad, is_ckpt, is_eval = self.scheduler.update(batch_idx)
-                loss, grad_norm = self._run_train_step(batch, is_grad)
-                # if self.dist.is_main and is_ckpt:
-                #     self._save_checkpoint()
+
+                _, grad_norm = self._run_train_step(batch, is_grad)
+
                 if self.dist.is_main and is_grad:
+                    total_loss, total_num_tokens = reduce_loss(
+                        self.forward_data_store, self.total_num_tokens, per_token_loss=self.cfg.training.get("calculate_per_token_loss", False)
+                    )
+                    reporting_loss = (total_loss / total_num_tokens).item()
+                    self.total_num_tokens.zero_()
+                    self.forward_data_store = []
                     log_data = {
-                        "train_loss": loss.item(),
-                        "scheduler_step": self.scheduler.step,
+                        "train_loss": reporting_loss,
+                        "step": self.scheduler.step,
                         "epoch": self.scheduler.epoch,
                         "grad_norm": grad_norm,
+                        "num_tokens_per_step": total_num_tokens,
                     }
                     if self.optimizer.param_groups:
                         log_data["learning_rate"] = self.optimizer.param_groups[0]['lr']
@@ -193,8 +206,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                         wandb.log(log_data)
                         
                     print(
-                        f"step {self.scheduler.step} | epoch {self.scheduler.epoch} | loss {loss.item():.4f}",
-                        flush=True,
+                        f"step {self.scheduler.step} | epoch {self.scheduler.epoch} | loss {reporting_loss:.4f} | grad_norm {grad_norm:.4f}",
                     )
 
                 # --------- Periodic validation based on val_frequency ---------
@@ -205,7 +217,6 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                             wandb.log({"val_loss": val_loss, "step": self.scheduler.step, "epoch": self.scheduler.epoch})
                         print(
                             f"[val] step {self.scheduler.step} | epoch {self.scheduler.epoch} | loss {val_loss:.4f}",
-                            flush=True,
                         )
 
             # ---------------- Validation pass at the end of each epoch ----------------
@@ -216,28 +227,53 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                         wandb.log({"val_loss": val_loss, "epoch": self.scheduler.epoch})
                     print(
                         f"[val] epoch {self.scheduler.epoch} | loss {val_loss:.4f}",
-                        flush=True,
                     )
 
     # ------------------ helpers ------------------
     def _run_train_step(self, batch, is_grad):
-        batch = {k: v.to(self.dist.device) for k, v in batch.items()}
+        batch = {k: v.to(self.dist.device, non_blocking=True) for k, v in batch.items()}
         labels = batch.pop("labels")
         mask   = batch.pop("loss_mask", None)
+        assert mask is not None, "loss_mask is required for training"
 
         out  = self.model(**batch)
-        loss = self.loss_fn(out.logits.view(-1, out.logits.size(-1)),
-                            labels.view(-1), mask=mask)
-        loss.backward()
+        local_loss = self.loss_fn(out.logits.view(-1, out.logits.size(-1)),
+                            labels.view(-1), mask=mask, reduction="sum")
 
+        local_num_tokens = mask.sum().detach().to(torch.int)
+
+        self.total_num_tokens += local_num_tokens
+        self.forward_data_store.append(local_loss.detach())
+
+        # Use `no_sync` on DDP models when we are *not* on the final micro-batch for
+        # this gradient update (i.e., when `is_grad` is False). This avoids an
+        # all-reduce for every micro-batch and greatly improves throughput.
+        if isinstance(self.model, torch.nn.parallel.DistributedDataParallel) and not is_grad:
+            sync_ctx = self.model.no_sync()
+        else:
+            sync_ctx = contextlib.nullcontext()
+
+        with sync_ctx:
+            local_loss.backward()
+
+        grad_norm = None
         if is_grad:
+            if self.cfg.training.get("calculate_per_token_loss", False):
+                world_size = get_world_size_safe()
+                num_tokens_for_grad_scaling = self.total_num_tokens.clone().detach()
+                dist.all_reduce(num_tokens_for_grad_scaling)
+                # DDP reduces across ranks, so we need to scale by the world size to inverse it
+                scaling_factor = world_size / num_tokens_for_grad_scaling
+                for param in self.model.parameters():
+                    if param.grad is not None:
+                        param.grad.data.mul_(scaling_factor)
+
+            # Clip gradients **after** any optional rescaling.
             grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-            # clip_grad_norm_ returns a tensor or float; ensure Python float for logging
-            grad_norm = grad_norm.item() if isinstance(grad_norm, torch.Tensor) else float(grad_norm)
 
             self.optimizer.step()
             self.optimizer.zero_grad()
-        return loss.detach(), grad_norm
+        return self.forward_data_store[-1], grad_norm
 
     def _save_checkpoint(self):
         path = self.cfg.get("ckpt_path", "latest.pt")
@@ -252,15 +288,15 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
     # ------------------------------------------------------------------
 
     def _run_validation_epoch(self) -> float:
-        """Run one pass over `self.val_dataloader` and return average loss."""
+        """Run one pass over `self.val_dataloader` and return average loss per token."""
         self.model.eval()
 
         total_loss = 0.0
-        total_count = 0
+        total_tokens = 0
 
         with torch.no_grad():
             for batch in self.val_dataloader:
-                batch = {k: v.to(self.dist.device) for k, v in batch.items()}
+                batch = {k: v.to(self.dist.device, non_blocking=True) for k, v in batch.items()}
                 labels = batch.pop("labels")
                 mask = batch.pop("loss_mask", None)
 
@@ -269,18 +305,19 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     out.logits.view(-1, out.logits.size(-1)),
                     labels.view(-1),
                     mask=mask,
+                    reduction="sum"
                 )
                 total_loss += loss.item()
-                total_count += 1
+                total_tokens += mask.sum().item()
 
         # Aggregate across ranks if distributed is initialized
         if dist.is_initialized():
-            tensor = torch.tensor([total_loss, total_count], device=self.dist.device)
+            tensor = torch.tensor([total_loss, total_tokens], device=self.dist.device)
             dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
-            total_loss, total_count = tensor.tolist()
+            total_loss, total_tokens = tensor.tolist()
 
         self.model.train()
-        return total_loss / max(total_count, 1e-8)
+        return total_loss / max(total_tokens, 1e-8)
 
 # ---------------------------------------------------------------------------
 # Entry point

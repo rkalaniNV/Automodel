@@ -23,29 +23,29 @@ import torch
 from torch.nn.parallel import DistributedDataParallel
 from transformers import AutoTokenizer
 
-from automodel.checkpointing import (
+from automodel.training.checkpoint import (
     checkpoint_and_decide_exit,
     checkpoint_exists,
     load_checkpoint,
     save_checkpoint_and_time,
 )
-from automodel.components.state import GlobalState
-from automodel.config import ConfigContainer
-from automodel.utils.distributed_utils import initialize_automodel
-from automodel.utils.train_utils import (
+from automodel.training.state import GlobalState
+from automodel.training.config import ConfigContainer
+from automodel.training.init_utils import initialize_automodel
+from automodel.training.train_utils import (
     eval_log,
     reduce_loss,
     training_log,
 )
-from nemo_lm.config.common import ProfilingConfig
-from automodel.utils.common_utils import (
+from automodel.training.config import ProfilingConfig
+from automodel.utils.dist_utils import (
     append_to_progress_log,
     barrier_and_log,
     get_rank_safe,
     get_world_size_safe,
     print_rank_0,
 )
-from automodel.utils.log_utils import setup_logging
+from automodel.loggers.log_utils import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +159,7 @@ def forward_with_loss(
     model: torch.nn.Module,
     loss_fn: Callable,
 ):
+    # breakpoint()
     timers = state.timers
 
     with timers("batch-generator", log_level=2):
@@ -228,6 +229,7 @@ def train_step(
         loss, num_tokens = forward_with_loss(
             state=global_state, data_iterator=data_iterator, model=model, loss_fn=model_config.loss_fn
         )
+        # breakpoint()
         num_tokens = num_tokens.clone().detach().to(torch.int)
         total_num_tokens += num_tokens.item()
         forward_data_store.append(loss.clone())
@@ -450,10 +452,12 @@ def train(
     while global_state.train_state.step < train_config.train_iters:
         pre_training_step_callbacks(global_state, prof_config, prof)
         # Run training step.
+        init_time = time.time()
         loss_dict, grad_norm = train_step(
             train_data_iterator, model, optimizer, scheduler, num_microbatches, global_state
         )
-
+        train_time = time.time() - init_time
+        print(f"train_time: {train_time}")
         global_state.train_state.step += 1
         batch_size = config.data_parallel_size * train_config.micro_batch_size * num_microbatches
         global_state.train_state.consumed_train_samples += batch_size

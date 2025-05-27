@@ -15,7 +15,7 @@
 from pathlib import Path
 from typing import Any, Optional
 
-from automodel.utils.common_utils import print_rank_last
+from automodel.utils.dist_utils import print_rank_last
 
 
 def on_save_checkpoint_success(

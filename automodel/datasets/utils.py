@@ -143,6 +143,10 @@ class SFTSingleTurnPreprocessor:
             [-100] * (len(c_ids)-1) + t_ids + [-100]
             for c_ids, t_ids in zip(ctx_tok["input_ids"], tgt_tok["input_ids"])
         ]
+
+        out["loss_mask"] = [
+            [1 if t != -100 else 0 for t in lbl] for lbl in out["labels"]
+        ]
         return out
 
     # --------------------------------------------------------------------- #
@@ -173,6 +177,10 @@ class SFTSingleTurnPreprocessor:
             examples["labels"] = [
                 (lbl[:max_len] + [-100] * max(0, max_len - len(lbl)))
                 for lbl in examples["labels"]
+            ]
+            examples["loss_mask"] = [
+                (lm[:max_len] + [0] * max(0, max_len - len(lm)))
+                for lm in examples["loss_mask"]
             ]
             # return dictionary with sequences all exactly `max_len` long
             return examples
@@ -209,6 +217,9 @@ class SFTSingleTurnPreprocessor:
             desc="Running tokenizer on dataset",
         )
 
+        tokenized = tokenized.shuffle(
+            seed=getattr(self, "seed", 42)
+        )
         # 2. global max len -----------------------------------------------------------
         max_len = self._compute_dataset_max_len(tokenized)
 
