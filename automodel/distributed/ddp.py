@@ -28,7 +28,6 @@ class DDPManager:
     )
     backend: str = field(
         default="nccl",
-        default_factory=str,
         metadata={"help": "Distributed backend, e.g. 'nccl' or 'gloo'."}
     )
 
@@ -44,7 +43,10 @@ class DDPManager:
         metadata={"help": "Total number of distributed processes."}
     )
 
-    def setup_distributed(self):
+    def __post_init__(self):
+        return self._setup_distributed()
+
+    def _setup_distributed(self):
         """
         Initialize torch.distributed process group and wrap raw_model in DDP.
         Requires env vars: RANK, WORLD_SIZE, MASTER_ADDR, MASTER_PORT.
@@ -63,11 +65,11 @@ class DDPManager:
         if self.backend == "nccl":
             local_gpu = self.rank % torch.cuda.device_count()
             torch.cuda.set_device(local_gpu)
-            device = torch.device("cuda", index=local_gpu)
+            self.device = torch.device("cuda", index=local_gpu)
         else:
-            device = torch.device("cpu")
+            self.device = torch.device("cpu")
 
-    def wrap_model(self, model):
+    def parallelize(self, model):
         """Move the model to the correct device and wrap it with ``torch.nn.parallel.DistributedDataParallel``.
 
         The device is derived from the current global rank in the same way we do in
@@ -76,17 +78,9 @@ class DDPManager:
         reference an undefined variable ``device`` which caused a ``NameError`` at
         runtime – we recreate the exact device object here before using it.
         """
-
-        if self.backend == "nccl" and torch.cuda.is_available():
-            local_gpu = self.rank % torch.cuda.device_count()
-            torch.cuda.set_device(local_gpu)
-            device = torch.device("cuda", index=local_gpu)
-        else:
-            device = torch.device("cpu")
-
-        model = model.to(device)
+        model = model.to(self.device)
         # Wrap in DDP; for CPU or GLOO backend we pass no ``device_ids``.
-        ddp_model = DDP(model, device_ids=[device] if device.type == "cuda" else None)
+        ddp_model = DDP(model, device_ids=[self.device] if self.device.type == "cuda" else None)
         return ddp_model
 
     # @contextmanager

@@ -34,8 +34,30 @@ def build_loss_fn(device, cfg_loss):
         return cfg_loss.instantiate().to(device)
 
 def build_dataloader(device, cfg_ds, cfg_dl) -> DataLoader:
+    """Instantiate dataset -> sampler (if any) -> dataloader.
+
+    ``cfg_dl`` may optionally contain a nested ``sampler`` block.  That block
+    needs the *dataset* argument at runtime, which cannot be supplied purely
+    from the YAML.  We therefore instantiate it here, *after* we have created
+    the dataset object, and then pass the fully-constructed sampler instance
+    to the DataLoader constructor.
+    """
     ds = cfg_ds.instantiate()
-    return cfg_dl.instantiate(dataset=ds)
+
+    # Handle optional sampler
+    sampler_cfg = None
+    sampler_obj = None
+    if hasattr(cfg_dl, "sampler"):
+        sampler_cfg = cfg_dl.sampler
+        # Remove it from kwargs so that ``instantiate`` doesn't try to build it
+        # on its own (which fails because ``dataset`` would be missing).
+        del cfg_dl.__dict__["sampler"]
+
+        # Instantiate the sampler with the actual dataset.
+        if sampler_cfg is not None:
+            sampler_obj = sampler_cfg.instantiate(dataset=ds)
+
+    return cfg_dl.instantiate(dataset=ds, sampler=sampler_obj)
 
 def build_distributed(cfg_dist: Dict[str, Any]) -> DistInfo:
     backend = cfg_dist.get("backend", "nccl")
@@ -126,7 +148,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         self.dist_env = build_distributed(self.cfg.get("dist_env", {}))
         model_wrapper = None
         if 'distributed' in self.cfg:
-            model_wrapper = self.cfg.distributed.instantiate(world_size=self.dist_env.world_size)
+            model_wrapper = self.cfg.distributed.instantiate()
             print(model_wrapper)
         torch.manual_seed(self.cfg.get("seed", 42) + self.dist_env.rank)
 
@@ -163,11 +185,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             num_epochs = self.cfg.training.get("epochs", 10),
             grad_acc_steps   = self.cfg.training.get("grad_acc_steps", 10),
             ckpt_every_steps = self.cfg.training.get("ckpt_every_steps", 100),
-            eval_every_steps = (
-                self.cfg.training.get("eval_frequency")
-                if "eval_frequency" in self.cfg.training
-                else self.cfg.training.get("val_frequency")
-            ),
+            eval_every_steps = self.cfg.training.get("val_frequency"),
             epoch_len        = len(self.dataloader),
         )
 
@@ -185,7 +203,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
                 _, grad_norm = self._run_train_step(batch, is_grad)
 
-                if self.dist_env.is_main and is_grad:
+                if is_grad:
                     total_loss, total_num_tokens = reduce_loss(
                         self.forward_data_store, self.total_num_tokens, per_token_loss=self.cfg.training.get("calculate_per_token_loss", False)
                     )
@@ -204,10 +222,11 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
                     if wandb.run is not None:
                         wandb.log(log_data)
-                        
-                    print(
-                        f"step {self.scheduler.step} | epoch {self.scheduler.epoch} | loss {reporting_loss:.4f} | grad_norm {grad_norm:.4f}",
-                    )
+
+                    if self.dist_env.is_main:
+                        print(
+                            f"step {self.scheduler.step} | epoch {self.scheduler.epoch} | loss {reporting_loss:.4f} | grad_norm {grad_norm:.4f}",
+                        )
 
                 # --------- Periodic validation based on val_frequency ---------
                 if is_eval and self.val_dataloader is not None:
