@@ -11,7 +11,7 @@ import torch.distributed as dist
 from torch.distributed.device_mesh import init_device_mesh
 from torch.distributed.tensor._api import distribute_tensor
 from torch.distributed.tensor.placement_types import Replicate, Shard
-from nemo_lm.automodel.utils.import_utils import safe_import_from
+from automodel.utils.import_utils import safe_import_from
 from dataclasses import dataclass, field
 
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
@@ -23,7 +23,7 @@ fully_shard, HAS_FULLY_SHARD = safe_import_from(
 CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
     "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
 )
-from nemo_lm.automodel.distributed.parallelizer import fsdp2_strategy_parallelize
+from automodel.distributed.parallelizer import fsdp2_strategy_parallelize
 
 
 

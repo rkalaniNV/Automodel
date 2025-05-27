@@ -3,10 +3,9 @@ import os
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DistributedSampler, DataLoader
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Dict, Union
+from dataclasses import dataclass, field
 
 @dataclass
 class CheckpointIO:
@@ -69,9 +68,26 @@ class DDPManager:
             device = torch.device("cpu")
 
     def wrap_model(self, model):
-        model.to(device)
-        # wrap in DDP
-        return DDP(model, device_ids=[device] if device.type == "cuda" else None)
+        """Move the model to the correct device and wrap it with ``torch.nn.parallel.DistributedDataParallel``.
+
+        The device is derived from the current global rank in the same way we do in
+        ``setup_distributed``: for NCCL back-end we pin each rank to a single GPU
+        (``rank % num_gpus``); otherwise we default to CPU.  This method used to
+        reference an undefined variable ``device`` which caused a ``NameError`` at
+        runtime – we recreate the exact device object here before using it.
+        """
+
+        if self.backend == "nccl" and torch.cuda.is_available():
+            local_gpu = self.rank % torch.cuda.device_count()
+            torch.cuda.set_device(local_gpu)
+            device = torch.device("cuda", index=local_gpu)
+        else:
+            device = torch.device("cpu")
+
+        model = model.to(device)
+        # Wrap in DDP; for CPU or GLOO backend we pass no ``device_ids``.
+        ddp_model = DDP(model, device_ids=[device] if device.type == "cuda" else None)
+        return ddp_model
 
     # @contextmanager
     # def no_sync(self):

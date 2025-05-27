@@ -1,12 +1,7 @@
 from __future__ import annotations
-import sys
-sys.path.insert(0, '/mnt/4tb/nemo_lm/')
 
-from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
-import time
 
-import os
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -17,8 +12,6 @@ from automodel.training.init_utils import initialize_distributed, get_world_size
 from automodel.training.train_utils import reduce_loss
 from automodel.base_recipe import BaseRecipe
 import contextlib
-import os
-import torch.profiler as prof
 
 
 # ---------------------------
@@ -27,9 +20,6 @@ import torch.profiler as prof
 
 def build_model(device, model_wrapper, cfg_model) -> nn.Module:
     model = cfg_model.instantiate()
-    # for m in model.modules():
-    #     if isinstance(m, nn.Embedding):
-    #         m.weight.requires_grad_(False)
     if model_wrapper is not None:
         model = model_wrapper.parallelize(model)
     return model.to(device)
