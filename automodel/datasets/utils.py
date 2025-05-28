@@ -217,9 +217,6 @@ class SFTSingleTurnPreprocessor:
             desc="Running tokenizer on dataset",
         )
 
-        tokenized = tokenized.shuffle(
-            seed=getattr(self, "seed", 42)
-        )
         # 2. global max len -----------------------------------------------------------
         max_len = self._compute_dataset_max_len(tokenized)
 

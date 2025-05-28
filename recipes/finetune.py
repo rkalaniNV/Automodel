@@ -149,7 +149,6 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         model_wrapper = None
         if 'distributed' in self.cfg:
             model_wrapper = self.cfg.distributed.instantiate()
-            print(model_wrapper)
         torch.manual_seed(self.cfg.get("seed", 42) + self.dist_env.rank)
 
         if self.dist_env.is_main and hasattr(self.cfg, 'logger'):
@@ -208,10 +207,12 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                         self.forward_data_store, self.total_num_tokens, per_token_loss=self.cfg.training.get("calculate_per_token_loss", False)
                     )
                     reporting_loss = (total_loss / total_num_tokens).item()
+                    grad_norm = grad_norm.item()
                     self.total_num_tokens.zero_()
                     self.forward_data_store = []
                     log_data = {
                         "train_loss": reporting_loss,
+                        "loss_sum": total_loss,
                         "step": self.scheduler.step,
                         "epoch": self.scheduler.epoch,
                         "grad_norm": grad_norm,
@@ -267,7 +268,10 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         # Use `no_sync` on DDP models when we are *not* on the final micro-batch for
         # this gradient update (i.e., when `is_grad` is False). This avoids an
         # all-reduce for every micro-batch and greatly improves throughput.
-        if isinstance(self.model, torch.nn.parallel.DistributedDataParallel) and not is_grad:
+        if isinstance(self.model, dist.fsdp._fully_shard._fully_shard.FSDPModule):
+            self.model.set_requires_gradient_sync(is_grad)
+            sync_ctx = contextlib.nullcontext()
+        elif isinstance(self.model, torch.nn.parallel.DistributedDataParallel) and not is_grad:
             sync_ctx = self.model.no_sync()
         else:
             sync_ctx = contextlib.nullcontext()
@@ -288,7 +292,12 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                         param.grad.data.mul_(scaling_factor)
 
             # Clip gradients **after** any optional rescaling.
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+            with torch.no_grad():
+                grads = [p.grad for p in self.model.parameters() if p.grad is not None]
+                grad_norm = torch.nn.utils.get_total_norm(grads)
+                if isinstance(grad_norm, torch.distributed.tensor.DTensor):
+                    grad_norm = grad_norm.full_tensor()
+                torch.nn.utils.clip_grads_with_norm_([p for p in self.model.parameters()], 1.0, grad_norm)
 
             self.optimizer.step()
             self.optimizer.zero_grad()

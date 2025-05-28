@@ -9,7 +9,7 @@ from automodel.datasets.utils import SFTSingleTurnPreprocessor
 class HellaSwag:
     def __init__(self, path_or_dataset, tokenizer, split):
         print(path_or_dataset)
-        raw_datasets = load_dataset(path_or_dataset, split=split)
+        raw_datasets = load_dataset(path_or_dataset, split=split, trust_remote_code=True)
         processor = SFTSingleTurnPreprocessor(tokenizer)
         self.dataset = processor.process(raw_datasets, self)
 

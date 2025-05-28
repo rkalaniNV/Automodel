@@ -87,11 +87,35 @@ class FSDP2Manager:
     )
     world_size: int = field(
         default=None,
-        # init=False,
+        init=False,
         metadata={"help": "Total number of processes."}
     )
 
     def __post_init__(self):
+        # Ensure any string representations of dtypes coming from YAML are converted to actual torch.dtypes.
+        def _to_torch_dtype(x):
+            """Convert string like 'torch.float32' or 'float32' to torch.float32 constant."""
+            if isinstance(x, str):
+                # Strip optional leading module name
+                if x.startswith("torch."):
+                    x = x.split(".", 1)[1]
+                try:
+                    return getattr(torch, x)
+                except AttributeError:
+                    raise ValueError(f"Unsupported dtype string '{x}' in mp_policy configuration")
+            return x
+
+        if isinstance(self.mp_policy, MixedPrecisionPolicy):
+            # Recreate policy only if any field is a string
+            needs_fix = any(isinstance(getattr(self.mp_policy, f), str) for f in ("param_dtype", "reduce_dtype", "output_dtype"))
+            if needs_fix:
+                self.mp_policy = MixedPrecisionPolicy(
+                    param_dtype=_to_torch_dtype(self.mp_policy.param_dtype),
+                    reduce_dtype=_to_torch_dtype(self.mp_policy.reduce_dtype),
+                    output_dtype=_to_torch_dtype(self.mp_policy.output_dtype),
+                    cast_forward_inputs=self.mp_policy.cast_forward_inputs,
+                )
+
         return self._setup_distributed()
 
     def _setup_distributed(self):
@@ -104,7 +128,15 @@ class FSDP2Manager:
             raise RuntimeError("torch.distributed not available")
 
         if not dist.is_initialized():
-            raise RuntimeError("expected torch.distributed to be initialized")
+            # raise RuntimeError("expected torch.distributed to be initialized")
+            rank = int(os.environ["RANK"])
+            world = int(os.environ["WORLD_SIZE"])
+            os.environ.setdefault("MASTER_ADDR", os.environ.get("MASTER_ADDR", "localhost"))
+            os.environ.setdefault("MASTER_PORT", os.environ.get("MASTER_PORT", "29500"))
+            dist.init_process_group(self.backend, rank=rank, world_size=world)
+
+        self.world_size = dist.get_world_size()
+        self.rank = dist.get_rank()
 
         # infer if not provided
         self.dp_size = self.dp_size
