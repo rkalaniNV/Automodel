@@ -22,10 +22,10 @@ import yaml
 from torch.distributed.checkpoint.stateful import Stateful
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from automodel.components.timers import Timers
-from automodel.config import ConfigContainer
-from automodel.utils.common_utils import dump_dataclass_to_yaml, get_rank_safe, get_world_size_safe
-from automodel.utils.sig_utils import DistributedSignalHandler
+from nemo_automodel.components.timers import Timers
+from nemo_automodel.config import ConfigContainer
+from nemo_automodel.utils.common_utils import dump_dataclass_to_yaml, get_rank_safe, get_world_size_safe
+from nemo_automodel.utils.sig_utils import DistributedSignalHandler
 
 
 @dataclass

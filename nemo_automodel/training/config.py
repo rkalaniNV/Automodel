@@ -22,11 +22,11 @@ import torch
 from torch.nn.parallel import DistributedDataParallel
 from transformers import AutoConfig, AutoModelForCausalLM, BitsAndBytesConfig
 
-from automodel.components.data.hf_dataset import HFDatasetBuilder
-from automodel.components.loss.linear_ce import HAVE_LINEAR_LOSS_CE
-from automodel.components.loss.masked_ce import masked_cross_entropy
-from automodel.components.scheduler import OptimizerParamScheduler
-from automodel.utils.model_utils import JitConfig, TEConfig, jit_compile_model, te_accelerate
+from nemo_automodel.components.data.hf_dataset import HFDatasetBuilder
+from nemo_automodel.components.loss.linear_ce import HAVE_LINEAR_LOSS_CE
+from nemo_automodel.components.loss.masked_ce import masked_cross_entropy
+from nemo_automodel.components.scheduler import OptimizerParamScheduler
+from nemo_automodel.utils.model_utils import JitConfig, TEConfig, jit_compile_model, te_accelerate
 from nemo_lm.config.common import (
     DistributedInitConfig,
     LoggerConfig,
@@ -34,9 +34,9 @@ from nemo_lm.config.common import (
     RNGConfig,
     TrainingConfig,
 )
-from automodel.utils.common_utils import get_rank_safe, get_world_size_safe
-from automodel.utils.config_utils import ConfigContainer as Container
-from automodel.utils.import_utils import safe_import
+from nemo_automodel.utils.common_utils import get_rank_safe, get_world_size_safe
+from nemo_automodel.utils.config_utils import ConfigContainer as Container
+from nemo_automodel.utils.import_utils import safe_import
 
 logger = logging.getLogger(__name__)
 

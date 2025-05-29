@@ -21,8 +21,8 @@ from typing import Any, Optional, Type, TypeVar
 import yaml
 from omegaconf import OmegaConf
 
-from automodel.utils.instantiate_utils import InstantiationMode, instantiate
-from automodel.utils.yaml_utils import safe_yaml_representers
+from nemo_automodel.utils.instantiate_utils import InstantiationMode, instantiate
+from nemo_automodel.utils.yaml_utils import safe_yaml_representers
 
 T = TypeVar("T", bound="ConfigContainer")
 

@@ -18,9 +18,9 @@ from typing import Optional
 
 import torch
 
-from automodel.components.state import GlobalState
-from automodel.config import ConfigContainer
-from automodel.utils.common_utils import (
+from nemo_automodel.components.state import GlobalState
+from nemo_automodel.config import ConfigContainer
+from nemo_automodel.utils.common_utils import (
     get_world_size_safe,
     is_last_rank,
     print_rank_last,
