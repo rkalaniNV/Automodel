@@ -32,8 +32,15 @@ def build_model(device, model_wrapper, cfg_model) -> nn.Module:
     for m in model.modules():
         if isinstance(m, nn.Embedding):
             m.weight.requires_grad_(False)
+            for name, param in model.named_parameters(remove_duplicate=False):
+                if param.data.data_ptr() == m.weight.data_ptr():
+                    print('dup: ' + str(name) + " " + str(m.weight.requires_grad))
+            # print(list(map(lambda x: x[0], m.named_parameters(remove_duplicate=False))))
     if model_wrapper is not None and callable(getattr(model_wrapper, 'parallelize', None)):
         model = model_wrapper.parallelize(model)
+    # print(model)
+    # quit()
+    model.compile(dynamic=True, fullgraph=True)
     return model.to(device)
 
 def build_optimizer(device, cfg_opt, model) -> 'Optimizer':  # noqa: F821
@@ -81,6 +88,10 @@ def build_dataloader(device, cfg_ds, cfg_dl) -> DataLoader:
         The instantiated DataLoader.
     """
     ds = cfg_ds.instantiate()
+    # sample = ds[10]
+    # for key, val in sample.items():
+    #     print(key, len(val), val)
+    # quit()
     sampler = torch.utils.data.distributed.DistributedSampler(ds)
     return cfg_dl.instantiate(dataset=ds, sampler=sampler)
 
@@ -191,8 +202,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     self._save_checkpoint()
 
                 if self.dist_env.is_main and is_optim_step:
-                    print(f"step {self.step_scheduler.step} | loss {loss.item():.6f}", flush=True)
-
+                    print(f"step {self.step_scheduler.step} | loss {loss.item():.6f} |  {batch_idx}", flush=True)
+                # if self.step_scheduler.step > 60:
+                #     quit()
 
     # ------------------ helpers ------------------
     def _run_train_step(self, batch, is_optim_step, clip_norm=1.0, num_grad_acc_steps=10):
@@ -216,13 +228,13 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         loss.backward()
 
         if is_optim_step:
-            grad_params = []
             for param in self.model.parameters():
                 if param.grad is not None:
+                    # b = torch.norm(param.grad)
                     param.grad.data.mul_(1/num_grad_acc_steps)
-                    grad_params.append(param)
+                    # print(b, torch.norm(param.grad))
             if isinstance(clip_norm, float):
-                torch.nn.utils.clip_grad_norm_(grad_params, clip_norm, foreach=True)
+                torch.nn.utils.clip_grad_norm(self.model.parameters(), clip_norm, foreach=True)
             self.optimizer.step()
             self.optimizer.zero_grad()
         return loss.detach()

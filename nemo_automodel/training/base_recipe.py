@@ -67,6 +67,7 @@ class BaseRecipe(Stateful):
 
         Currently iterates over state-tracked attributes and saves their state_dict.
         """
+        return
         path = self.cfg.get("ckpt_path", "latest/")
 
         # Create the checkpoint directory if it doesn't exist
