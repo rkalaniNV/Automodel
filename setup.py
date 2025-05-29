@@ -25,7 +25,7 @@ from distutils import log as distutils_log
 import setuptools
 
 spec = importlib.util.spec_from_file_location(
-    "package_info", "automodel/package_info.py"
+    "package_info", "nemo_automodel/package_info.py"
 )
 if spec is None:
     raise ImportError("Failed to import package_info")
