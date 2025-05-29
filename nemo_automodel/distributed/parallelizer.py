@@ -7,8 +7,12 @@ import torch
 from torch import Tensor, nn
 from torch.distributed._tensor import DTensor, Replicate
 from torch.distributed.device_mesh import DeviceMesh, _mesh_resources
-from torch.distributed.fsdp import CPUOffloadPolicy, MixedPrecisionPolicy, fully_shard
-from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel, parallelize_module
+from torch.distributed.fsdp import (CPUOffloadPolicy, MixedPrecisionPolicy,
+                                    fully_shard)
+from torch.distributed.tensor.parallel import (ColwiseParallel,
+                                               RowwiseParallel,
+                                               SequenceParallel,
+                                               parallelize_module)
 
 
 # Taken and modified from torchtitan
@@ -17,8 +21,10 @@ def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = None,
-    tp_shard_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
-    offload_policy: 'CPUOffloadPolicy' = None,
+    tp_shard_plan: Optional[
+        Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]
+    ] = None,
+    offload_policy: "CPUOffloadPolicy" = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
 
@@ -39,7 +45,9 @@ def fsdp2_strategy_parallelize(
     """
 
     if not mp_policy:
-        mp_policy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
+        mp_policy = MixedPrecisionPolicy(
+            param_dtype=torch.bfloat16, reduce_dtype=torch.float32
+        )
 
     def parallelize_helper(module, mesh, mp_policy):
         if isinstance(module, nn.ModuleList):
@@ -63,7 +71,11 @@ def fsdp2_strategy_parallelize(
 
     # Set FSDP sharding mesh to context parallel mesh if CP > 1, else default to the data parallel mesh.
     dp_mesh = device_mesh[
-        ("dp_cp" if "dp_cp" in _mesh_resources.root_to_flatten_mapping.get(device_mesh, {}) else "data_parallel")
+        (
+            "dp_cp"
+            if "dp_cp" in _mesh_resources.root_to_flatten_mapping.get(device_mesh, {})
+            else "data_parallel"
+        )
     ]
     # print(dir(device_mesh))
     # print(device_mesh.mesh_dim_names)
@@ -71,7 +83,7 @@ def fsdp2_strategy_parallelize(
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
-    if 'tensor_parallel' in device_mesh.mesh_dim_names:
+    if "tensor_parallel" in device_mesh.mesh_dim_names:
         tp_mesh = device_mesh["tensor_parallel"]
         # TP sharding
         if tp_mesh.size() > 1:
@@ -87,7 +99,11 @@ def fsdp2_strategy_parallelize(
     # reshard_after_forward=True based on
     # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
     model = fully_shard(
-        model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True, offload_policy=offload_policy
+        model,
+        mesh=dp_mesh,
+        mp_policy=mp_policy,
+        reshard_after_forward=True,
+        offload_policy=offload_policy,
     )
 
     return model
@@ -98,12 +114,16 @@ def get_hf_tp_shard_plan(model):
     Get the tensor parallel sharding plan from the model.
     """
     hf_tp_shard_plan = {}
-    if hasattr(model, '_tp_plan') and model._tp_plan is not None:
+    if hasattr(model, "_tp_plan") and model._tp_plan is not None:
         hf_tp_shard_plan.update(model._tp_plan)
-    if hasattr(model.model, '_tp_plan') and model.model._tp_plan is not None:
-        hf_tp_shard_plan.update({f"model.{k}": v for k, v in model.model._tp_plan.items()})
+    if hasattr(model.model, "_tp_plan") and model.model._tp_plan is not None:
+        hf_tp_shard_plan.update(
+            {f"model.{k}": v for k, v in model.model._tp_plan.items()}
+        )
 
-    hf_tp_shard_plan = {k: translate_to_torch_parallel_style(v) for k, v in hf_tp_shard_plan.items()}
+    hf_tp_shard_plan = {
+        k: translate_to_torch_parallel_style(v) for k, v in hf_tp_shard_plan.items()
+    }
     return hf_tp_shard_plan
 
 
@@ -229,14 +249,20 @@ def get_train_context(enable_loss_parallel: bool, enable_compiled_autograd: bool
                 stack.enter_context(torch.distributed.tensor.parallel.loss_parallel())
 
             if enable_compiled_autograd:
-                stack.enter_context(torch._dynamo.utils.maybe_enable_compiled_autograd(True))
+                stack.enter_context(
+                    torch._dynamo.utils.maybe_enable_compiled_autograd(True)
+                )
 
             if cp_context is not None:
                 from torch.nn.attention import SDPBackend, sdpa_kernel
 
                 # currently we only support these two SDP backends.
                 # TODO (xilunwu): support cuDNN backend
-                stack.enter_context(sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]))
+                stack.enter_context(
+                    sdpa_kernel(
+                        [SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]
+                    )
+                )
                 stack.enter_context(cp_context)
 
             yield

@@ -15,16 +15,14 @@
 import atexit
 import datetime
 import signal
+from dataclasses import dataclass
 
 import torch
 import torch.distributed
-from dataclasses import dataclass
 
-from nemo_automodel.utils.dist_utils import (
-    get_local_rank_preinit,
-    get_rank_safe,
-    get_world_size_safe
-)
+from nemo_automodel.utils.dist_utils import (get_local_rank_preinit,
+                                             get_rank_safe,
+                                             get_world_size_safe)
 
 
 @dataclass
@@ -39,15 +37,15 @@ class DistInfo:
         device (torch.device): The device assigned to the current process.
         is_main (bool): True if the process is the main process (rank 0).
     """
+
     backend: str
     rank: int
     world_size: int
     device: torch.device
     is_main: bool
 
-def initialize_distributed(
-    backend, timeout_minutes=1,
-):
+
+def initialize_distributed(backend, timeout_minutes=1):
     """
     Initialize the torch.distributed environment and core model parallel infrastructure.
 
@@ -72,7 +70,12 @@ def initialize_distributed(
 
     else:
         if get_rank_safe() == 0:
-            print("> initializing torch distributed with {} workers...".format(get_world_size_safe()), flush=True)
+            print(
+                "> initializing torch distributed with {} workers...".format(
+                    get_world_size_safe()
+                ),
+                flush=True,
+            )
 
         # Manually set the device ids.
         if device_count > 0:
@@ -103,7 +106,7 @@ def initialize_distributed(
         atexit.register(destroy_global_state)
         torch.distributed.barrier(device_ids=[get_local_rank_preinit()])
 
-    rank  = torch.distributed.get_rank()
+    rank = torch.distributed.get_rank()
     world_size = torch.distributed.get_world_size()
     device = torch.device("cuda", rank % torch.cuda.device_count())
     return DistInfo(backend, rank, world_size, device, rank == 0)

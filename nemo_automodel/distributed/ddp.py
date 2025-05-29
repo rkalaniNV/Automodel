@@ -1,8 +1,10 @@
 import os
+from dataclasses import dataclass, field
+
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-from dataclasses import dataclass, field
+
 
 @dataclass
 class DDPManager:
@@ -15,21 +17,21 @@ class DDPManager:
         rank (int): Global rank of this process. This is set during distributed setup.
         world_size (int): Total number of processes in the distributed group. Set at distributed setup.
     """
+
     backend: str = field(
-        default="nccl",
-        metadata={"help": "Distributed backend, e.g. 'nccl' or 'gloo'."}
+        default="nccl", metadata={"help": "Distributed backend, e.g. 'nccl' or 'gloo'."}
     )
 
     world_size: int = field(
         default_factory=lambda: int,
-        metadata={"help": "Total number of distributed processes."}
+        metadata={"help": "Total number of distributed processes."},
     )
 
     # This is populated in setup_distributed(), not by user:
     rank: int = field(
         init=False,
         default_factory=lambda: int,
-        metadata={"help": "Global rank of this process."}
+        metadata={"help": "Global rank of this process."},
     )
 
     def setup_distributed(self):
@@ -48,7 +50,9 @@ class DDPManager:
         if not dist.is_initialized():
             rank = int(os.environ["RANK"])
             world = int(os.environ["WORLD_SIZE"])
-            os.environ.setdefault("MASTER_ADDR", os.environ.get("MASTER_ADDR", "localhost"))
+            os.environ.setdefault(
+                "MASTER_ADDR", os.environ.get("MASTER_ADDR", "localhost")
+            )
             os.environ.setdefault("MASTER_PORT", os.environ.get("MASTER_PORT", "29500"))
             dist.init_process_group(self.backend, rank=rank, world_size=world)
 
@@ -78,7 +82,7 @@ class DDPManager:
         """
         return DDP(
             model.to(self.device),
-            device_ids=[self.device] if self.device.type == "cuda" else None
+            device_ids=[self.device] if self.device.type == "cuda" else None,
         )
 
     # @contextmanager

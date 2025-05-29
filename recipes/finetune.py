@@ -11,10 +11,10 @@ from nemo_automodel.distributed.init_utils import initialize_distributed
 from nemo_automodel.training.base_recipe import BaseRecipe
 from nemo_automodel.training.step_scheduler import StepScheduler
 
-
 # ---------------------------
 #  Stateless helper functions
 # ---------------------------
+
 
 def build_model(device, model_wrapper, cfg_model) -> nn.Module:
     """
@@ -32,11 +32,14 @@ def build_model(device, model_wrapper, cfg_model) -> nn.Module:
     for m in model.modules():
         if isinstance(m, nn.Embedding):
             m.weight.requires_grad_(False)
-    if model_wrapper is not None and callable(getattr(model_wrapper, 'parallelize', None)):
+    if model_wrapper is not None and callable(
+        getattr(model_wrapper, "parallelize", None)
+    ):
         model = model_wrapper.parallelize(model)
     return model.to(device)
 
-def build_optimizer(device, cfg_opt, model) -> 'Optimizer':  # noqa: F821
+
+def build_optimizer(device, cfg_opt, model) -> "Optimizer":  # noqa: F821
     """
     Build an optimizer for the model.
 
@@ -51,6 +54,7 @@ def build_optimizer(device, cfg_opt, model) -> 'Optimizer':  # noqa: F821
     trainable_params = list(filter(lambda x: x.requires_grad, model.parameters()))
     assert len(trainable_params) > 0, "trainable_params cannot be empty"
     return cfg_opt.instantiate(params=trainable_params)
+
 
 def build_loss_fn(device, cfg_loss):
     """
@@ -68,7 +72,8 @@ def build_loss_fn(device, cfg_loss):
     else:
         return cfg_loss.instantiate().to(device)
 
-def build_dataloader(device, cfg_ds, cfg_dl) -> DataLoader:
+
+def build_dataloader(device, cfg_ds, cfg_dl, distributed_sampler_kwargs) -> DataLoader:
     """
     Build a DataLoader for the dataset.
 
@@ -81,10 +86,15 @@ def build_dataloader(device, cfg_ds, cfg_dl) -> DataLoader:
         The instantiated DataLoader.
     """
     ds = cfg_ds.instantiate()
-    sampler = torch.utils.data.distributed.DistributedSampler(ds)
+    sampler = torch.utils.data.distributed.DistributedSampler(
+        ds,
+        num_replicas=distributed_sampler_kwargs["num_replicas"],
+        rank=distributed_sampler_kwargs["rank"],
+    )
     return cfg_dl.instantiate(dataset=ds, sampler=sampler)
 
-def build_distributed(cfg_dist: Dict[str, Any]) -> 'DistInfo':  # noqa: F821
+
+def build_distributed(cfg_dist: Dict[str, Any]) -> "DistInfo":  # noqa: F821
     """
     Build and initialize distributed training resources.
 
@@ -98,6 +108,7 @@ def build_distributed(cfg_dist: Dict[str, Any]) -> 'DistInfo':  # noqa: F821
     timeout = cfg_dist.get("timeout_minutes", 1)
     return initialize_distributed(backend=backend, timeout_minutes=timeout)
 
+
 def build_step_scheduler(cfg, dataloader):
     """
     Build the step scheduler.
@@ -109,12 +120,12 @@ def build_step_scheduler(cfg, dataloader):
     Returns:
         StepScheduler: the configured StepScheduler.
     """
-    assert not '_target_' in cfg, "_target_ not permitted in step scheduler"
+    assert not "_target_" in cfg, "_target_ not permitted in step scheduler"
     default_kwargs = dict(
-        num_epochs = 10,
-        grad_acc_steps = 10,
-        ckpt_every_steps = 100,
-        epoch_len = len(dataloader),
+        num_epochs=10,
+        grad_acc_steps=10,
+        ckpt_every_steps=100,
+        epoch_len=len(dataloader),
     )
     if cfg is not None:
         default_kwargs |= cfg.to_dict()
@@ -125,12 +136,14 @@ def build_step_scheduler(cfg, dataloader):
 #  Trainer class – orchestration only
 # ---------------------------------------------------------------------------
 
+
 class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
     """
     Recipe for fine-tuning a model for next-token prediction.
 
     This class orchestrates training, from setup to main training loop.
     """
+
     def __init__(self, cfg):
         """
         Initialize the recipe with configuration.
@@ -142,7 +155,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
     # ------------------ build phase ------------------
     def setup(self):
-        """ Builds all components needed for training/validation/logging/checkpointing/etc.
+        """Builds all components needed for training/validation/logging/checkpointing/etc.
 
         This is the last place where self.cfg should be referenced.
 
@@ -150,20 +163,38 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             NotImplemented: Raises if it tries to restore a checkpoint; will be removed.
         """
         self.dist_env = build_distributed(self.cfg.get("dist_env", {}))
+
         model_wrapper = None
-        if 'distributed' in self.cfg:
-            model_wrapper = self.cfg.distributed.instantiate(world_size=self.dist_env.world_size)
-            print(model_wrapper)
+        distributed_sampler_kwargs = {}
+        if "distributed" in self.cfg:
+            model_wrapper = self.cfg.distributed.instantiate(
+                world_size=self.dist_env.world_size
+            )
+            distributed_sampler_kwargs = {
+                "num_replicas": model_wrapper.device_mesh["data_parallel"].size(),
+                "rank": model_wrapper.device_mesh["data_parallel"].get_local_rank(),
+            }
+
         torch.manual_seed(self.cfg.get("seed", 42) + self.dist_env.rank)
 
         # Build components
         self.model = build_model(self.dist_env.device, model_wrapper, self.cfg.model)
-        self.optimizer = build_optimizer(self.dist_env.device, self.cfg.optimizer, self.model)
-        self.loss_fn   = build_loss_fn(self.dist_env.device, self.cfg.loss_fn)
-        self.dataloader = build_dataloader(self.dist_env.device, self.cfg.dataset, self.cfg.dataloader)
+        self.optimizer = build_optimizer(
+            self.dist_env.device, self.cfg.optimizer, self.model
+        )
+        self.loss_fn = build_loss_fn(self.dist_env.device, self.cfg.loss_fn)
+        print(distributed_sampler_kwargs)
+        self.dataloader = build_dataloader(
+            self.dist_env.device,
+            self.cfg.dataset,
+            self.cfg.dataloader,
+            distributed_sampler_kwargs,
+        )
 
         # Scheduler
-        self.step_scheduler = build_step_scheduler(self.cfg.get('step_scheduler', None), self.dataloader)
+        self.step_scheduler = build_step_scheduler(
+            self.cfg.get("step_scheduler", None), self.dataloader
+        )
 
         # Optionally resume
         if (path := self.cfg.get("restore_from")) is not None:
@@ -181,18 +212,26 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         for epoch in self.step_scheduler.epochs:
             for batch_idx, batch in enumerate(self.dataloader):
                 is_optim_step, is_ckpt_step = self.step_scheduler.update(batch_idx)
-                loss = self._run_train_step(batch, is_optim_step, 1.0,
-                    num_grad_acc_steps=self.step_scheduler.grad_acc_steps)
+                loss = self._run_train_step(
+                    batch,
+                    is_optim_step,
+                    1.0,
+                    num_grad_acc_steps=self.step_scheduler.grad_acc_steps,
+                )
 
                 if self.dist_env.is_main and is_ckpt_step:
                     self._save_checkpoint()
 
                 if self.dist_env.is_main and is_optim_step:
-                    print(f"step {self.step_scheduler.step} | loss {loss.item():.6f}", flush=True)
-
+                    print(
+                        f"step {self.step_scheduler.step} | loss {loss.item():.6f}",
+                        flush=True,
+                    )
 
     # ------------------ helpers ------------------
-    def _run_train_step(self, batch, is_optim_step, clip_norm=1.0, num_grad_acc_steps=10):
+    def _run_train_step(
+        self, batch, is_optim_step, clip_norm=1.0, num_grad_acc_steps=10
+    ):
         """
         Execute a single training step.
 
@@ -203,30 +242,38 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         Returns:
             Detached loss from the training step.
         """
-        batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
+        batch = {
+            k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()
+        }
         labels = batch.pop("labels")
-        mask   = batch.pop("loss_mask", None)
+        mask = batch.pop("loss_mask", None)
 
-        out  = self.model(**batch)
-        loss = self.loss_fn(out.logits.view(-1, out.logits.size(-1)),
-                            labels.view(-1), mask=mask)
+        out = self.model(**batch)
+        loss = self.loss_fn(
+            out.logits.view(-1, out.logits.size(-1)), labels.view(-1), mask=mask
+        )
         loss.backward()
 
         if is_optim_step:
             grad_params = []
             for param in self.model.parameters():
                 if param.grad is not None:
-                    param.grad.data.mul_(1/num_grad_acc_steps)
+                    param.grad.data.mul_(1 / num_grad_acc_steps)
                     grad_params.append(param)
-            if isinstance(clip_norm, float):
+            if (
+                isinstance(clip_norm, float)
+                and self.cfg.get("distributed.tp_size", 1) == 1
+            ):
                 torch.nn.utils.clip_grad_norm_(grad_params, clip_norm, foreach=True)
             self.optimizer.step()
             self.optimizer.zero_grad()
         return loss.detach()
 
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main():
     """
@@ -238,6 +285,7 @@ def main():
     trainer = FinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
     trainer.run_train_validation_loop()
+
 
 if __name__ == "__main__":
     main()

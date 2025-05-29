@@ -5,10 +5,13 @@ import torch
 import torch.distributed as dist
 from torch.distributed.device_mesh import init_device_mesh
 from torch.distributed.fsdp import CPUOffloadPolicy, MixedPrecisionPolicy
-from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel
+from torch.distributed.tensor.parallel import (ColwiseParallel,
+                                               RowwiseParallel,
+                                               SequenceParallel)
 from torch.distributed.tensor.placement_types import Replicate, Shard
 
-from nemo_automodel.distributed.parallelizer import fsdp2_strategy_parallelize, get_hf_tp_shard_plan
+from nemo_automodel.distributed.parallelizer import (
+    fsdp2_strategy_parallelize, get_hf_tp_shard_plan)
 
 
 @dataclass
@@ -48,54 +51,54 @@ class FSDP2Manager:
         parallelize(model):
             Applies FSDP2 and Tensor-Parallel sharding strategies to the given model.
     """
+
     dp_size: Optional[int] = field(
         default=None,
-        metadata={"help": "Data-parallel group size; if None, infer from WORLD_SIZE."}
+        metadata={"help": "Data-parallel group size; if None, infer from WORLD_SIZE."},
     )
     tp_size: Optional[int] = field(
         default=1,
-        metadata={"help": "Tensor-parallel group size; if None, defaults to 1."}
+        metadata={"help": "Tensor-parallel group size; if None, defaults to 1."},
     )
     cp_size: Optional[int] = field(
         default=1,
-        metadata={"help": "Context-parallel group size (for pipeline-like sharding)."}
+        metadata={"help": "Context-parallel group size; if None, defaults to 1."},
     )
     sequence_parallel: Optional[bool] = field(
         default=False,
-        metadata={"help": "Enable sequence parallelism in TP plan if True."}
+        metadata={"help": "Enable sequence parallelism in TP plan if True."},
     )
     mp_policy: Optional[MixedPrecisionPolicy] = field(
         default=MixedPrecisionPolicy(
-                param_dtype=torch.bfloat16,
-                reduce_dtype=torch.bfloat16,
-                output_dtype=torch.bfloat16,
-                cast_forward_inputs=True,
-            ),
-        metadata={"help": "MixedPrecisionPolicy for FSDP2 (param/reduce/output dtypes)."}
+            param_dtype=torch.bfloat16,
+            reduce_dtype=torch.bfloat16,
+            output_dtype=torch.bfloat16,
+            cast_forward_inputs=True,
+        ),
+        metadata={
+            "help": "MixedPrecisionPolicy for FSDP2 (param/reduce/output dtypes)."
+        },
     )
     offload_policy: Optional[CPUOffloadPolicy] = field(
         default=None,
-        metadata={"help": "CPUOffloadPolicy to offload parameters/optim states to CPU."}
+        metadata={
+            "help": "CPUOffloadPolicy to offload parameters/optim states to CPU."
+        },
     )
     backend: Optional[str] = field(
-        default="nccl",
-        metadata={"help": "Distributed backend, e.g. 'nccl' or 'gloo'."}
+        default="nccl", metadata={"help": "Distributed backend, e.g. 'nccl' or 'gloo'."}
     )
 
     _device_mesh: Optional[Any] = field(
-        default=None,
-        init=False,
-        metadata={"help": "Torch distributed DeviceMesh."}
+        default=None, init=False, metadata={"help": "Torch distributed DeviceMesh."}
     )
     _rank: Optional[int] = field(
-        default=None,
-        init=False,
-        metadata={"help": "Global rank of this process."}
+        default=None, init=False, metadata={"help": "Global rank of this process."}
     )
     world_size: Optional[int] = field(
         default=None,
         # init=False,
-        metadata={"help": "Total number of processes."}
+        metadata={"help": "Total number of processes."},
     )
 
     def __post_init__(self):
@@ -136,7 +139,9 @@ class FSDP2Manager:
         mesh_shape = (self.dp_size, self.cp_size, self.tp_size)
         mesh_names = ("data_parallel", "context_parallel", "tensor_parallel")
         for shape, name in zip(mesh_shape, mesh_names):
-            assert isinstance(shape, int), "Expected {} to be an int, but got {}".format(name, type(shape))
+            assert isinstance(
+                shape, int
+            ), "Expected {} to be an int, but got {}".format(name, type(shape))
             assert shape > 0, "Expected {} > 0, {}".format(name, shape)
 
         # build mesh [dp, cp, tp]
@@ -147,7 +152,9 @@ class FSDP2Manager:
         )
         # flatten dp+cp if cp>1
         if self.cp_size > 1:
-            self.device_mesh[("data_parallel", "context_parallel")]._flatten(mesh_dim_name="dp_cp")
+            self.device_mesh[("data_parallel", "context_parallel")]._flatten(
+                mesh_dim_name="dp_cp"
+            )
         return self
 
     def parallelize(self, model, use_hf_tp_plan=False):
@@ -184,13 +191,21 @@ class FSDP2Manager:
             }
 
             base_sp_shard_plan = {
-                "model.embed_tokens": RowwiseParallel(input_layouts=Replicate(), output_layouts=Shard(1)),
+                "model.embed_tokens": RowwiseParallel(
+                    input_layouts=Replicate(), output_layouts=Shard(1)
+                ),
                 "model.norm": SequenceParallel(),
                 "model.layers.*.input_layernorm": SequenceParallel(),
-                "model.layers.*.self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
+                "model.layers.*.self_attn.o_proj": RowwiseParallel(
+                    output_layouts=Shard(1)
+                ),
                 "model.layers.*.post_attention_layernorm": SequenceParallel(),
-                "model.layers.*.mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
-                "lm_head": ColwiseParallel(input_layouts=Shard(1), output_layouts=Replicate()),
+                "model.layers.*.mlp.down_proj": RowwiseParallel(
+                    output_layouts=Shard(1)
+                ),
+                "lm_head": ColwiseParallel(
+                    input_layouts=Shard(1), output_layouts=Replicate()
+                ),
             }
 
             if self.sequence_parallel:

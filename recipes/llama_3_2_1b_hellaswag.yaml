@@ -17,7 +17,7 @@ model:
 
 distributed:
   _target_: nemo_automodel.distributed.fsdp2.FSDP2Manager
-  dp_size: 1
+  dp_size: None # will infer from WORLD_SIZE
   tp_size: 1
   cp_size: 1
   sequence_parallel: false

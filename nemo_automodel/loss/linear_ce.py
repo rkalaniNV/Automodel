@@ -65,8 +65,7 @@ import torch
 from nemo_automodel.utils.import_utils import safe_import_from
 
 linear_cross_entropy, HAVE_LINEAR_LOSS_CE = safe_import_from(
-    "cut_cross_entropy",
-    "linear_cross_entropy",
+    "cut_cross_entropy", "linear_cross_entropy"
 )
 if HAVE_LINEAR_LOSS_CE:
     # Get the module and patch triton version check
@@ -85,10 +84,14 @@ if HAVE_LINEAR_LOSS_CE:
         import pkg_resources
 
         try:
-            pytorch_triton_version = pkg_resources.get_distribution("pytorch-triton").version
+            pytorch_triton_version = pkg_resources.get_distribution(
+                "pytorch-triton"
+            ).version
             current = pkg_resources.parse_version(pytorch_triton_version)
             required = pkg_resources.parse_version(version_str)
-            print(f"Current pytorch-triton version: {pytorch_triton_version}, Required triton version: {version_str}")
+            print(
+                f"Current pytorch-triton version: {pytorch_triton_version}, Required triton version: {version_str}"
+            )
             return current >= required
         except pkg_resources.DistributionNotFound:
             print("pytorch-triton not found")

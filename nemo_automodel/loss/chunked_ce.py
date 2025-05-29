@@ -18,9 +18,7 @@ _compiled_compute_cross_entropy = None
 
 
 def compute_cross_entropy(
-    logits: torch.Tensor,
-    targets: torch.Tensor,
-    ignore_index=-100,
+    logits: torch.Tensor, targets: torch.Tensor, ignore_index=-100
 ):
     """
     Computes the cross-entropy loss between logits and targets.
@@ -34,10 +32,14 @@ def compute_cross_entropy(
     Returns:
         torch.Tensor: The sum of cross-entropy losses over the sequence.
     """
-    return F.cross_entropy(logits.float(), targets, ignore_index=ignore_index, reduction="sum")
+    return F.cross_entropy(
+        logits.float(), targets, ignore_index=ignore_index, reduction="sum"
+    )
 
 
-def chunked_cross_entropy(logits, targets, mask=None, chunk_len=32, compile=True, ignore_index=-100):
+def chunked_cross_entropy(
+    logits, targets, mask=None, chunk_len=32, compile=True, ignore_index=-100
+):
     """
     Computes cross-entropy loss in chunks to handle long sequences more efficiently.
 
@@ -70,13 +72,19 @@ def chunked_cross_entropy(logits, targets, mask=None, chunk_len=32, compile=True
     # maybe refactor if this is moved to a class?
     global _compiled_compute_cross_entropy
     if _compiled_compute_cross_entropy is None:
-        _compiled_compute_cross_entropy = torch.compile(compute_cross_entropy, dynamic=True)
+        _compiled_compute_cross_entropy = torch.compile(
+            compute_cross_entropy, dynamic=True
+        )
 
     seq_len = logits.shape[0]
     num_chunks = (seq_len + chunk_len - 1) // chunk_len
     loss = 0.0
-    for logits_chunk, targets_chunk in zip(logits.chunk(num_chunks, dim=0), targets.chunk(num_chunks, dim=0)):
-        loss += _compiled_compute_cross_entropy(logits_chunk, targets_chunk, ignore_index)
+    for logits_chunk, targets_chunk in zip(
+        logits.chunk(num_chunks, dim=0), targets.chunk(num_chunks, dim=0)
+    ):
+        loss += _compiled_compute_cross_entropy(
+            logits_chunk, targets_chunk, ignore_index
+        )
     # normalize
     num_tokens = (targets != ignore_index).sum().detach()
     return loss / num_tokens

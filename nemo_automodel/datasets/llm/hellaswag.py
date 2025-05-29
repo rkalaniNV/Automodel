@@ -1,5 +1,7 @@
 from datasets import load_dataset
+
 from nemo_automodel.datasets.utils import SFTSingleTurnPreprocessor
+
 
 class HellaSwag:
     """
@@ -12,7 +14,15 @@ class HellaSwag:
     Attributes:
         dataset (Dataset): The processed dataset ready for model training or evaluation.
     """
-    def __init__(self, path_or_dataset, tokenizer, split='train', num_samples_limit=None, trust_remote_code=True):
+
+    def __init__(
+        self,
+        path_or_dataset,
+        tokenizer,
+        split="train",
+        num_samples_limit=None,
+        trust_remote_code=True,
+    ):
         """
         Initialize the HellaSwag dataset wrapper.
 
@@ -27,11 +37,12 @@ class HellaSwag:
             If num_samples_limit is an integer, it limits the dataset size using slicing.
         """
         if isinstance(num_samples_limit, int):
-            split = f'{split}[:{num_samples_limit}]'
-        raw_datasets = load_dataset(path_or_dataset, split=split, trust_remote_code=trust_remote_code)
+            split = f"{split}[:{num_samples_limit}]"
+        raw_datasets = load_dataset(
+            path_or_dataset, split=split, trust_remote_code=trust_remote_code
+        )
         processor = SFTSingleTurnPreprocessor(tokenizer)
         self.dataset = processor.process(raw_datasets, self)
-
 
     def get_context(self, examples):
         """
@@ -56,7 +67,8 @@ class HellaSwag:
             list[str]: The gold target strings based on the label index.
         """
         return [
-            endings[int(lbl)] for endings, lbl in zip(examples["endings"], examples["label"])
+            endings[int(lbl)]
+            for endings, lbl in zip(examples["endings"], examples["label"])
         ]
 
     def __getitem__(self, index):

@@ -21,11 +21,12 @@ import os
 import subprocess
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
-from itertools import chain
 
 import setuptools
 
-spec = importlib.util.spec_from_file_location('package_info', 'automodel/package_info.py')
+spec = importlib.util.spec_from_file_location(
+    "package_info", "automodel/package_info.py"
+)
 if spec is None:
     raise ImportError("Failed to import package_info")
 
@@ -47,7 +48,7 @@ __package_name__ = package_info.__package_name__
 __repository_url__ = package_info.__repository_url__
 __version__ = package_info.__version__
 
-with open("README.md", "r", encoding='utf-8') as fh:
+with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
     long_description_content_type = "text/markdown"
 
@@ -65,7 +66,7 @@ def req_file(filename, folder="requirements"):
     files = [filename] if not isinstance(filename, list) else filename
     ans = []
     for file in files:
-        with open(os.path.join(folder, file), encoding='utf-8') as f:
+        with open(os.path.join(folder, file), encoding="utf-8") as f:
             ans.extend(list(map(str.strip, f.readlines())))
     return ans
 
@@ -82,12 +83,12 @@ class StyleCommand(distutils_cmd.Command):
     Custom command to check code style.
     """
 
-    __ISORT_BASE = 'isort'
-    __BLACK_BASE = 'black'
-    description = 'Checks overall project code style.'
+    __ISORT_BASE = "isort"
+    __BLACK_BASE = "black"
+    description = "Checks overall project code style."
     user_options = [
-        ('scope=', None, 'Folder of file to operate within.'),
-        ('fix', None, 'True if tries to fix issues in-place.'),
+        ("scope=", None, "Folder of file to operate within."),
+        ("fix", None, "True if tries to fix issues in-place."),
     ]
 
     def __call_checker(self, base_command, scope, check):
@@ -96,10 +97,10 @@ class StyleCommand(distutils_cmd.Command):
         command.append(scope)
 
         if check:
-            command.extend(['--check', '--diff'])
+            command.extend(["--check", "--diff"])
 
         self.announce(
-            msg='Running command: %s' % str(' '.join(command)),
+            msg="Running command: %s" % str(" ".join(command)),
             level=distutils_log.INFO,
         )
 
@@ -122,15 +123,15 @@ class StyleCommand(distutils_cmd.Command):
         )
 
     def _pass(self):
-        self.announce(msg='\033[32mPASS\x1b[0m', level=distutils_log.INFO)
+        self.announce(msg="\033[32mPASS\x1b[0m", level=distutils_log.INFO)
 
     def _fail(self):
-        self.announce(msg='\033[31mFAIL\x1b[0m', level=distutils_log.INFO)
+        self.announce(msg="\033[31mFAIL\x1b[0m", level=distutils_log.INFO)
 
     # pylint: disable=C0116
     def initialize_options(self):
-        self.scope = '.'
-        self.fix = ''
+        self.scope = "."
+        self.fix = ""
 
     def run(self):
         scope, check = self.scope, not self.fix
@@ -181,42 +182,42 @@ setuptools.setup(
         #  5 - Production/Stable
         #  6 - Mature
         #  7 - Inactive
-        'Development Status :: 5 - Production/Stable',
+        "Development Status :: 5 - Production/Stable",
         # Indicate who your project is intended for
-        'Intended Audience :: Developers',
-        'Intended Audience :: Science/Research',
-        'Intended Audience :: Information Technology',
+        "Intended Audience :: Developers",
+        "Intended Audience :: Science/Research",
+        "Intended Audience :: Information Technology",
         # Indicate what your project relates to
-        'Topic :: Scientific/Engineering',
-        'Topic :: Scientific/Engineering :: Mathematics',
-        'Topic :: Scientific/Engineering :: Image Recognition',
-        'Topic :: Scientific/Engineering :: Artificial Intelligence',
-        'Topic :: Software Development :: Libraries',
-        'Topic :: Software Development :: Libraries :: Python Modules',
-        'Topic :: Utilities',
+        "Topic :: Scientific/Engineering",
+        "Topic :: Scientific/Engineering :: Mathematics",
+        "Topic :: Scientific/Engineering :: Image Recognition",
+        "Topic :: Scientific/Engineering :: Artificial Intelligence",
+        "Topic :: Software Development :: Libraries",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Topic :: Utilities",
         # Pick your license as you wish (should match "license" above)
-        'License :: OSI Approved :: Apache Software License',
+        "License :: OSI Approved :: Apache Software License",
         # Supported python versions
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.10',
-        'Programming Language :: Python :: 3.11',
-        'Programming Language :: Python :: 3.12',
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         # Additional Setting
-        'Environment :: Console',
-        'Natural Language :: English',
-        'Operating System :: OS Independent',
+        "Environment :: Console",
+        "Natural Language :: English",
+        "Operating System :: OS Independent",
     ],
-    packages=setuptools.find_packages(include=['automodel']),
-    python_requires='>=3.10',
+    packages=setuptools.find_packages(include=["automodel"]),
+    python_requires=">=3.10",
     install_requires=install_requires,
     # Add in any packaged data.
     include_package_data=True,
-    exclude=['tests'],
-    package_data={'': ['*.tsv', '*.txt', '*.far', '*.fst', '*.cpp', 'Makefile']},
+    exclude=["tests"],
+    package_data={"": ["*.tsv", "*.txt", "*.far", "*.fst", "*.cpp", "Makefile"]},
     zip_safe=False,
     # PyPI package information.
     keywords=__keywords__,
     # Custom commands.
-    cmdclass={'style': StyleCommand},
-    dependency_links=['https://pypi.nvidia.com/'],
+    cmdclass={"style": StyleCommand},
+    dependency_links=["https://pypi.nvidia.com/"],
 )

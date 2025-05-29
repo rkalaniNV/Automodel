@@ -1,5 +1,6 @@
 import torch
 
+
 def batchify(tensor):
     """Ensures that the input tensor has at least two dimensions by adding an extra batch dimension if necessary.
 
@@ -118,29 +119,33 @@ class SFTSingleTurnPreprocessor:
         tgt_tok = self.tokenizer(tgt)
 
         # strip trailing special token from context
-        if len(ctx_tok["input_ids"][0]) > 0 and \
-           ctx_tok["input_ids"][0][-1] in self.tokenizer.all_special_ids:
+        if (
+            len(ctx_tok["input_ids"][0]) > 0
+            and ctx_tok["input_ids"][0][-1] in self.tokenizer.all_special_ids
+        ):
             ctx_tok["input_ids"] = [ids[:-1] for ids in ctx_tok["input_ids"]]
             ctx_tok["attention_mask"] = [m[:-1] for m in ctx_tok["attention_mask"]]
 
         # strip leading special token from target
-        if len(tgt_tok["input_ids"][0]) > 0 and \
-           tgt_tok["input_ids"][0][0] in self.tokenizer.all_special_ids:
+        if (
+            len(tgt_tok["input_ids"][0]) > 0
+            and tgt_tok["input_ids"][0][0] in self.tokenizer.all_special_ids
+        ):
             tgt_tok["input_ids"] = [ids[1:] for ids in tgt_tok["input_ids"]]
             tgt_tok["attention_mask"] = [m[1:] for m in tgt_tok["attention_mask"]]
 
         out = {}
         out["input_ids"] = [
-            c_ids + t_ids for c_ids, t_ids in zip(ctx_tok["input_ids"],
-                                                  tgt_tok["input_ids"])
+            c_ids + t_ids
+            for c_ids, t_ids in zip(ctx_tok["input_ids"], tgt_tok["input_ids"])
         ]
         out["attention_mask"] = [
-            c_m + t_m for c_m, t_m in zip(ctx_tok["attention_mask"],
-                                          tgt_tok["attention_mask"])
+            c_m + t_m
+            for c_m, t_m in zip(ctx_tok["attention_mask"], tgt_tok["attention_mask"])
         ]
         # label: -100 for ctx, true ids for tgt
         out["labels"] = [
-            [-100] * (len(c_ids)-1) + t_ids + [-100]
+            [-100] * (len(c_ids) - 1) + t_ids + [-100]
             for c_ids, t_ids in zip(ctx_tok["input_ids"], tgt_tok["input_ids"])
         ]
         return out
@@ -149,7 +154,7 @@ class SFTSingleTurnPreprocessor:
     # padding -------------------------------------------------------------- #
     # --------------------------------------------------------------------- #
     def _compute_dataset_max_len(self, tokenized_ds):
-        max_len = max(map(lambda x: len(x['input_ids']), tokenized_ds))
+        max_len = max(map(lambda x: len(x["input_ids"]), tokenized_ds))
         # make multiple of 8
         max_len = (max_len // 8 + 1) * 8
         # respect model block size
@@ -194,7 +199,9 @@ class SFTSingleTurnPreprocessor:
         datasets.DatasetDict  - tokenized + padded datasets (all splits preserved).
         """
 
-        if not hasattr(self.tokenizer, 'pad_token') and hasattr(self.tokenizer, 'bos_token'):
+        if not hasattr(self.tokenizer, "pad_token") and hasattr(
+            self.tokenizer, "bos_token"
+        ):
             self.tokenizer.pad_token = self.tokenizer.bos_token
 
         # 1. tokenise ----------------------------------------------------------------
@@ -203,7 +210,7 @@ class SFTSingleTurnPreprocessor:
             batched=True,
             num_proc=self.preprocessing_num_workers,
             remove_columns=raw_dataset.column_names,
-            load_from_cache_file=False, #not self.overwrite_cache,
+            load_from_cache_file=False,  # not self.overwrite_cache,
             desc="Running tokenizer on dataset",
         )
 
@@ -221,4 +228,3 @@ class SFTSingleTurnPreprocessor:
         )
 
         return tokenized
-

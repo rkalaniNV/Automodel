@@ -326,7 +326,9 @@ def safe_import_from(module, symbol, *, msg=None, alt=None, fallback_module=None
     except AttributeError:
         # if there is a fallback module try it.
         if fallback_module is not None:
-            return safe_import_from(fallback_module, symbol, msg=msg, alt=alt, fallback_module=None)
+            return safe_import_from(
+                fallback_module, symbol, msg=msg, alt=alt, fallback_module=None
+            )
         exception_text = traceback.format_exc()
         logger.info(f"Import of {symbol} from {module} failed with: {exception_text}")
     except Exception:

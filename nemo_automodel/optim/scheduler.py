@@ -88,11 +88,15 @@ class OptimizerParamScheduler:
         self.override_opt_param_scheduler = override_opt_param_scheduler
         self.use_checkpoint_opt_param_scheduler = use_checkpoint_opt_param_scheduler
         if self.override_opt_param_scheduler:
-            assert not self.use_checkpoint_opt_param_scheduler, "both override and " "use-checkpoint are set."
+            assert not self.use_checkpoint_opt_param_scheduler, (
+                "both override and " "use-checkpoint are set."
+            )
 
         # Set the learning rate
         self.step(0)
-        log_single_rank(logger, logging.INFO, f"> learning rate decay style: {self.lr_decay_style}")
+        log_single_rank(
+            logger, logging.INFO, f"> learning rate decay style: {self.lr_decay_style}"
+        )
 
     def get_wd(self) -> float:
         """Weight decay incr functions"""
@@ -113,7 +117,9 @@ class OptimizerParamScheduler:
         elif self.wd_incr_style == "cosine":
             coeff = 0.5 * (math.cos(math.pi * (1 - incr_ratio)) + 1.0)
         else:
-            raise Exception(f"{self.wd_incr_style} weight decay increment style is not supported.")
+            raise Exception(
+                f"{self.wd_incr_style} weight decay increment style is not supported."
+            )
 
         return self.start_wd + coeff * delta_wd
 
@@ -130,7 +136,11 @@ class OptimizerParamScheduler:
 
         # Use linear warmup for the initial part.
         if self.lr_warmup_steps > 0 and self.num_steps <= self.lr_warmup_steps:
-            return self.init_lr + ((max_lr - self.init_lr) * float(self.num_steps) / float(self.lr_warmup_steps))
+            return self.init_lr + (
+                (max_lr - self.init_lr)
+                * float(self.num_steps)
+                / float(self.lr_warmup_steps)
+            )
 
         # If the learning rate is constant, just return the initial value.
         if self.lr_decay_style == "constant":
@@ -221,7 +231,9 @@ class OptimizerParamScheduler:
         """
 
         if self.override_opt_param_scheduler:
-            log_single_rank(logger, logging.INFO, f" > overriding {name} value to {cls_value}")
+            log_single_rank(
+                logger, logging.INFO, f" > overriding {name} value to {cls_value}"
+            )
             return cls_value
 
         if not self.use_checkpoint_opt_param_scheduler:
@@ -230,7 +242,9 @@ class OptimizerParamScheduler:
                 f"value {sd_value} for {name} do not match"
             )
 
-        log_single_rank(logger, logging.INFO, f" > using checkpoint value {sd_value} for {name}")
+        log_single_rank(
+            logger, logging.INFO, f" > using checkpoint value {sd_value} for {name}"
+        )
         return sd_value
 
     def load_state_dict(self, state_dict: dict) -> None:
@@ -246,7 +260,9 @@ class OptimizerParamScheduler:
             max_lr_ = state_dict["max_lr"]
         self.max_lr = self._check_and_set(self.max_lr, max_lr_, "learning rate")
 
-        self.min_lr = self._check_and_set(self.min_lr, state_dict["min_lr"], "minimum learning rate")
+        self.min_lr = self._check_and_set(
+            self.min_lr, state_dict["min_lr"], "minimum learning rate"
+        )
 
         if "warmup_iter" in state_dict:
             lr_warmup_steps_ = state_dict["warmup_iter"]
@@ -254,7 +270,9 @@ class OptimizerParamScheduler:
             lr_warmup_steps_ = state_dict["warmup_steps"]
         else:
             lr_warmup_steps_ = state_dict["lr_warmup_steps"]
-        self.lr_warmup_steps = self._check_and_set(self.lr_warmup_steps, lr_warmup_steps_, "warmup iterations")
+        self.lr_warmup_steps = self._check_and_set(
+            self.lr_warmup_steps, lr_warmup_steps_, "warmup iterations"
+        )
 
         if "end_iter" in state_dict:
             lr_decay_steps_ = state_dict["end_iter"]
@@ -262,13 +280,17 @@ class OptimizerParamScheduler:
             lr_decay_steps_ = state_dict["decay_steps"]
         else:
             lr_decay_steps_ = state_dict["lr_decay_steps"]
-        self.lr_decay_steps = self._check_and_set(self.lr_decay_steps, lr_decay_steps_, "total number of iterations")
+        self.lr_decay_steps = self._check_and_set(
+            self.lr_decay_steps, lr_decay_steps_, "total number of iterations"
+        )
 
         if "decay_style" in state_dict:
             lr_decay_style_ = state_dict["decay_style"]
         else:
             lr_decay_style_ = state_dict["lr_decay_style"]
-        self.lr_decay_style = self._check_and_set(self.lr_decay_style, lr_decay_style_, "learning rate decay style")
+        self.lr_decay_style = self._check_and_set(
+            self.lr_decay_style, lr_decay_style_, "learning rate decay style"
+        )
 
         if "num_iters" in state_dict:
             num_steps = state_dict["num_iters"]
@@ -277,13 +299,19 @@ class OptimizerParamScheduler:
         self.step(increment=num_steps)
 
         if "start_wd" in state_dict:
-            self.start_wd = self._check_and_set(self.start_wd, state_dict["start_wd"], "start weight decay")
-            self.end_wd = self._check_and_set(self.end_wd, state_dict["end_wd"], "end weight decay")
+            self.start_wd = self._check_and_set(
+                self.start_wd, state_dict["start_wd"], "start weight decay"
+            )
+            self.end_wd = self._check_and_set(
+                self.end_wd, state_dict["end_wd"], "end weight decay"
+            )
             self.wd_incr_steps = self._check_and_set(
                 self.wd_incr_steps,
                 state_dict["wd_incr_steps"],
                 "total number of weight decay iterations",
             )
             self.wd_incr_style = self._check_and_set(
-                self.wd_incr_style, state_dict["wd_incr_style"], "weight decay incr style"
+                self.wd_incr_style,
+                state_dict["wd_incr_style"],
+                "weight decay incr style",
             )

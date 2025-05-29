@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from torch.distributed.checkpoint.stateful import Stateful
 from typing import Optional, Tuple
+
+from torch.distributed.checkpoint.stateful import Stateful
+
 
 class StepScheduler(Stateful):
     """
@@ -27,13 +29,16 @@ class StepScheduler(Stateful):
         epoch (int): Current epoch counter.
         num_epochs (int): Total number of epochs.
     """
-    def __init__(self,
-                 grad_acc_steps: int,
-                 ckpt_every_steps: int,
-                 epoch_len: Optional[int],
-                 start_step: int = 0,
-                 start_epoch: int = 0,
-                 num_epochs: int = 10):
+
+    def __init__(
+        self,
+        grad_acc_steps: int,
+        ckpt_every_steps: int,
+        epoch_len: Optional[int],
+        start_step: int = 0,
+        start_epoch: int = 0,
+        num_epochs: int = 10,
+    ):
         """
         Initialize the StepScheduler.
 
@@ -45,11 +50,11 @@ class StepScheduler(Stateful):
             start_epoch (int): Initial epoch.
             num_epochs (int): Total number of epochs.
         """
-        self.grad_acc_steps   = grad_acc_steps
+        self.grad_acc_steps = grad_acc_steps
         self.ckpt_every_steps = ckpt_every_steps
-        self.epoch_len        = epoch_len
-        self.step   = start_step
-        self.epoch  = start_epoch
+        self.epoch_len = epoch_len
+        self.step = start_step
+        self.epoch = start_epoch
         self.num_epochs = num_epochs
 
     def update(self, batch_idx: int) -> Tuple[bool, bool]:
@@ -82,7 +87,9 @@ class StepScheduler(Stateful):
             bool: if true, the checkpoint should run.
         """
         last_batch = self.epoch_len is not None and batch_idx == self.epoch_len - 1
-        return ((self.step % self.ckpt_every_steps) == 0 and self.step != 0) or last_batch
+        return (
+            (self.step % self.ckpt_every_steps) == 0 and self.step != 0
+        ) or last_batch
 
     @property
     def epochs(self):

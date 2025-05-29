@@ -53,7 +53,9 @@ def module_filter(record: LogRecord, modules_to_filter: list[str]) -> bool:
     return True
 
 
-def add_filter_to_all_loggers(filter: Union[Filter, Callable[[LogRecord], bool]]) -> None:
+def add_filter_to_all_loggers(
+    filter: Union[Filter, Callable[[LogRecord], bool]]
+) -> None:
     """Add a filter to the root logger and all existing loggers.
 
     Args:
@@ -109,4 +111,6 @@ def setup_logging(
     if filter_warning:
         add_filter_to_all_loggers(warning_filter)
     if modules_to_filter:
-        add_filter_to_all_loggers(partial(module_filter, modules_to_filter=modules_to_filter))
+        add_filter_to_all_loggers(
+            partial(module_filter, modules_to_filter=modules_to_filter)
+        )

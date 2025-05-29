@@ -63,7 +63,9 @@ def safe_yaml_representers() -> Generator[None, None, None]:
         try:
             from transformers import GenerationConfig
 
-            yaml.SafeDumper.add_representer(GenerationConfig, _generation_config_representer)
+            yaml.SafeDumper.add_representer(
+                GenerationConfig, _generation_config_representer
+            )
         except ModuleNotFoundError:
             pass
 
@@ -88,10 +90,7 @@ def _function_representer(dumper, data):
 
 def _torch_dtype_representer(dumper, data):
     """Represent torch dtypes in YAML."""
-    value = {
-        "_target_": str(data),
-        "_call_": False,
-    }
+    value = {"_target_": str(data), "_call_": False}
     return dumper.represent_data(value)
 
 
@@ -121,10 +120,7 @@ def _safe_object_representer(dumper, data):
         target = f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}"
         call = True
 
-    value = {
-        "_target_": target,  # type: ignore
-        "_call_": call,
-    }
+    value = {"_target_": target, "_call_": call}  # type: ignore
     return dumper.represent_data(value)
 
 

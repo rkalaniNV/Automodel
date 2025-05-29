@@ -1,13 +1,12 @@
 # config_loader.py
-import yaml
-import importlib
-from functools import reduce
-import os
 import importlib
 import importlib.util
 import os
 import sys
 from functools import reduce
+
+import yaml
+
 
 class ConfigNode:
     """
@@ -16,6 +15,7 @@ class ConfigNode:
     This class allows nested dictionaries and lists to be accessed as attributes and
     provides functionality to instantiate objects from configuration.
     """
+
     def __init__(self, d):
         """
         Initialize the ConfigNode.
@@ -23,9 +23,7 @@ class ConfigNode:
         Args:
             d (dict): A dictionary representing configuration options.
         """
-        self.__dict__ = {
-            k: self._wrap(k, v) for k, v in d.items()
-        }
+        self.__dict__ = {k: self._wrap(k, v) for k, v in d.items()}
 
     def _wrap(self, k, v):
         """
@@ -41,8 +39,8 @@ class ConfigNode:
         if isinstance(v, dict):
             return ConfigNode(v)
         elif isinstance(v, list):
-            return [self._wrap('', i) for i in v]
-        elif k.endswith('_fn'):
+            return [self._wrap("", i) for i in v]
+        elif k.endswith("_fn"):
             return self._resolve_target(v)
         elif isinstance(v, (int, float)):
             return v
@@ -80,9 +78,9 @@ class ConfigNode:
         # Prepare kwargs from config
         config_kwargs = {}
         for k, v in self.__dict__.items():
-            if k == '_target_':
+            if k == "_target_":
                 continue
-            if k.endswith('_fn'):
+            if k.endswith("_fn"):
                 config_kwargs[k] = v
             else:
                 config_kwargs[k] = self._instantiate_value(v)
@@ -134,7 +132,7 @@ class ConfigNode:
         # TODO(@akoumparouli): make this more robust
         if len(parts) > 2:
             try:
-                module = importlib.import_module('.'.join(parts[:-1]))
+                module = importlib.import_module(".".join(parts[:-1]))
                 return getattr(module, parts[-1])
             except (ModuleNotFoundError, AttributeError):
                 pass
@@ -154,7 +152,9 @@ class ConfigNode:
                 sys.modules[module_name] = mod
                 spec.loader.exec_module(mod)
                 return getattr(mod, parts[-1])
-        raise ImportError(f"Cannot resolve target: {dotted_path}. Searched paths for: {'.'.join(parts[:-1])}.py")
+        raise ImportError(
+            f"Cannot resolve target: {dotted_path}. Searched paths for: {'.'.join(parts[:-1])}.py"
+        )
 
     def to_dict(self):
         """
@@ -163,9 +163,7 @@ class ConfigNode:
         Returns:
             dict: A dictionary representation of the configuration node.
         """
-        return {
-            k: self._unwrap(v) for k, v in self.__dict__.items()
-        }
+        return {k: self._unwrap(v) for k, v in self.__dict__.items()}
 
     def _unwrap(self, v):
         """
@@ -229,7 +227,10 @@ class ConfigNode:
             str: An indented string representation of the configuration.
         """
         indent = "  " * level
-        lines = [f"{indent}{key}: {self._repr_value(value, level)}" for key, value in self.__dict__.items()]
+        lines = [
+            f"{indent}{key}: {self._repr_value(value, level)}"
+            for key, value in self.__dict__.items()
+        ]
         return "\n#path: " + "\n".join(lines) + f"\n{indent}"
 
     def _repr_value(self, value, level):
@@ -246,9 +247,16 @@ class ConfigNode:
         if isinstance(value, ConfigNode):
             return value.__repr__(level + 1)
         elif isinstance(value, list):
-            return "[\n" + \
-                "\n".join([f"{'  ' * (level + 1)}{self._repr_value(i, level + 1)}" for i in value]) \
+            return (
+                "[\n"
+                + "\n".join(
+                    [
+                        f"{'  ' * (level + 1)}{self._repr_value(i, level + 1)}"
+                        for i in value
+                    ]
+                )
                 + f"\n{'  ' * level}]"
+            )
         else:
             return repr(value)
 
@@ -271,7 +279,7 @@ class ConfigNode:
         Returns:
             bool: True if the key exists, False otherwise.
         """
-        parts = key.split('.')
+        parts = key.split(".")
         current = self
         for p in parts:
             if isinstance(current, ConfigNode):
@@ -280,6 +288,7 @@ class ConfigNode:
                 else:
                     return False
         return current != self
+
 
 def load_yaml_config(path):
     """

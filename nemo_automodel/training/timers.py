@@ -224,7 +224,9 @@ class Timers:
         """
         self._log_level = log_level
         allowed_log_options = set(["max", "minmax", "all"])
-        assert log_option in allowed_log_options, "input log option {} is invalid. It must be one of {}".format(
+        assert (
+            log_option in allowed_log_options
+        ), "input log option {} is invalid. It must be one of {}".format(
             log_option, allowed_log_options
         )
         self._log_option = log_option
@@ -258,7 +260,8 @@ class Timers:
         if name in self._timers:
             if log_level is not None:
                 assert log_level == self._log_levels[name], (
-                    "input log level {} does not match already existing " "log level {} for {} timer".format(
+                    "input log level {} does not match already existing "
+                    "log level {} for {} timer".format(
                         log_level, self._log_levels[name], name
                     )
                 )
@@ -268,13 +271,19 @@ class Timers:
         # set it to the max log level which is 2.
         if log_level is None:
             log_level = self._max_log_level
-        assert log_level <= self._max_log_level, "log level {} is larger than max supported log level {}".format(
+        assert (
+            log_level <= self._max_log_level
+        ), "log level {} is larger than max supported log level {}".format(
             log_level, self._max_log_level
         )
         # Now if the input log level is larger than the one set for
         # the timers class, just ignore it and return a dummy timer.
         if log_level > self._log_level:
-            return self._dummy_timer.with_barrier(barrier) if barrier else self._dummy_timer
+            return (
+                self._dummy_timer.with_barrier(barrier)
+                if barrier
+                else self._dummy_timer
+            )
         # Otherwise, initalize the timer and set the level.
         self._timers[name] = Timer(name)
         self._log_levels[name] = log_level
@@ -311,7 +320,9 @@ class Timers:
         # and since we are only gathering a small amount of data,
         # it should be ok to use all-gather instead of gather.
         rank_name_to_time = torch.zeros(
-            (world_size, len(names)), dtype=torch.float, device=torch.cuda.current_device()
+            (world_size, len(names)),
+            dtype=torch.float,
+            device=torch.cuda.current_device(),
         )
         for i, name in enumerate(names):
             if name in self._timers:
@@ -322,7 +333,9 @@ class Timers:
                 rank_name_to_time[rank, i] = self._timers[name].elapsed(reset=reset)
 
         # See the note above for why we are not using gather.
-        dist_all_gather_func(rank_name_to_time.view(-1), rank_name_to_time[rank, :].view(-1))
+        dist_all_gather_func(
+            rank_name_to_time.view(-1), rank_name_to_time[rank, :].view(-1)
+        )
 
         return rank_name_to_time
 
@@ -343,9 +356,13 @@ class Timers:
                 )
         return name_to_min_max_time
 
-    def _get_global_min_max_time_string(self, names, reset, barrier, normalizer, max_only):
+    def _get_global_min_max_time_string(
+        self, names, reset, barrier, normalizer, max_only
+    ):
         """Report strings for max/minmax times across all ranks."""
-        name_to_min_max_time = self._get_global_min_max_time(names, reset, barrier, normalizer)
+        name_to_min_max_time = self._get_global_min_max_time(
+            names, reset, barrier, normalizer
+        )
         if not name_to_min_max_time:
             return None
         if max_only:
@@ -355,9 +372,13 @@ class Timers:
         for name in name_to_min_max_time:
             min_time, max_time = name_to_min_max_time[name]
             if max_only:
-                output_string += "\n    {}: {:.2f}".format((name + " ").ljust(48, "."), max_time)
+                output_string += "\n    {}: {:.2f}".format(
+                    (name + " ").ljust(48, "."), max_time
+                )
             else:
-                output_string += "\n    {}: ({:.2f}, {:.2f})".format((name + " ").ljust(48, "."), min_time, max_time)
+                output_string += "\n    {}: ({:.2f}, {:.2f})".format(
+                    (name + " ").ljust(48, "."), min_time, max_time
+                )
         return output_string
 
     def _get_all_ranks_time_string(self, names, reset, barrier, normalizer):
@@ -374,7 +395,9 @@ class Timers:
                     if not_yet_found:
                         not_yet_found = False
                         output_string += "\n  {}:".format(name)
-                    output_string += "\n     rank {:2d}: {:.2f}".format(rank, rank_name_to_time[rank, i] / normalizer)
+                    output_string += "\n     rank {:2d}: {:.2f}".format(
+                        rank, rank_name_to_time[rank, i] / normalizer
+                    )
         if no_reported_timing:
             return None
         return output_string
@@ -412,9 +435,13 @@ class Timers:
             max_only = False
             if self._log_option == "max":
                 max_only = True
-            output_string = self._get_global_min_max_time_string(names, reset, barrier, normalizer / 1000.0, max_only)
+            output_string = self._get_global_min_max_time_string(
+                names, reset, barrier, normalizer / 1000.0, max_only
+            )
         elif self._log_option == "all":
-            output_string = self._get_all_ranks_time_string(names, reset, barrier, normalizer / 1000.0)
+            output_string = self._get_all_ranks_time_string(
+                names, reset, barrier, normalizer / 1000.0
+            )
         else:
             raise Exception("unknown timing log option {}".format(self._log_option))
         return output_string
@@ -475,7 +502,9 @@ class Timers:
         # torch.utils.add_scalars makes each timer its own run, which
         # polutes the runs list, so we just add each as a scalar
         assert normalizer > 0.0
-        name_to_min_max_time = self._get_global_min_max_time(names, reset, barrier, normalizer)
+        name_to_min_max_time = self._get_global_min_max_time(
+            names, reset, barrier, normalizer
+        )
         if writer is not None:
             for name in name_to_min_max_time:
                 _, max_time = name_to_min_max_time[name]
@@ -495,7 +524,9 @@ class Timers:
         # torch.utils.add_scalars makes each timer its own run, which
         # polutes the runs list, so we just add each as a scalar
         assert normalizer > 0.0
-        name_to_min_max_time = self._get_global_min_max_time(names, reset, barrier, normalizer)
+        name_to_min_max_time = self._get_global_min_max_time(
+            names, reset, barrier, normalizer
+        )
         if writer is not None:
             for name in name_to_min_max_time:
                 _, max_time = name_to_min_max_time[name]
