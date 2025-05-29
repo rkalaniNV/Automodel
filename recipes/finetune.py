@@ -183,7 +183,6 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             self.dist_env.device, self.cfg.optimizer, self.model
         )
         self.loss_fn = build_loss_fn(self.dist_env.device, self.cfg.loss_fn)
-        print(distributed_sampler_kwargs)
         self.dataloader = build_dataloader(
             self.dist_env.device,
             self.cfg.dataset,
