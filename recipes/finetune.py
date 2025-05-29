@@ -152,7 +152,10 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         self.dist_env = build_distributed(self.cfg.get("dist_env", {}))
         model_wrapper = None
         if 'distributed' in self.cfg:
-            model_wrapper = self.cfg.distributed.instantiate(world_size=self.dist_env.world_size)
+            model_wrapper = self.cfg.distributed.instantiate(
+                world_size=self.dist_env.world_size,
+                dp_size=self.dist_env.world_size
+            )
             print(model_wrapper)
         torch.manual_seed(self.cfg.get("seed", 42) + self.dist_env.rank)
 
