@@ -35,6 +35,7 @@ te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
+from automodel.peft.lora_kernel import addmm_kernel_wrapper
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
@@ -164,11 +165,26 @@ if HAVE_TE:
             if self.dropout_position == 'pre':
                 x = self.dropout(x)
             # LoRA fwd is performed in original precision regardless of FP8 enabled
-            lora_res = self.lora_b(self.lora_a(x))
-            lora_res = lora_res * self.scale
-            if self.dropout_position == 'post':
-                lora_res = self.dropout(lora_res)
-            return res + lora_res
+            # TODO: evaluate between these alternatives.
+            # Set use_baseline=True to run what currently exists in NeMo.
+            # Set use_baseline=False to run custom autograd. Set use_triton=True to use the Triton implementation.
+            use_baseline = True
+            if use_baseline:
+                lora_res = self.lora_b(self.lora_a(x))
+                lora_res = lora_res * self.scale
+                if self.dropout_position == "post":
+                    lora_res = self.dropout(lora_res)
+                return res + lora_res
+
+            use_triton = True
+            if not use_triton:
+                return LoRAFunction.apply(
+                    x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
+                )
+            else:
+                return LoRATritonFunction.apply(
+                    x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
+                )
 
 
 class LinearAdapter(nn.Linear):
@@ -284,11 +300,135 @@ class LinearAdapter(nn.Linear):
 
         if self.dropout_position == 'pre':
             x = self.dropout(x)
-        lora_res = self.lora_b(self.lora_a(x))
-        lora_res = lora_res * self.scale
-        if self.dropout_position == 'post':
-            lora_res = self.dropout(lora_res)
-        return res + lora_res
+        # TODO: evaluate between these alternatives.
+        # Set use_baseline=True to run what currently exists in NeMo.
+        # Set use_baseline=False to run custom autograd. Set use_triton=True to use the Triton implementation.
+        use_baseline = True
+        if use_baseline:
+            lora_res = self.lora_b(self.lora_a(x))
+            lora_res = lora_res * self.scale
+            if self.dropout_position == "post":
+                lora_res = self.dropout(lora_res)
+            return res + lora_res
+
+        use_triton = True
+        if not use_triton:
+            return LoRAFunction.apply(
+                x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
+            )
+        else:
+            return LoRATritonFunction.apply(
+                x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
+            )
+
+
+class LoRAFunction(torch.autograd.Function):
+    @staticmethod
+    def setup_context(ctx, inputs, output):
+        x, wts, lora_a, lora_b, scale, _ = inputs
+        ctx.save_for_backward(x, wts, lora_a, lora_b)
+        ctx.scale = scale
+
+    @staticmethod
+    def forward(x, wts, lora_a, lora_b, scale, res):
+        reshape = x.dim() == 3
+        if reshape:
+            bs, seq_len, d = x.shape
+            x = x.view(-1, d)
+            res = res.view(-1, res.shape[-1])
+
+        lora_intermediate = torch.matmul(x, lora_a.t())
+        res.addmm_(lora_intermediate, lora_b.t(), alpha=scale)
+
+        if reshape:
+            return res.view(bs, seq_len, -1)
+        else:
+            return res
+
+    @staticmethod
+    def backward(ctx, d_y):
+        x, wts, lora_a, lora_b = ctx.saved_tensors
+        scale = ctx.scale
+        reshape = x.dim() == 3
+        if reshape:
+            bs, seq_len, d = x.shape
+            d_y = d_y.reshape(-1, d_y.shape[-1])
+            x = x.reshape(-1, d)
+
+        d_lora_a = torch.empty_like(lora_a)
+        d_lora_b = torch.empty_like(lora_b)
+        d_lora_a.addmm_(torch.matmul(d_y, lora_b).t(), x, alpha=scale, beta=0)
+        d_lora_b.addmm_(d_y.t(), torch.matmul(lora_a, x.t()).t(), alpha=scale, beta=0)
+
+        d_x = torch.matmul(d_y, wts)
+        d_x.addmm_(torch.matmul(d_y, lora_b), lora_a, alpha=scale)
+
+        if reshape:
+            d_x = d_x.view(bs, seq_len, d)
+        return d_x, None, d_lora_a, d_lora_b, None, None
+
+
+class LoRATritonFunction(torch.autograd.Function):
+    @staticmethod
+    def setup_context(ctx, inputs, output):
+        x, wts, lora_a, lora_b, scale, _, _ = inputs
+        ctx.save_for_backward(x, wts, lora_a, lora_b)
+        ctx.scale = scale
+
+    @staticmethod
+    def forward(x, wts, lora_a, lora_b, scale, res, dtype):
+        reshape = x.dim() == 3
+        if reshape:
+            bs, seq_len, d = x.shape
+            x = x.reshape(-1, d)
+
+        intermediate = addmm_kernel_wrapper(x, lora_a, res=None, scale=1, dtype=dtype)
+        res = addmm_kernel_wrapper(
+            intermediate, lora_b, res=res, scale=scale, dtype=dtype
+        )
+
+        if reshape:
+            return res.view(bs, seq_len, -1)
+        else:
+            return res
+
+    @staticmethod
+    def backward(ctx, d_y, dtype):
+        x, wts, lora_a, lora_b = ctx.saved_tensors
+        scale = ctx.scale
+
+        reshape = x.dim() == 3
+        if reshape:
+            bs, seq_len, d = x.shape
+            d_y = d_y.reshape(-1, d_y.shape[-1])
+            x = x.reshape(-1, d)
+
+        intermediate = addmm_kernel_wrapper(d_y, lora_b, res=None, scale=1, dtype=dtype)
+
+        d_x = addmm_kernel_wrapper(d_y, wts, res=None, scale=1, dtype=dtype)
+        d_x = addmm_kernel_wrapper(
+            intermediate, lora_a, res=d_x, scale=scale, inplace_add=True, dtype=dtype
+        )
+
+        d_lora_a = addmm_kernel_wrapper(
+            intermediate.t(), x, res=None, scale=scale, dtype=dtype
+        )
+        del intermediate
+
+        # TODO: remove this contiguous call
+        intermediate2 = (
+            addmm_kernel_wrapper(x, lora_a.t(), res=None, scale=1, dtype=dtype)
+            .t()
+            .contiguous()
+        )
+        d_lora_b = addmm_kernel_wrapper(
+            intermediate2, d_y, res=None, scale=scale, dtype=dtype
+        ).t()
+
+        if reshape:
+            d_x = d_x.view(bs, seq_len, d)
+
+        return d_x, None, d_lora_a, d_lora_b, None, None
 
 
 def patch_linear_module(
