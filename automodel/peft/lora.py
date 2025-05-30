@@ -35,7 +35,7 @@ te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
-from automodel.peft.lora_kernel import addmm_kernel_wrapper
+from automodel.peft.lora_kernel import addmm_kernel_wrapper, tri_matmul_wrapper
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
@@ -165,27 +165,24 @@ if HAVE_TE:
             if self.dropout_position == 'pre':
                 x = self.dropout(x)
             # LoRA fwd is performed in original precision regardless of FP8 enabled
-            # TODO: evaluate between these alternatives.
-            # Set use_baseline=True to run what currently exists in NeMo.
-            # Set use_baseline=False to run custom autograd. Set use_triton=True to use the Triton implementation.
-            use_baseline = True
-            if use_baseline:
-                lora_res = self.lora_b(self.lora_a(x))
-                lora_res = lora_res * self.scale
-                if self.dropout_position == "post":
-                    lora_res = self.dropout(lora_res)
-                return res + lora_res
+            lora_res = self.lora_b(self.lora_a(x))
+            lora_res = lora_res * self.scale
+            if self.dropout_position == "post":
+                lora_res = self.dropout(lora_res)
+            return res + lora_res
 
-            use_triton = True
-            if not use_triton:
-                return LoRAFunction.apply(
-                    x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
-                )
-            else:
-                return LoRATritonFunction.apply(
-                    x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
-                )
 
+class TELinearAdapter(TELinearAdapter):
+    def forward(self, x):
+        # pylint: disable=C0115,C0116
+        res = super(TELinearAdapter, self).forward(x)
+        if self.dropout_position == 'pre':
+            x = self.dropout(x)
+        # LoRA fwd is performed in original precision regardless of FP8 enabled
+
+        return LoRATritonFunction.apply(
+            x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
+        )
 
 class LinearAdapter(nn.Linear):
     """
@@ -300,27 +297,31 @@ class LinearAdapter(nn.Linear):
 
         if self.dropout_position == 'pre':
             x = self.dropout(x)
-        # TODO: evaluate between these alternatives.
-        # Set use_baseline=True to run what currently exists in NeMo.
-        # Set use_baseline=False to run custom autograd. Set use_triton=True to use the Triton implementation.
-        use_baseline = True
-        if use_baseline:
-            lora_res = self.lora_b(self.lora_a(x))
-            lora_res = lora_res * self.scale
-            if self.dropout_position == "post":
-                lora_res = self.dropout(lora_res)
-            return res + lora_res
+        lora_res = self.lora_b(self.lora_a(x))
+        lora_res = lora_res * self.scale
+        if self.dropout_position == "post":
+            lora_res = self.dropout(lora_res)
+        return res + lora_res
 
-        use_triton = True
-        if not use_triton:
-            return LoRAFunction.apply(
-                x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
-            )
+
+class TritonLinearAdapter(LinearAdapter):
+    def forward(self, x):
+    # pylint: disable=C0115,C0116
+    # If LinearAdapter is used to monkey-patch a nn.Linear module, we want to use nn.Linear's
+    # forward in the case where it uses quantized weights. We store a reference to nn.Linear's
+    # forward in `super_fwd` attribute. If the attribute does not exist we do the usual linear.
+        if (fwd := getattr(self, 'super_fwd', None)) is not None:
+            assert fwd != self.forward
+            res = fwd(x)
         else:
-            return LoRATritonFunction.apply(
-                x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
-            )
+            res = F.linear(x, self.weight, self.bias)
 
+        if self.dropout_position == 'pre':
+            x = self.dropout(x)
+
+        return LoRATritonFunction.apply(
+            x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
+            )
 
 class LoRAFunction(torch.autograd.Function):
     @staticmethod
@@ -382,10 +383,7 @@ class LoRATritonFunction(torch.autograd.Function):
             bs, seq_len, d = x.shape
             x = x.reshape(-1, d)
 
-        intermediate = addmm_kernel_wrapper(x, lora_a, res=None, scale=1, dtype=dtype)
-        res = addmm_kernel_wrapper(
-            intermediate, lora_b, res=res, scale=scale, dtype=dtype
-        )
+        res = tri_matmul_wrapper(x, lora_a, lora_b, res=res, scale=scale, inplace_add=True, dtype=dtype)
 
         if reshape:
             return res.view(bs, seq_len, -1)
@@ -403,27 +401,11 @@ class LoRATritonFunction(torch.autograd.Function):
             d_y = d_y.reshape(-1, d_y.shape[-1])
             x = x.reshape(-1, d)
 
-        intermediate = addmm_kernel_wrapper(d_y, lora_b, res=None, scale=1, dtype=dtype)
+        d_x = tri_matmul_wrapper(d_y, lora_b, lora_a, res=None, scale=scale, dtype=dtype)
+        d_x = addmm_kernel_wrapper(d_y, wts, res=d_x, scale=1, dtype=dtype)
 
-        d_x = addmm_kernel_wrapper(d_y, wts, res=None, scale=1, dtype=dtype)
-        d_x = addmm_kernel_wrapper(
-            intermediate, lora_a, res=d_x, scale=scale, inplace_add=True, dtype=dtype
-        )
-
-        d_lora_a = addmm_kernel_wrapper(
-            intermediate.t(), x, res=None, scale=scale, dtype=dtype
-        )
-        del intermediate
-
-        # TODO: remove this contiguous call
-        intermediate2 = (
-            addmm_kernel_wrapper(x, lora_a.t(), res=None, scale=1, dtype=dtype)
-            .t()
-            .contiguous()
-        )
-        d_lora_b = addmm_kernel_wrapper(
-            intermediate2, d_y, res=None, scale=scale, dtype=dtype
-        ).t()
+        d_lora_a = tri_matmul_wrapper(x.t(), d_y, lora_b, res=None, scale=scale, dtype=dtype).t()
+        d_lora_b = tri_matmul_wrapper(d_y.t(), x, lora_a.t(), res=None, scale=scale, dtype=dtype)
 
         if reshape:
             d_x = d_x.view(bs, seq_len, d)
