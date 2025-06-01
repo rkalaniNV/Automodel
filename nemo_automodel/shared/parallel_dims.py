@@ -45,28 +45,6 @@ def _safe_flatten(mesh: DeviceMesh, dim_names: Sequence[str], flat_name: str) ->
     else:  # PyTorch <2.2 uses a private method
         sub._flatten(mesh_dim_name=flat_name)  # type: ignore[attr-defined]
 
-def _get_dim_pg(mesh: DeviceMesh, dim_name: str) -> dist.ProcessGroup:
-    """
-    Return the process-group corresponding to ``dim_name`` in ``mesh``.
-    Works with both regular and flattened meshes and across PyTorch
-    versions (≥2.0).
-    """
-    # 1. Direct attribute (PyTorch 2.2+ flattened mesh exposes it)
-    sub = mesh[dim_name]
-    if hasattr(sub, "get_group"):
-        return sub.get_group()          # type: ignore[attr-defined]
-    if hasattr(sub, "_process_group"):
-        return sub._process_group               # type: ignore[attr-defined]
-
-    # 2. Fall back to dim-group interface
-    if hasattr(mesh, "get_dim_group"):          # 2.2+
-        return mesh.get_dim_group(dim_name)
-    if hasattr(mesh, "get_dim_groups"):         # <= 2.1
-        idx = mesh.mesh_dim_names.index(dim_name)  # type: ignore[attr-defined]
-        return mesh.get_dim_groups()[idx]       # type: ignore[attr-defined]
-
-    raise RuntimeError(f"Cannot obtain process group for dim {dim_name}")
-
 def get_world_size():
     if dist.is_available() and dist.is_initialized():
         ws = dist.get_world_size()
