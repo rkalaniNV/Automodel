@@ -99,10 +99,12 @@ def _patch_distributed(monkeypatch):
 def _patch_ddp(monkeypatch):
     class _IdentityDDP(torch.nn.Module):
         def __init__(self, module, **kwargs):
+            """ """
             super().__init__()
             self.module = module
 
         def forward(self, *args, **kwargs):
+            """  """
             return self.module(*args, **kwargs)
 
     monkeypatch.setattr(torch.nn.parallel, "DistributedDataParallel", _IdentityDDP, raising=False)
