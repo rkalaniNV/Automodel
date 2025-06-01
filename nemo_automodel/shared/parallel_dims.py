@@ -46,6 +46,7 @@ def _safe_flatten(mesh: DeviceMesh, dim_names: Sequence[str], flat_name: str) ->
         sub._flatten(mesh_dim_name=flat_name)  # type: ignore[attr-defined]
 
 def get_world_size():
+    """ returns world size """
     if dist.is_available() and dist.is_initialized():
         ws = dist.get_world_size()
     else:
@@ -160,47 +161,58 @@ class ParallelDims:
     # ---------------- Convenience flags ---------------- #
     @property
     def dp_enabled(self) -> bool:
+        """ bool indicating whether data parallelism is enabled """
         return self.dp_replicate > 1 or self.dp_shard > 1
 
     @property
     def dp_replicate_enabled(self) -> bool:
+        """ bool indicating whether data replication is enabled """
         return self.dp_replicate > 1
 
     @property
     def dp_shard_enabled(self) -> bool:
+        """ bool indicating whether dp_shard is enabled """
         return self.dp_shard > 1
 
     @property
     def cp_enabled(self) -> bool:
+        """ bool indicating whether context parallelism is enabled """
         return self.cp > 1
 
     @property
     def tp_enabled(self) -> bool:
+        """ bool indicating whether tensor parallelism is enabled """
         return self.tp > 1
 
     @property
     def pp_enabled(self) -> bool:
+        """ bool indicating whether pipeline parallelism is enabled """
         return self.pp > 1
 
     @property
     def ep_enabled(self) -> bool:
+        """ bool indicating whether expert parallelism is enabled """
         return self.ep > 1
 
     @property
     def loss_parallel_enabled(self) -> bool:
+        """ bool indicating whether loss parallelism is enabled """
         return self.tp > 1 and self.enable_loss_parallel
 
     @property
     def non_data_parallel_size(self) -> int:
+        """ non-data parallel size """
         return self.cp * self.tp * self.pp * self.ep
 
     # TODO(akoumparouli): switch to enum instead of is_ddp/is_single_device
     @property
     def is_ddp(self):
+        """ bool flag indicating whether it's DDP """
         return self.non_data_parallel_size == 1 and self.dp_shard == 1 and self.dp_replicate > 1
 
     @property
     def is_single_device(self):
+        """ bool flag indicating whether it's single gpu """
         return self.non_data_parallel_size == 1 and self.dp_shard == 1 and self.dp_replicate == 1
 
     # ---------------- Mesh builder ---------------- #
@@ -270,6 +282,7 @@ class ParallelContext:
         device_type: str = "cuda",
         init_pg_kwargs: Optional[dict] = {},
     ):
+        """ ctor """
         self.dims = dims
         self._destroyed: bool = False     # internal flag
         atexit.register(self.shutdown)
@@ -292,10 +305,6 @@ class ParallelContext:
                 logger.info("Destroying default process group")
                 dist.destroy_process_group()
             self._destroyed = True
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.shutdown()
-        return False   # don’t swallow exceptions
 
 # --------------------------------------------------------------------- #
 # Public entry point
