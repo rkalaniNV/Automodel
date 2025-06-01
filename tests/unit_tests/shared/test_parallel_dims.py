@@ -34,14 +34,16 @@ def _patch_distributed(monkeypatch):
     # helpers ----------------------------------------------------------------
     class _FakeProcessGroup:
         def __init__(self, size, rank=0):
+            """ """
             self._size = size
             self._rank = rank
-            print(f's= {size} r= {rank}')
 
         def size(self):
+            """ """
             return self._size
 
         def rank(self):
+            """ """
             return self._rank
 
     # generic stubs -----------------------------------------------------------
@@ -65,6 +67,7 @@ def _patch_distributed(monkeypatch):
         )
 
     def _fake_destroy():
+        """ """
         _state["initialized"] = False
 
     # top-level torch.distributed
@@ -117,6 +120,7 @@ def _patch_device_mesh(monkeypatch):
     """
     class _FakeDeviceMesh:
         def __init__(self, device_type, dims, mesh_dim_names=None):
+            """ """
             self.device_type = device_type
             self.mesh = torch.empty(*dims) if dims else torch.empty(0)
             # store names so that `mesh[dim_name]` works
@@ -127,10 +131,12 @@ def _patch_device_mesh(monkeypatch):
 
         # support slicing like mesh["dp_replicate"]
         def __getitem__(self, key):
+            """ """
             return self
 
         # public flatten in 2.2+, or private in earlier versions
         def flatten(self, mesh_dim_name):
+            """ """
             # just pretend we did something
             self.mesh_dim_names = [mesh_dim_name]
             return self
@@ -139,13 +145,16 @@ def _patch_device_mesh(monkeypatch):
 
         # mimick access helpers used in code
         def get_group(self):  # 2.2+
+            """ """
             return self._pg
 
         @property
         def _process_group(self):  # <2.2
+            """ """
             return self._pg
 
     def _fake_init_device_mesh(device_type, dims, mesh_dim_names=None):
+        """ """
         return _FakeDeviceMesh(device_type, dims, mesh_dim_names)
 
     # patch both references: the public helper and the symbol captured
@@ -177,6 +186,7 @@ VALID_CFGS = [
 
 @pytest.mark.parametrize("dp_rep,dp_sh,cp,tp,pp,ep,ws", VALID_CFGS)
 def test_paralleldims_valid(dp_rep, dp_sh, cp, tp, pp, ep, ws):
+    """ """
     dims = ParallelDims(
         dp_replicate=dp_rep,
         dp_shard=dp_sh,
@@ -210,12 +220,14 @@ INVALID_CFGS = [
 
 @pytest.mark.parametrize("kwargs", INVALID_CFGS)
 def test_paralleldims_invalid(kwargs):
+    """ """
     with pytest.raises((ValueError, TypeError)):
         ParallelDims(**kwargs)
 
 
 # ---------- ParallelContext single-process ----------------------------------
 def test_parallelcontext_single_proc():
+    """ """
     ctx = init_parallel(
         dp_replicate=1,
         dp_shard=1,
@@ -231,6 +243,7 @@ def test_parallelcontext_single_proc():
 # ---------- ParallelContext multi-proc (fake) --------------------------------
 @pytest.mark.parametrize("world_size", [2, 4])
 def test_parallelcontext_multi_proc(monkeypatch, world_size):
+    """ """
     monkeypatch.setenv("WORLD_SIZE", str(world_size))
 
     ctx = init_parallel(
