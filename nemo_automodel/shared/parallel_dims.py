@@ -61,15 +61,20 @@ def _get_dim_pg(mesh: DeviceMesh, dim_name: str) -> dist.ProcessGroup:
     # 2. Fall back to dim-group interface
     if hasattr(mesh, "get_dim_group"):          # 2.2+
         return mesh.get_dim_group(dim_name)
-    if hasattr(mesh, "get_dim_groups"):         # ≤2.1
+    if hasattr(mesh, "get_dim_groups"):         # <= 2.1
         idx = mesh.mesh_dim_names.index(dim_name)  # type: ignore[attr-defined]
         return mesh.get_dim_groups()[idx]       # type: ignore[attr-defined]
 
     raise RuntimeError(f"Cannot obtain process group for dim {dim_name}")
 
-# --------------------------------------------------------------------- #
-# Parallel dimensions description
-# --------------------------------------------------------------------- #
+def get_world_size():
+    if dist.is_available() and dist.is_initialized():
+        ws = dist.get_world_size()
+    else:
+        # Try to read from env (torchrun sets it), else assume 1
+        ws = int(os.environ.get("WORLD_SIZE", "1"))
+    return ws
+
 @dataclass(slots=True)
 class ParallelDims:
     """Logical parallelism description.
@@ -109,13 +114,9 @@ class ParallelDims:
     # internal cache for build_mesh result (filled by ParallelContext)
     _mesh: Optional[DeviceMesh] = field(default=None, init=False, repr=False)
 
-    # ---------------- Validation ---------------- #
     def __post_init__(self) -> None:
         self._validate_and_infer()
 
-    # ──────────────────────────────────────────────────────────
-    # Validation + inference
-    # ──────────────────────────────────────────────────────────
     def _validate_and_infer(self) -> None:
         """Validate config and, when dp_shard == -1, infer its value."""
         # Check type
@@ -215,6 +216,7 @@ class ParallelDims:
     def non_data_parallel_size(self) -> int:
         return self.cp * self.tp * self.pp * self.ep
 
+    # TODO(akoumparouli): switch to enum instead of is_ddp/is_single_device
     @property
     def is_ddp(self):
         return self.non_data_parallel_size == 1 and self.dp_shard == 1 and self.dp_replicate > 1
@@ -271,9 +273,6 @@ class ParallelDims:
         return mesh
 
 
-# --------------------------------------------------------------------- #
-# ParallelContext – unified runtime view
-# --------------------------------------------------------------------- #
 class ParallelContext:
     """Runtime object returned by `init_parallel`.
 
@@ -297,9 +296,7 @@ class ParallelContext:
         self._destroyed: bool = False     # internal flag
         atexit.register(self.shutdown)
 
-        # --------------------------------------------------------------
         # 1. Distributed init (if not yet initialized)
-        # --------------------------------------------------------------
         if torch.cuda.is_available() and device_type == "cuda":
             torch.cuda.set_device(int(os.environ.get("LOCAL_RANK", 0)))
 
@@ -307,39 +304,8 @@ class ParallelContext:
             logger.info("Initializing default process group (%s)...", backend)
             dist.init_process_group(backend=backend, **init_pg_kwargs)
 
-        # After init (or single-rank fallback)
-        self.rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
-        self.world_size = (
-            dist.get_world_size() if dist.is_available() and dist.is_initialized() else 1
-        )
-
-        # Sanity: keep dims.world_size consistent with actual group
-        if self.world_size != dims.world_size:
-            raise RuntimeError(
-                f"Mismatch: ParallelDims.world_size={dims.world_size} "
-                f"vs pg.world_size={self.world_size}"
-            )
-
-        # --------------------------------------------------------------
-        # 2. Build mesh if needed
-        # --------------------------------------------------------------
-        if self.world_size == 1:
-            self.mesh = None
-            self.ddp_pg = None
-            logger.info("Single-process run — no DeviceMesh built")
-        else:
-            self.mesh = dims.build_mesh(device_type)
-
-            # ------------ obtain the replication PG ------------
-            if dims.dp_replicate_enabled:
-                self.ddp_pg = _get_dim_pg(self.mesh, "dp_replicate")
-            else:                       # no explicit replication axis
-                self.ddp_pg = dist.group.WORLD
-
-            if dims.is_ddp:
-                logger.info("Mesh built; DDP group size=%d", self.ddp_pg.size())
-            else:
-                logger.info("Mesh built; FSDP group size=%d", self.ddp_pg.size())
+        # 2. Build mesh
+        self.mesh = dims.build_mesh(device_type)
 
     def shutdown(self) -> None:
         """Idempotent cleanup of the default PG (called at exit)."""
@@ -352,14 +318,6 @@ class ParallelContext:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.shutdown()
         return False   # don’t swallow exceptions
-
-def get_world_size():
-    if dist.is_available() and dist.is_initialized():
-        ws = dist.get_world_size()
-    else:
-        # Try to read from env (torchrun sets it), else assume 1
-        ws = int(os.environ.get("WORLD_SIZE", "1"))
-    return ws
 
 # --------------------------------------------------------------------- #
 # Public entry point
