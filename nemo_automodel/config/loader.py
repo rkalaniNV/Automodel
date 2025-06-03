@@ -208,33 +208,35 @@ class ConfigNode:
                 return default
         return current
 
-    def __contains__(self, key):
-        return self.get(key, None) is not None
-
     def __repr__(self, level=0):
         """
         Return a string representation of the configuration node with indentation.
-
         Args:
             level (int): The current indentation level.
-
         Returns:
             str: An indented string representation of the configuration.
         """
         indent = "  " * level
-        lines = []
-        for k, v in self.__dict__.items():
-            if isinstance(v, ConfigNode):
-                rep = v.__repr__(level + 1)
-            elif isinstance(v, list):
-                inner = "\n".join(
-                    f"{'  '*(level+1)}{repr(i)}" for i in v
-                )
-                rep = "[\n" + inner + f"\n{indent}]"
-            else:
-                rep = repr(v)
-            lines.append(f"{indent}{k}: {rep}")
-        return "#path:\n" + "\n".join(lines) + f"\n{indent}"
+        lines = [f"{indent}{key}: {self._repr_value(value, level)}" for key, value in self.__dict__.items()]
+        return "\n#path: " + "\n".join(lines) + f"\n{indent}"
+
+    def _repr_value(self, value, level):
+        """
+        Format a configuration value for the string representation.
+        Args:
+            value: The configuration value.
+            level (int): The indentation level.
+        Returns:
+            str: A formatted string representation of the value.
+        """
+        if isinstance(value, ConfigNode):
+            return value.__repr__(level + 1)
+        elif isinstance(value, list):
+            return "[\n" + \
+                "\n".join([f"{'  ' * (level + 1)}{self._repr_value(i, level + 1)}" for i in value]) \
+                + f"\n{'  ' * level}]"
+        else:
+            return repr(value)
 
     def __str__(self):
         """
@@ -243,7 +245,24 @@ class ConfigNode:
         Returns:
             str: The string representation.
         """
-        return self.__repr__(0)
+        return self.__repr__(level=0)
+
+    def __contains__(self, key):
+        """
+        Check if a dotted key exists in the configuration.
+        Args:
+            key (str): The dotted key to check.
+        Returns:
+            bool: True if the key exists, False otherwise.
+        """
+        parts = key.split('.')
+        current = self
+        for p in parts:
+            if isinstance(current, ConfigNode):
+                if p in current.__dict__:
+                    current = current.__dict__[p]
+                else:
+                    return False
 
 def load_yaml_config(path):
     """
