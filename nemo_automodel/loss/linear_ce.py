@@ -59,7 +59,6 @@
 # The Cut Cross Entropy software includes a number of subcomponents with separate
 # copyright notices and license terms - please see the file ACKNOWLEDGEMENTS.md.
 # -------------------------------------------------------------------------------
-
 import torch
 
 from nemo_automodel.shared.import_utils import safe_import_from
