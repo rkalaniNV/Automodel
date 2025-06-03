@@ -12,7 +12,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from nemo_automodel.shared.import_utils import safe_import_from
-HAS_FSDP, FSDP = safe_import_from("megatron.core.distributed.custom_fsdp", "FSDP")
+HAS_FSDP, FSDP = safe_import_from("nemo_automodel.distributed.nvfsdp.nv", "nvFSDP")
 
 from nemo_automodel.config.loader import load_yaml_config
 from nemo_automodel.distributed.init_utils import initialize_distributed
