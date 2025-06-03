@@ -14,6 +14,9 @@ from nemo_automodel.utils.dist_utils import reduce_loss, get_sync_ctx, rescale_g
 from nemo_automodel.training.base_recipe import BaseRecipe
 from nemo_automodel.training.step_scheduler import StepScheduler
 
+import argparse
+import os
+
 # ---------------------------
 #  Stateless helper functions
 # ---------------------------
@@ -391,7 +394,15 @@ def main():
 
     Loads the configuration, sets up the trainer, and initiates the training loop.
     """
-    cfg = load_yaml_config("llama_3_2_1b_hellaswag.yaml")
+    parser = argparse.ArgumentParser(description="Fine-tune a model for next-token prediction")
+    parser.add_argument(
+        "--config", 
+        type=str, 
+        default="llama_3_2_1b_hellaswag.yaml",
+        help="Path to the configuration YAML file (default: llama_3_2_1b_hellaswag.yaml)"
+    )
+    args = parser.parse_args()
+    cfg = load_yaml_config(args.config)
     trainer = FinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
     trainer.run_train_validation_loop()
