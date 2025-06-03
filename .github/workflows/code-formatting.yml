@@ -10,9 +10,7 @@ name: Isort and Black Formatting
 # For details see https://github.com/orgs/community/discussions/25702
 
 on:
-  pull_request_target:
-    paths:
-      - "**.py"
+  pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
 defaults:
