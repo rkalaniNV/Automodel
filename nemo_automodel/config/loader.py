@@ -211,8 +211,10 @@ class ConfigNode:
     def __repr__(self, level=0):
         """
         Return a string representation of the configuration node with indentation.
+
         Args:
             level (int): The current indentation level.
+
         Returns:
             str: An indented string representation of the configuration.
         """
@@ -223,9 +225,11 @@ class ConfigNode:
     def _repr_value(self, value, level):
         """
         Format a configuration value for the string representation.
+
         Args:
             value: The configuration value.
             level (int): The indentation level.
+
         Returns:
             str: A formatted string representation of the value.
         """
@@ -250,8 +254,10 @@ class ConfigNode:
     def __contains__(self, key):
         """
         Check if a dotted key exists in the configuration.
+
         Args:
             key (str): The dotted key to check.
+
         Returns:
             bool: True if the key exists, False otherwise.
         """
@@ -263,6 +269,7 @@ class ConfigNode:
                     current = current.__dict__[p]
                 else:
                     return False
+        return current != self
 
 def load_yaml_config(path):
     """
