@@ -1,4 +1,6 @@
 import yaml
+from functools import reduce
+import os
 import importlib
 import importlib.util
 import os
@@ -148,7 +150,7 @@ class ConfigNode:
                 spec.loader.exec_module(mod)
                 return getattr(mod, parts[-1])
 
-        raise ImportError(f"Cannot resolve target: {dotted_path}")
+        raise ImportError(f"Cannot resolve target: {dotted_path}. Searched paths for: {'.'.join(parts[:-1])}.py")
 
     def to_dict(self):
         """
@@ -202,7 +204,7 @@ class ConfigNode:
                     current = current[int(p)]
                 except:
                     return default
-            else:
+            else:  # Reached a leaf but path still has components
                 return default
             if current is default:
                 return default
