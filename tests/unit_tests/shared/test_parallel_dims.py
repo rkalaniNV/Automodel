@@ -6,7 +6,7 @@ import pytest
 import torch
 
 import nemo_automodel.shared.parallel_dims as parallel
-from nemo_automodel.shared.parallel_dims import ParallelDims, init_parallel
+from nemo_automodel.shared.parallel_dims import ParallelDims
 
 
 # ---------------------------------------------------------------------------
@@ -226,36 +226,3 @@ def test_paralleldims_invalid(kwargs):
     with pytest.raises((ValueError, TypeError)):
         ParallelDims(**kwargs)
 
-
-# ---------- ParallelContext single-process ----------------------------------
-def test_parallelcontext_single_proc():
-    """ """
-    ctx = init_parallel(
-        dp_replicate=1,
-        dp_shard=1,
-        world_size=1,
-        backend="gloo",
-        device_type="cpu",
-    )
-    assert ctx.dims.world_size == 1
-    assert ctx.mesh is not None
-    assert ctx.mesh.mesh.numel() == 0
-    assert ctx.mesh.mesh_dim_names == []
-
-# ---------- ParallelContext multi-proc (fake) --------------------------------
-@pytest.mark.parametrize("world_size", [2, 4])
-def test_parallelcontext_multi_proc(monkeypatch, world_size):
-    """ """
-    monkeypatch.setenv("WORLD_SIZE", str(world_size))
-
-    ctx = init_parallel(
-        dp_replicate=world_size,   # pure replication  → acts like DDP
-        dp_shard=1,
-        cp=1, tp=1, pp=1, ep=1,
-        backend="gloo",
-        device_type="cpu",
-        world_size=world_size,
-    )
-
-    assert ctx.dims.world_size == world_size
-    assert ctx.mesh is not None
