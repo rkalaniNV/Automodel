@@ -20,6 +20,7 @@ from nemo_automodel.distributed.parallelizer import create_context_parallel_ctx,
 from nemo_automodel.training.base_recipe import BaseRecipe
 from nemo_automodel.training.step_scheduler import StepScheduler
 from nemo_automodel.utils.dist_utils import reduce_loss, get_sync_ctx, rescale_gradients, clip_gradients
+from nemo_automodel.datasets.llm.hf_dataset import HFDatasetBuilder
 
 # ---------------------------
 #  Stateless helper functions
@@ -104,6 +105,11 @@ def build_dataloader(cfg_ds, cfg_dl, distributed_sampler_kwargs) -> DataLoader:
         The instantiated DataLoader.
     """
     ds = cfg_ds.instantiate()
+    # Map "validation" to canonical "val" split
+    split_name = "val" if cfg_ds.split == "validation" else cfg_ds.split
+    if isinstance(ds, HFDatasetBuilder):
+        # Get actual Dataset split instead of builder which is the case for datasets defined in hf_dataset.py
+        ds = ds.dataset_splits[split_name]
     sampler = torch.utils.data.distributed.DistributedSampler(
         ds,
         num_replicas=distributed_sampler_kwargs.get("num_replicas", 1),
@@ -502,7 +508,8 @@ def main():
 
     Loads the configuration, sets up the trainer, and initiates the training loop.
     """
-    cfg = load_yaml_config("llama_3_2_1b_hellaswag.yaml")
+    cfg = load_yaml_config("recipes/llm/llama_3_2_1b_hf_dataset.yaml")
+    #cfg = load_yaml_config("recipes/llm/llama_3_2_1b_hellaswag.yaml")
     trainer = FinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
     trainer.run_train_validation_loop()
