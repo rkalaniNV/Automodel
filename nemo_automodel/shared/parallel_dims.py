@@ -31,9 +31,6 @@ logging.basicConfig(
     level=os.environ.get("LOGLEVEL", "INFO").upper(),
 )
 
-# --------------------------------------------------------------------- #
-# Helpers
-# --------------------------------------------------------------------- #
 def _safe_flatten(mesh: DeviceMesh, dim_names: Sequence[str], flat_name: str) -> None:
     """Flatten `mesh[dim_names]` into one new dimension named `flat_name`.
 
@@ -90,9 +87,6 @@ class ParallelDims:
     world_size: int = 1
     enable_loss_parallel: bool = False
 
-    # internal cache for build_mesh result (filled by ParallelContext)
-    _mesh: Optional[DeviceMesh] = field(default=None, init=False, repr=False)
-
     def __post_init__(self) -> None:
         self._validate_and_infer()
 
@@ -107,7 +101,7 @@ class ParallelDims:
         if self.world_size < 1:
             raise ValueError("world_size must be >= 1")
 
-        # -------- single-GPU guard --------
+        # single-GPU guard
         if self.world_size == 1:
 
             multi_dims = [(k, getattr(self, k))
@@ -121,7 +115,7 @@ class ParallelDims:
                     "Either launch more ranks or set them to 1."
                 )
 
-        # -------- non-negative checks --------
+        # non-negative checks
         for n in ("dp_replicate", "cp", "tp", "pp", "ep"):
             val = getattr(self, n)
             if val < 1:
@@ -130,7 +124,7 @@ class ParallelDims:
         if self.dp_shard not in (-1, 1) and self.dp_shard < 1:
             raise ValueError("dp_shard must be -1 or >= 1")
 
-        # -------- infer dp_shard if requested --------
+        # infer dp_shard if requested
         if self.dp_shard == -1:
             denom = self.dp_replicate * self.cp * self.tp * self.pp
             if self.world_size % denom:
@@ -140,7 +134,7 @@ class ParallelDims:
                 )
             self.dp_shard = self.world_size // denom
 
-        # -------- per-dim divisibility / range --------
+        # per-dim divisibility / range
         for n in ("dp_replicate", "dp_shard", "cp", "tp", "pp", "ep"):
             v = getattr(self, n)
             if v > self.world_size:
@@ -148,7 +142,7 @@ class ParallelDims:
             if self.world_size % v:
                 raise ValueError(f"world_size ({self.world_size}) must be divisible by {n} ({v})")
 
-        # -------- final product check --------
+        # final product check
         total = (
             self.dp_replicate * self.dp_shard *
             self.cp * self.tp * self.pp * self.ep
@@ -158,7 +152,6 @@ class ParallelDims:
                 f"Product of dims ({total}) != world_size ({self.world_size})"
             )
 
-    # ---------------- Convenience flags ---------------- #
     @property
     def dp_enabled(self) -> bool:
         """ bool indicating whether data parallelism is enabled """
