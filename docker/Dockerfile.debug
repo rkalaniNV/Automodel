@@ -16,6 +16,8 @@ FROM nvcr.io/nvidia/nemo:25.04
 
 RUN pip install torchdata coverage pytest
 RUN pip install git+https://github.com/HuiyingLi/NeMo-Run.git@7c215a7a67f2e7ad24d585e890a8fb0a9a5af388
+RUN pip install git+https://github.com/HuiyingLi/NeMo-Run.git@7c215a7a67f2e7ad24d585e890a8fb0a9a5af388
+
 
 
 ARG NVIDIA_BUILD_ID
