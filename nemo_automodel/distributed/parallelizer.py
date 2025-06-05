@@ -17,10 +17,13 @@ from torch.distributed.tensor.parallel import (
 )
 
 # TODO(boxiangw): Change to nvFSDP once it got published
-from nemo_automodel.distributed.nvfsdp.nvfsdp import nvFSDP
-from nemo_automodel.distributed.nvfsdp.distributed_data_parallel_config import (
-    DistributedDataParallelConfig,
-)
+try:
+    from nvfsdp import nvFSDP, DistributedDataParallelConfig
+except ImportError:
+    from nemo_automodel.distributed.nvfsdp.nvfsdp import nvFSDP
+    from nemo_automodel.distributed.nvfsdp.distributed_data_parallel_config import (
+        DistributedDataParallelConfig,
+    )
 
 
 # Taken and modified from torchtitan

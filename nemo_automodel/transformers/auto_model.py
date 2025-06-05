@@ -116,7 +116,7 @@ class NeMoAutoModelForCausalLM(AutoModelForCausalLM):
         ``use_liger_kernel=False``.
         """
         use_liger_kernel = kwargs.pop('use_liger_kernel', True)
-        sdpa_method = kwargs.pop('sdpa_method', None)
+        # sdpa_method = kwargs.pop('sdpa_method', None)
         model = super().from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
         if use_liger_kernel:
             if not HAS_LIGER_KERNEL:
@@ -129,7 +129,7 @@ class NeMoAutoModelForCausalLM(AutoModelForCausalLM):
                 # If patching failed, retry
                 return cls.from_pretrained(
                     pretrained_model_name_or_path, *model_args, **kwargs, use_liger_kernel=False)
-        model = patch_attention(model, sdpa_method)
+        # model = patch_attention(model, sdpa_method)
         model.config.update({"nemo_version" : __version__})
         return model
 

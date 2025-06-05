@@ -12,7 +12,10 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from nemo_automodel.shared.import_utils import safe_import_from
-HAS_FSDP, FSDP = safe_import_from("nemo_automodel.distributed.nvfsdp.nv", "nvFSDP")
+try:
+    from nvfsdp import nvFSDP
+except ImportError:
+    from nemo_automodel.distributed.nvfsdp.nvfsdp import nvFSDP
 
 from nemo_automodel.config.loader import load_yaml_config
 from nemo_automodel.distributed.init_utils import initialize_distributed
@@ -351,6 +354,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 False,
                 False,
             )
+            print(batch)
             with train_context(context_parallel_ctx):
                 out  = self.model(**batch)
 
@@ -395,7 +399,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 # TODO: TP WAR
                 grad_norm = 0.
 
-            if isinstance(self.model, FSDP):
+            if isinstance(self.model, nvFSDP):
                 # If the model uses nvFSDP, wait for all sharded gradients to be reduced and unsharded.
                 # Necessary because the post-backward reduce-scatter is asynchronous, so gradients and backward
                 # computations are concurrent, but the gradients of the final layer may not be available yet.
@@ -404,11 +408,12 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             self.optimizer.step()
             self.optimizer.zero_grad()
 
-            if isinstance(self.model, FSDP):
+            if isinstance(self.model, nvFSDP):
                 # If custom FSDP2 is configured with "optim" (optimizer state / high-precision model weight sharding),
                 # then the optimizer step will be applied to the main high-precision model weights. Update the model
                 # weights after the optimizer step.
-                self.model.param_and_grad_buffer.copy_main_weights_to_model_weights()
+                self.model.install_optimized_model_weights()
+                self.model.zero_grad_buffer()
 
         return grad_norm
 
@@ -503,9 +508,12 @@ def main():
     Loads the configuration, sets up the trainer, and initiates the training loop.
     """
     cfg = load_yaml_config("llama_3_2_1b_hellaswag.yaml")
+    # cfg = load_yaml_config("llama_3_2_1b_hellaswag_nvfsdp.yaml")
     trainer = FinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
     trainer.run_train_validation_loop()
 
 if __name__ == "__main__":
     main()
+
+    #torch.Size([8, 32, 38, 1]) torch.Size([8, 32, 38, 1]) torch.Size([8, 32, 38, 64]) torch.Size([8, 32, 38, 64])
