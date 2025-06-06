@@ -497,7 +497,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     mask=loss_mask,
                     reduction="sum"
                 )
-            # assert isinstance(local_loss, torch.Tensor)
+
             total_loss += local_loss.item()
             total_tokens += loss_mask.sum().item()
 
@@ -556,7 +556,7 @@ def main():
 
     Loads the configuration, sets up the trainer, and initiates the training loop.
     """
-    cfg = load_yaml_config("llama_3_2_1b_hellaswag_nvfsdp.yaml")
+    cfg = load_yaml_config("llama_3_2_1b_hellaswag.yaml")
     trainer = FinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
     trainer.run_train_validation_loop()
