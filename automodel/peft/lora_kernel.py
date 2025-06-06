@@ -182,7 +182,6 @@ def lora_forward_wrapper(a, b, c, res, scale, dtype=torch.float32):
     N, L = c.shape
 
     BLOCK_M = 32
-    BLOCK_N = 16
     BLOCK_K = 256
     BLOCK_L = 256
     GROUP_M = 8
@@ -200,11 +199,10 @@ def lora_forward_wrapper(a, b, c, res, scale, dtype=torch.float32):
         c.stride(0), c.stride(1), #
         res.stride(0), res.stride(1),
         scale,
-        # BLOCK_M,
-        # BLOCK_N,
-        # BLOCK_K,
-        # BLOCK_L,
-        # GROUP_M,
+        BLOCK_M,
+        BLOCK_K,
+        BLOCK_L,
+        GROUP_M,
     )
 
     return res
