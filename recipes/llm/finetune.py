@@ -12,7 +12,6 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.distributed.device_mesh import _mesh_resources
 
-from nemo_automodel.shared.import_utils import safe_import_from
 try:
     from nvfsdp import nvFSDP
 except ImportError:
