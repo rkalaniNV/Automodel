@@ -353,7 +353,7 @@ def get_train_context(enable_loss_parallel: bool, enable_compiled_autograd: bool
                 from torch.nn.attention import SDPBackend, sdpa_kernel
 
                 # currently we only support these two SDP backends.
-                # TODO (xilunwu): support cuDNN backend
+                # SDPBackend.MATH is not currently compatible with DTensor
                 stack.enter_context(
                     sdpa_kernel(
                         [SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]
