@@ -271,7 +271,6 @@ def lora_da_dx_kernel(xt_ptr, dy_ptr, b_ptr, a_ptr, dx_ptr, da_ptr,
     da_ptrs = da_ptr + stride_da_s * offs_da_s[:, None] + stride_da_l1 * offs_da_l[None, :]
     da_mask = (offs_da_s[:, None] < S) & (offs_da_l[None, :] < L1)
 
-    # breakpoint()
     for s in tl.range(0, tl.cdiv(S, BLOCK_SIZE_S)):
         xt = tl.load(xt_ptrs, mask=xt_mask, other=0.0)
         dlora_a = tl.dot(xt, dyb)
@@ -311,7 +310,7 @@ def lora_da_dx_update_wrapper(xt, dy, lora_b, lora_a, scale, dtype=torch.float32
                     scale,
                     BLOCK_S, BLOCK_M, BLOCK_K, BLOCK_N, BLOCK_L, GROUP_M,
                     )
-    dlora_a = dlora_a.reshape(S, -1, BLOCK_N).sum(1)
+    dlora_a = dlora_a.reshape(S, -1, BLOCK_N).sum(1)[:, :N]
     return dx, dlora_a
 
 
@@ -351,8 +350,8 @@ def lora_db_kernel(a_ptr, xt_ptr, dy_ptr, db_ptr,
 
     L1 = tl.cdiv(N, BLOCK_SIZE_N) * BLOCK_SIZE_M
     for s in tl.range(0, tl.cdiv(S, BLOCK_SIZE_S)):
-        dy_mask = (offs_dy_n[:, None] < N) & (offs_s[None, :] < S)
-        db_mask = (offs_db_m[:, None] < L1) & (offs_s[None, :] < S)
+        dy_mask = (offs_dy_n[:, None] < N) & (offs_s[None, :] < S - s * BLOCK_SIZE_S)
+        db_mask = (offs_db_m[:, None] < L1) & (offs_s[None, :] < S - s * BLOCK_SIZE_S)
         dy = tl.load(dy_ptrs, mask=dy_mask, other=0.0)
         dlora_b = tl.dot(axt, dy)
         dlora_b = dlora_b.to(a_ptr.dtype.element_ty)
@@ -387,5 +386,7 @@ def lora_db_update_wrapper(lora_a, xt, dy, scale, dtype=torch.float32):
                          scale,
                          BLOCK_M, BLOCK_K, BLOCK_N, BLOCK_S, GROUP_M,
                     )
-    dlora_b = dlora_b.reshape(-1, M, S).sum(0).t()
+    dlora_b = dlora_b.reshape(-1, BLOCK_M, S).sum(0).t()
+    if M < BLOCK_M:
+        dlora_b = dlora_b[:, :M]
     return dlora_b
