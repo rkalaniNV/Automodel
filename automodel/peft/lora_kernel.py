@@ -21,9 +21,9 @@ import torch
 
 def forward_autotune_configs():
     out = list()
-    for m in [16,32,64]:
-        for k in [256]:
-            for l in [256]:
+    for m in [16, 32, 64]:
+        for k in [128, 256, 512]:
+            for l in [128, 256, 512]:
                 out.append(
                     triton.Config(
                         {'BLOCK_SIZE_M': m, 'BLOCK_SIZE_K': k, 'BLOCK_SIZE_L': l, 'GROUP_SIZE_M': 8},
@@ -212,6 +212,25 @@ def lora_forward_wrapper(x, lora_a, lora_b, res, scale, dtype=torch.float32):
     return res
 
 
+def da_dx_autotune_configs():
+    out = list()
+    for s in [32, 64, 128]:
+        for k in [32, 64, 128]:
+            for l in [64, 128, 256]:
+                out.append(
+                    triton.Config(
+                        {'BLOCK_SIZE_S': s, 'BLOCK_SIZE_K': k, 'BLOCK_SIZE_L': l},
+                        num_stages=4,
+                        num_warps=4,
+                    ))
+    return out
+
+
+@triton.autotune(
+    configs=da_dx_autotune_configs(),
+    key=['S', 'N', 'K', 'L'],
+)
+@triton.heuristics(values={'BLOCK_SIZE_N': lambda args: max(triton.next_power_of_2(args['N']), 16)})
 @triton.jit
 def lora_da_dx_kernel(xt_ptr, dy_ptr, b_ptr, a_ptr, dx_ptr, da_ptr,
                     S, M, K, N, L,
@@ -314,6 +333,25 @@ def lora_da_dx_update_wrapper(xt, dy, lora_b, lora_a, scale, dtype=torch.float32
     return dx, dlora_a
 
 
+def db_autotune_configs():
+    out = list()
+    for s in [32, 64, 128]:
+        for k in [32, 64, 128]:
+                out.append(
+                    triton.Config(
+                        {'BLOCK_SIZE_S': s, 'BLOCK_SIZE_K': k},
+                        num_stages=4,
+                        num_warps=4,
+                    ))
+    return out
+
+
+@triton.autotune(
+    configs=db_autotune_configs(),
+    key=['S', 'N', 'K'],
+)
+@triton.heuristics(values={'BLOCK_SIZE_M': lambda args: max(triton.next_power_of_2(args['M']), 16),
+                           'GROUP_SIZE_M': lambda args: 8})
 @triton.jit
 def lora_db_kernel(a_ptr, xt_ptr, dy_ptr, db_ptr,
                   M, K, N, S,
