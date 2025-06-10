@@ -35,7 +35,7 @@ te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
-from automodel.peft.lora_kernel import addmm_kernel_wrapper, tri_matmul_wrapper, lora_forward_wrapper
+from automodel.peft.lora_kernel import lora_forward_wrapper, lora_da_dx_update_wrapper, lora_db_update_wrapper
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
@@ -385,7 +385,6 @@ class LoRATritonFunction(torch.autograd.Function):
 
         res = lora_forward_wrapper(x, lora_a, lora_b, res=res, scale=scale, dtype=dtype)
 
-
         if reshape:
             return res.view(bs, seq_len, -1)
         else:
@@ -402,20 +401,9 @@ class LoRATritonFunction(torch.autograd.Function):
             d_y = d_y.reshape(-1, d_y.shape[-1])
             x = x.reshape(-1, d)
 
-
-        # d_x = tri_matmul_wrapper(d_y, lora_b, lora_a, res=None, scale=scale, dtype=dtype)
-        # d_x = addmm_kernel_wrapper(d_y, wts, res=d_x, scale=1, dtype=dtype)
-
-        # d_lora_a = tri_matmul_wrapper(x.t(), d_y, lora_b, res=None, scale=scale, dtype=dtype).t()
-        # d_lora_b = tri_matmul_wrapper(d_y.t(), x, lora_a.t(), res=None, scale=scale, dtype=dtype)
-
-        d_lora_a = torch.empty_like(lora_a)
-        d_lora_b = torch.empty_like(lora_b)
-        d_lora_a.addmm_(torch.matmul(d_y, lora_b).t(), x, alpha=scale, beta=0)
-        d_lora_b.addmm_(d_y.t(), torch.matmul(lora_a, x.t()).t(), alpha=scale, beta=0)
-
-        d_x = torch.matmul(d_y, wts)
-        d_x.addmm_(torch.matmul(d_y, lora_b), lora_a, alpha=scale)
+        d_lora_a, d_x = lora_da_dx_update_wrapper(x.t(), d_y, lora_b, lora_a, scale, dtype=dtype)
+        d_x += torch.matmul(d_y, wts)
+        d_lora_b = lora_db_update_wrapper(lora_a, x.t(), d_y, scale, dtype)
 
         if reshape:
             d_x = d_x.view(bs, seq_len, d)
