@@ -183,11 +183,6 @@ def lora_forward_wrapper(x, lora_a, lora_b, res, scale, dtype=torch.float32):
     M, K = x.shape
     K, N = lora_a.shape
     N, L = lora_b.shape
-
-    BLOCK_M = 32
-    BLOCK_K = 256
-    BLOCK_L = 256
-    GROUP_M = 8
     
     if res is None:
         res = torch.zeros((M, L), device=x.device, dtype=dtype)
@@ -202,11 +197,6 @@ def lora_forward_wrapper(x, lora_a, lora_b, res, scale, dtype=torch.float32):
         lora_b.stride(0), lora_b.stride(1), #
         res.stride(0), res.stride(1),
         scale,
-        # BLOCK_M,
-        # BLOCK_N,
-        # BLOCK_K,
-        # BLOCK_L,
-        # GROUP_M,
     )
 
     return res
@@ -216,7 +206,7 @@ def da_dx_autotune_configs():
     out = list()
     for s in [32, 64, 128]:
         for k in [32, 64, 128]:
-            for l in [64, 128, 256]:
+            for l in [32, 64, 128, 256]:
                 out.append(
                     triton.Config(
                         {'BLOCK_SIZE_S': s, 'BLOCK_SIZE_K': k, 'BLOCK_SIZE_L': l},
@@ -228,7 +218,7 @@ def da_dx_autotune_configs():
 
 @triton.autotune(
     configs=da_dx_autotune_configs(),
-    key=['S', 'N', 'K', 'L'],
+    key=['S', 'M', 'N', 'K', 'L'],
 )
 @triton.heuristics(values={'BLOCK_SIZE_N': lambda args: max(triton.next_power_of_2(args['N']), 16)})
 @triton.jit
@@ -241,12 +231,12 @@ def lora_da_dx_kernel(xt_ptr, dy_ptr, b_ptr, a_ptr, dx_ptr, da_ptr,
                     stride_dx_m, stride_dx_l,
                     stride_da_s, stride_da_l1,
                     scale,
-                    BLOCK_SIZE_S: tl.constexpr,
                     BLOCK_SIZE_M: tl.constexpr,
-                    BLOCK_SIZE_K: tl.constexpr,
+                    GROUP_SIZE_M: tl.constexpr,
                     BLOCK_SIZE_N: tl.constexpr,
-                    BLOCK_SIZE_L: tl.constexpr,
-                    GROUP_SIZE_M: tl.constexpr):
+                    BLOCK_SIZE_S: tl.constexpr,
+                    BLOCK_SIZE_K: tl.constexpr,
+                    BLOCK_SIZE_L: tl.constexpr):
 
     pid_m, pid_n = get_pid_coords(M, N,
                                   BLOCK_SIZE_M,
@@ -299,18 +289,17 @@ def lora_da_dx_kernel(xt_ptr, dy_ptr, b_ptr, a_ptr, dx_ptr, da_ptr,
         xt_ptrs += BLOCK_SIZE_S * stride_xt_s
 
 def lora_da_dx_update_wrapper(xt, dy, lora_b, lora_a, scale, dtype=torch.float32):
-    assert dy.shape[1] == lora_b.shape[0], "Incompatible A and B dimensions"
+    assert xt.shape[1] == dy.shape[0], "Incompatible X and dY dimensions"
+    assert dy.shape[1] == lora_b.shape[0], "Incompatible dY and B dimensions"
+    assert lora_b.shape[1] == lora_a.shape[0], "LoRA dimensions must match"
 
     S, M = xt.shape
     M, K = dy.shape
     K, N = lora_b.shape
     N, L = lora_a.shape
-    BLOCK_S = 64
-    BLOCK_M = 64
-    BLOCK_K = 256
+
     BLOCK_N = max(triton.next_power_of_2(N), 16)
-    BLOCK_L = 256
-    GROUP_M = 8
+    BLOCK_M = 32 if M < 3072 else 64
 
     num_blocks_m = (M + BLOCK_M - 1) // BLOCK_M
     L1 = num_blocks_m * BLOCK_N
@@ -327,7 +316,7 @@ def lora_da_dx_update_wrapper(xt, dy, lora_b, lora_a, scale, dtype=torch.float32
                     dx.stride(0), dx.stride(1), #
                     dlora_a.stride(0), dlora_a.stride(1),
                     scale,
-                    BLOCK_S, BLOCK_M, BLOCK_K, BLOCK_N, BLOCK_L, GROUP_M,
+                    BLOCK_M,
                     )
     dlora_a = dlora_a.reshape(S, -1, BLOCK_N).sum(1)[:, :N]
     return dx, dlora_a
@@ -348,7 +337,7 @@ def db_autotune_configs():
 
 @triton.autotune(
     configs=db_autotune_configs(),
-    key=['S', 'N', 'K'],
+    key=['S', 'M', 'N', 'K'],
 )
 @triton.heuristics(values={'BLOCK_SIZE_M': lambda args: max(triton.next_power_of_2(args['M']), 16),
                            'GROUP_SIZE_M': lambda args: 8})
@@ -360,11 +349,11 @@ def lora_db_kernel(a_ptr, xt_ptr, dy_ptr, db_ptr,
                   stride_dy_n, stride_dy_s,
                   stride_db_l1, stride_db_s,
                   scale,
-                  BLOCK_SIZE_M: tl.constexpr,
-                  BLOCK_SIZE_K: tl.constexpr,
                   BLOCK_SIZE_N: tl.constexpr,
-                  BLOCK_SIZE_S: tl.constexpr,
-                  GROUP_SIZE_M: tl.constexpr):
+                  BLOCK_SIZE_M: tl.constexpr,
+                  GROUP_SIZE_M: tl.constexpr,
+                  BLOCK_SIZE_K: tl.constexpr,
+                  BLOCK_SIZE_S: tl.constexpr):
 
     pid_m, pid_n = get_pid_coords(M, N,
                                   BLOCK_SIZE_M,
@@ -400,15 +389,15 @@ def lora_db_kernel(a_ptr, xt_ptr, dy_ptr, db_ptr,
 
 
 def lora_db_update_wrapper(lora_a, xt, dy, scale, dtype=torch.float32):
+    assert xt.shape[1] == dy.shape[0], "Incompatible X and dY dimensions"
+    assert lora_a.shape[1] == xt.shape[0], "Incompatible X and A dimensions"
+
     M, K = lora_a.shape
     K, N = xt.shape
     N, S = dy.shape
 
     BLOCK_M = max(triton.next_power_of_2(M), 16)
-    BLOCK_K = 128
-    BLOCK_N = 128
-    BLOCK_S = 64
-    GROUP_M = 8
+    BLOCK_N = 32 if N < 3072 else 64
 
     num_blocks_n = (N + BLOCK_N - 1) // BLOCK_N
     L1 = num_blocks_n * BLOCK_M
@@ -422,7 +411,7 @@ def lora_db_update_wrapper(lora_a, xt, dy, scale, dtype=torch.float32):
                          dy.stride(0), dy.stride(1),  #
                          dlora_b.stride(0), dlora_b.stride(1),
                          scale,
-                         BLOCK_M, BLOCK_K, BLOCK_N, BLOCK_S, GROUP_M,
+                         BLOCK_N,
                     )
     dlora_b = dlora_b.reshape(-1, BLOCK_M, S).sum(0).t()
     if M < BLOCK_M:
