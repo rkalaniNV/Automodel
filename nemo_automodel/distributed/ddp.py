@@ -48,6 +48,21 @@ class DDPManager(DistributedInterface):
         metadata={"help": "Global rank of this process."}
     )
 
+    def __post_init__(self):
+        """
+        Post-initialization hook that sets up the distributed environment.
+        """
+        return self._setup_distributed()
+
+    def _setup_distributed(self):
+        """
+        """
+        if not dist.is_available():
+            raise RuntimeError("torch.distributed not available")
+
+        if not dist.is_initialized():
+            raise RuntimeError("expected torch.distributed to be initialized")
+
     def parallelize(self, model):
         """
         Wraps the given model with DistributedDataParallel (DDP).
