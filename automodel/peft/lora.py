@@ -33,11 +33,12 @@ from nemo.utils.import_utils import safe_import_from
 
 te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
 
-from nemo.collections.llm.peft.module_matcher import ModuleMatcher
-from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
-from automodel.peft.lora_kernel import lora_forward_wrapper, lora_da_dx_update_wrapper, lora_db_update_wrapper
-from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
-from nemo.utils import logging
+
+from nemo.collections.llm.peft.module_matcher import ModuleMatcher # noqa: E402
+from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear # noqa: E402
+from automodel.peft.lora_kernel import lora_forward_wrapper, lora_da_dx_update_wrapper, lora_db_update_wrapper # noqa: E402
+from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper # noqa: E402
+from nemo.utils import logging # noqa: E402
 
 
 class LoRALinear(AdapterWrapper):
@@ -172,7 +173,7 @@ if HAVE_TE:
             return res + lora_res
 
 
-class TELinearAdapter(TELinearAdapter):
+class TETritonLinearAdapter(TELinearAdapter):
     def forward(self, x):
         # pylint: disable=C0115,C0116
         res = super(TELinearAdapter, self).forward(x)
@@ -180,9 +181,12 @@ class TELinearAdapter(TELinearAdapter):
             x = self.dropout(x)
         # LoRA fwd is performed in original precision regardless of FP8 enabled
 
-        return LoRATritonFunction.apply(
-            x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
-        )
+        lora_res = LoRATritonFunction.apply(x, self.lora_a.weight, self.lora_b.weight, self.scale, res, x.dtype)
+        if self.dropout_position == "post":
+            lora_res = self.dropout(lora_res)
+
+        return res + lora_res
+
 
 class LinearAdapter(nn.Linear):
     """
@@ -318,10 +322,11 @@ class TritonLinearAdapter(LinearAdapter):
 
         if self.dropout_position == 'pre':
             x = self.dropout(x)
+        lora_res = LoRATritonFunction.apply(x, self.lora_a.weight, self.lora_b.weight, self.scale, x.dtype)
+        if self.dropout_position == "post":
+            lora_res = self.dropout(lora_res)
 
-        return LoRATritonFunction.apply(
-            x, self.weight, self.lora_a.weight, self.lora_b.weight, self.scale, res
-            )
+        return res + lora_res
 
 class LoRAFunction(torch.autograd.Function):
     @staticmethod
@@ -372,27 +377,27 @@ class LoRAFunction(torch.autograd.Function):
 class LoRATritonFunction(torch.autograd.Function):
     @staticmethod
     def setup_context(ctx, inputs, output):
-        x, wts, lora_a, lora_b, scale, _, _ = inputs
-        ctx.save_for_backward(x, wts, lora_a, lora_b)
+        x, lora_a, lora_b, scale, _, _ = inputs
+        ctx.save_for_backward(x, lora_a, lora_b)
         ctx.scale = scale
 
     @staticmethod
-    def forward(x, wts, lora_a, lora_b, scale, res, dtype):
+    def forward(x, lora_a, lora_b, scale, dtype):
         reshape = x.dim() == 3
         if reshape:
             bs, seq_len, d = x.shape
             x = x.reshape(-1, d)
 
-        res = lora_forward_wrapper(x, lora_a, lora_b, res=res, scale=scale, dtype=dtype)
+        lora_res = lora_forward_wrapper(x, lora_a.t(), lora_b.t(), res=None, scale=scale, dtype=dtype)
 
         if reshape:
-            return res.view(bs, seq_len, -1)
+            return lora_res.view(bs, seq_len, -1)
         else:
-            return res
+            return lora_res
 
     @staticmethod
     def backward(ctx, d_y, dtype):
-        x, wts, lora_a, lora_b = ctx.saved_tensors
+        x, lora_a, lora_b = ctx.saved_tensors
         scale = ctx.scale
 
         reshape = x.dim() == 3
@@ -402,7 +407,6 @@ class LoRATritonFunction(torch.autograd.Function):
             x = x.reshape(-1, d)
 
         d_lora_a, d_x = lora_da_dx_update_wrapper(x.t(), d_y, lora_b, lora_a, scale, dtype=dtype)
-        d_x += torch.matmul(d_y, wts)
         d_lora_b = lora_db_update_wrapper(lora_a, x.t(), d_y, scale, dtype)
 
         if reshape:
