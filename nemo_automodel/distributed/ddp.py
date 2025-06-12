@@ -18,6 +18,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from dataclasses import dataclass, field
 from nemo_automodel.distributed.distributed_inteface import DistributedInterface
+import weakref
 
 @dataclass
 class DDPManager(DistributedInterface):
@@ -60,10 +61,16 @@ class DDPManager(DistributedInterface):
         Returns:
             torch.nn.parallel.DistributedDataParallel: The DDP-wrapped model.
         """
-        return DDP(
-            model.to(self.device),
-            device_ids=[self.device] if self.device.type == "cuda" else None
-        )
+        if self.backend == 'nccl':
+            device = torch.cuda.current_device()
+            device_ids = [device]
+        else:
+            device = torch.cpu.current_device()
+            device_ids = None
+        ans = DDP(model.to(device), device_ids=device_ids)
+        self.model = weakref.ref(ans)
+        return ans
+
 
     @contextmanager
     def no_sync(self):
