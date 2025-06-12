@@ -242,4 +242,7 @@ class FSDP2Manager(DistributedInterface):
         return model
 
     def no_sync(self):
-        raise NotImplemented()
+        """
+        no_sync is no-op for FSDP
+        """
+        yield
