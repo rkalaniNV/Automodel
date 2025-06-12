@@ -65,22 +65,19 @@ class DDPManager(DistributedInterface):
             device_ids=[self.device] if self.device.type == "cuda" else None
         )
 
-    # @contextmanager
-    # def no_sync(self):
-    #     """
-    #     Context manager to temporarily disable gradient synchronization during backpropagation.
-    #
-    #     This can be used for gradient accumulation:
-    #         with manager.no_sync():
-    #             loss.backward()
-    #
-    #     When used within a DDP-wrapped model, it skips the gradient all‐reduce.
-    #     """
-    #     if isinstance(self.model, DDP):
-    #         with self.model.no_sync():
-    #             yield
-    #     else:
-    #         yield
-
+    @contextmanager
     def no_sync(self):
-        raise NotImplemented()
+        """
+        Context manager to temporarily disable gradient synchronization during backpropagation.
+
+        This can be used for gradient accumulation:
+            with manager.no_sync():
+                loss.backward()
+
+        When used within a DDP-wrapped model, it skips the gradient all‐reduce.
+        """
+        if isinstance(self.model, DDP):
+            with self.model.no_sync():
+                yield
+        else:
+            yield
