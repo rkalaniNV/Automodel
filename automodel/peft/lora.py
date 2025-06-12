@@ -174,6 +174,19 @@ if HAVE_TE:
 
 
 class TETritonLinearAdapter(TELinearAdapter):
+    """
+        Subclass of TELinearAdapter that uses triton kernels for forward and backward passes.
+
+        Args:
+            orig_linear (nn.Module): the linear module to augment.
+            dim (int): lora's dim in_features -> dim -> out_features.
+            alpha (int): lora's scaling alpha.
+            dropout (float): dropout prob (default: 0.0).
+            dropout_position (str): where to apply dropout rel. to lora (choices= ['pre', 'post'], default=post)
+            lora_A_init_method (str): init method for lora_A (choices= ['xavier', 'uniform'])
+            lora_dtype (torch.dtype): weight's dtype, by default will use orig_linear's but if they
+            are quantized weights (e.g. 4bit) needs to be specified explicitly.
+    """
     def forward(self, x):
         # pylint: disable=C0115,C0116
         res = super(TELinearAdapter, self).forward(x)
@@ -309,6 +322,19 @@ class LinearAdapter(nn.Linear):
 
 
 class TritonLinearAdapter(LinearAdapter):
+    """
+    Subclass of LinearAdapter that uses triton kernels for forward and backward passes.
+
+    Args:
+        orig_linear (nn.Module): the linear module to augment.
+        dim (int): lora's dim in_features -> dim -> out_features.
+        alpha (int): lora's scaling alpha.
+        dropout (float): dropout prob (default: 0.0).
+        dropout_position (str): where to apply dropout rel. to lora (choices= ['pre', 'post'], default=post)
+        lora_A_init_method (str): init method for lora_A (choices= ['xavier', 'uniform'])
+        lora_dtype (torch.dtype): weight's dtype, by default will use orig_linear's but if they
+        are quantized weights (e.g. 4bit) needs to be specified explicitly.
+    """
     def forward(self, x):
     # pylint: disable=C0115,C0116
     # If LinearAdapter is used to monkey-patch a nn.Linear module, we want to use nn.Linear's
@@ -328,53 +354,11 @@ class TritonLinearAdapter(LinearAdapter):
 
         return res + lora_res
 
-class LoRAFunction(torch.autograd.Function):
-    @staticmethod
-    def setup_context(ctx, inputs, output):
-        x, wts, lora_a, lora_b, scale, _ = inputs
-        ctx.save_for_backward(x, wts, lora_a, lora_b)
-        ctx.scale = scale
-
-    @staticmethod
-    def forward(x, wts, lora_a, lora_b, scale, res):
-        reshape = x.dim() == 3
-        if reshape:
-            bs, seq_len, d = x.shape
-            x = x.view(-1, d)
-            res = res.view(-1, res.shape[-1])
-
-        lora_intermediate = torch.matmul(x, lora_a.t())
-        res.addmm_(lora_intermediate, lora_b.t(), alpha=scale)
-
-        if reshape:
-            return res.view(bs, seq_len, -1)
-        else:
-            return res
-
-    @staticmethod
-    def backward(ctx, d_y):
-        x, wts, lora_a, lora_b = ctx.saved_tensors
-        scale = ctx.scale
-        reshape = x.dim() == 3
-        if reshape:
-            bs, seq_len, d = x.shape
-            d_y = d_y.reshape(-1, d_y.shape[-1])
-            x = x.reshape(-1, d)
-
-        d_lora_a = torch.empty_like(lora_a)
-        d_lora_b = torch.empty_like(lora_b)
-        d_lora_a.addmm_(torch.matmul(d_y, lora_b).t(), x, alpha=scale, beta=0)
-        d_lora_b.addmm_(d_y.t(), torch.matmul(lora_a, x.t()).t(), alpha=scale, beta=0)
-
-        d_x = torch.matmul(d_y, wts)
-        d_x.addmm_(torch.matmul(d_y, lora_b), lora_a, alpha=scale)
-
-        if reshape:
-            d_x = d_x.view(bs, seq_len, d)
-        return d_x, None, d_lora_a, d_lora_b, None, None
-
 
 class LoRATritonFunction(torch.autograd.Function):
+    """
+    Autograd function that calls the triton kernel wrappers for the LoRA forward and backward passes.
+    """
     @staticmethod
     def setup_context(ctx, inputs, output):
         x, lora_a, lora_b, scale, _, _ = inputs
