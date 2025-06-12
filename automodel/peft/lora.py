@@ -36,7 +36,8 @@ te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher # noqa: E402
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear # noqa: E402
-from automodel.peft.lora_kernel import lora_forward_wrapper, lora_da_dx_update_wrapper, lora_db_update_wrapper # noqa: E402
+from automodel.peft.lora_kernel import lora_forward_wrapper, lora_da_dx_update_wrapper, \
+    lora_db_update_wrapper # noqa: E402
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper # noqa: E402
 from nemo.utils import logging # noqa: E402
 
@@ -361,12 +362,18 @@ class LoRATritonFunction(torch.autograd.Function):
     """
     @staticmethod
     def setup_context(ctx, inputs, output):
+        """
+        Stores context for LoRA backward pass.
+        """
         x, lora_a, lora_b, scale, _, _ = inputs
         ctx.save_for_backward(x, lora_a, lora_b)
         ctx.scale = scale
 
     @staticmethod
     def forward(x, lora_a, lora_b, scale, dtype):
+        """
+        Forward method for LoRA. Reshapes 3D tensors into 2D and then calls the triton kernel.
+        """
         reshape = x.dim() == 3
         if reshape:
             bs, seq_len, d = x.shape
@@ -381,6 +388,10 @@ class LoRATritonFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, d_y, dtype):
+        """
+        Backward method for LoRA. Reshapes 3D tensors into 2D and then calls the kernels to update
+        d_lora_a, d_lora_b, and dx.
+        """
         x, lora_a, lora_b = ctx.saved_tensors
         scale = ctx.scale
 

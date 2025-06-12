@@ -20,6 +20,9 @@ import torch
 
 
 def forward_autotune_configs():
+    """
+    Method for generating Triton configs for lora_forward_kernel.
+    """
     out = list()
     for blk_m in [16, 32, 64]:
         for blk_k in [128, 256, 512]:
@@ -38,6 +41,9 @@ def get_pid_coords(M, N,
                    BLOCK_SIZE_M: tl.constexpr,
                    BLOCK_SIZE_N: tl.constexpr,
                    GROUP_SIZE_M: tl.constexpr):
+    """
+    Converts one-dimensional triton pids into two dimensions.
+    """
     pid = tl.program_id(axis=0)
 
     num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)
@@ -96,16 +102,15 @@ def block_vector_mul(pid_m, pid_n,
            BLOCK_SIZE_M: tl.constexpr,
            BLOCK_SIZE_N: tl.constexpr,
            BLOCK_SIZE_L: tl.constexpr):
-    offs_cn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N))
-    offs_l = tl.arange(0, BLOCK_SIZE_L)
-    offs_dm = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M))
     """
     Multiplies an M x N vector AB and and N x L vector C and adds the result to
     the output vector D.  N is assumed to be smaller than BLOCK_SIZE_N.
     """
+    offs_cn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N))
+    offs_l = tl.arange(0, BLOCK_SIZE_L)
+    offs_dm = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M))
 
     c_ptrs = c_ptr + (offs_cn[:, None] * stride_cn + offs_l[None, :] * stride_cl) 
-
     d_ptrs = d_ptr + stride_dm * offs_dm[:, None] + stride_dl * offs_l[None, :]
     d_mask = (offs_dm[:, None] < M) & (offs_l[None, :] < L)
     c_mask = (offs_cn[:, None] < N) & (offs_l[None, :] < L)
@@ -172,6 +177,15 @@ def lora_forward_kernel(
 
 
 def lora_forward_wrapper(x, lora_a, lora_b, res, scale, dtype=torch.float32):
+    """
+    Computes LoRA forward pass.
+
+    x: input activations,  (M x K)
+    lora_a: LoRA A weights (K x N)
+    lora_b: LoRA B weights (N x L)
+    scale: LoRA scale factor (scalar)
+    dtype: dtype for output
+    """
     assert x.shape[1] == lora_a.shape[0], "Incompatible X and LoRA A dimensions"
     assert lora_a.shape[1] == lora_b.shape[0], "Incompatible LoRA dimensions"
     if res is not None:
@@ -200,6 +214,9 @@ def lora_forward_wrapper(x, lora_a, lora_b, res, scale, dtype=torch.float32):
 
 
 def da_dx_autotune_configs():
+    """
+    Method for generating Triton configs for lora_da_dx_kernel.
+    """
     out = list()
     for blk_s in [32, 64, 128]:
         for blk_k in [32, 64, 128]:
@@ -291,6 +308,16 @@ def lora_da_dx_kernel(xt_ptr, dy_ptr, b_ptr, a_ptr, dx_ptr, da_ptr,
         xt_ptrs += BLOCK_SIZE_S * stride_xt_s
 
 def lora_da_dx_update_wrapper(xt, dy, lora_b, lora_a, scale, dtype=torch.float32):
+    """
+    Computes d_lora_a and dx.
+
+    xt: input activation weights, transposed (S x M)
+    dy: gradients (M x K)
+    lora_b: LoRA B weights (K x N)
+    lora_a: LoRA A weights (N x L)
+    scale: LoRA scale factor (scalar)
+    dtype: dtype for output
+    """
     assert xt.shape[1] == dy.shape[0], "Incompatible X and dY dimensions"
     assert dy.shape[1] == lora_b.shape[0], "Incompatible dY and B dimensions"
     assert lora_b.shape[1] == lora_a.shape[0], "LoRA dimensions must match"
@@ -325,6 +352,9 @@ def lora_da_dx_update_wrapper(xt, dy, lora_b, lora_a, scale, dtype=torch.float32
 
 
 def db_autotune_configs():
+    """
+    Method for generating Triton configs for lora_db_kernel.
+    """
     out = list()
     for s in [32, 64, 128]:
         for k in [32, 64, 128]:
@@ -396,6 +426,15 @@ def lora_db_kernel(a_ptr, xt_ptr, dy_ptr, db_ptr,
 
 
 def lora_db_update_wrapper(lora_a, xt, dy, scale, dtype=torch.float32):
+    """
+    Computes d_lora_b.
+
+    lora_a: LoRA A weights (M x K)
+    xt: input activation weights, transposed (K x N)
+    dy: gradients (N x S)
+    scale: LoRA scale factor (scalar)
+    dtype: dtype for output
+    """
     assert xt.shape[1] == dy.shape[0], "Incompatible X and dY dimensions"
     assert lora_a.shape[1] == xt.shape[0], "Incompatible X and A dimensions"
 
