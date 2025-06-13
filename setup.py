@@ -21,6 +21,7 @@ import os
 import subprocess
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
+from itertools import chain
 
 import setuptools
 
@@ -71,6 +72,7 @@ def req_file(filename, folder="requirements"):
 
 install_requires = req_file("requirements.txt")
 
+extras_require = {}
 extras_require['vlm'] = req_file("requirements_vlm.txt")
 extras_require['all'] = extras_require['all'] = list(chain(*extras_require.values()))
 
