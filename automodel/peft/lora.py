@@ -419,6 +419,7 @@ def patch_linear_module(
     dropout_position='post',
     lora_A_init_method='xavier',
     lora_dtype=None,
+    use_triton=True,
 ):
     """Monkey-patches a nn.Linear (orig_linear param) to be a LinearAdapter, for all purposes
     think of this function as replacing a nn.Linear with a LinearAdapter defined above.
@@ -451,13 +452,28 @@ def patch_linear_module(
     assert not hasattr(orig_linear, 'super_fwd'), orig_linear.super_fwd
 
     if isinstance(orig_linear, nn.Linear):
-        LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
+        if use_triton:
+            TritonLinearAdapter._init_adapter(
+                orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, 
+                lora_dtype)
+        else:
+            LinearAdapter._init_adapter(
+                orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, 
+                lora_dtype)
         cls = orig_linear.__class__
         new_cls = type('PatchedLinearAdapter', (LinearAdapter, cls), {})
     elif orig_linear.__class__ == te.Linear:
-        TELinearAdapter._init_adapter(
-            orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype
-        )
+        if use_triton:
+            TETritonLinearAdapter._init_adapter(
+                orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method,
+                lora_dtype
+            )
+        else:
+
+            TELinearAdapter._init_adapter(
+                orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method,
+                lora_dtype
+            )
         cls = orig_linear.__class__
         new_cls = type('PatchedTELinearAdapter', (TELinearAdapter, cls), {})
     else:
