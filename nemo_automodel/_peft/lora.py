@@ -235,16 +235,12 @@ def patch_linear_module(
     assert not hasattr(orig_linear, 'super_fwd'), orig_linear.super_fwd
 
     if isinstance(orig_linear, nn.Linear):
-        if use_triton:
-            TritonLinearLoRA._init_adapter(
-                orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, 
-                lora_dtype)
-        else:
-            LinearLoRA._init_adapter(
-                orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, 
-                lora_dtype)
+        linear_lora_cls = TritonLinearLoRA if use_triton else LinearLoRA
+        linear_lora_cls._init_adapter(
+            orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method,
+            lora_dtype)
         cls = orig_linear.__class__
-        new_cls = type('PatchedLinearLoRA', (LinearLoRA, cls), {})
+        new_cls = type('PatchedLinearLoRA', (linear_lora_cls, cls), {})
     else:
         raise NotImplementedError("Expected isinstance(orig_linear, nn.Linear)")
 
@@ -272,6 +268,7 @@ def apply_lora_to_linear_modules(
     dropout_position: Literal["pre", "post"] = "post",
     lora_A_init: str = "xavier",
     lora_dtype: Optional[torch.dtype] = None,
+    use_triton: bool = True
 ):
     """
     Replace selected nn.Linear layers with LinearLoRA layers (in-place).
@@ -285,10 +282,11 @@ def apply_lora_to_linear_modules(
         if matcher.match(module, name):
             num_modules_matched += 1
             parent, attr = _parent_and_attr(model, name)
+            linear_lora_cls = TritonLinearLoRA if use_triton else LinearLoRA
             setattr(
                 parent,
                 attr,
-                LinearLoRA(
+                linear_lora_cls(
                     module,
                     dim=dim,
                     alpha=alpha,
