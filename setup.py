@@ -71,6 +71,9 @@ def req_file(filename, folder="requirements"):
 
 install_requires = req_file("requirements.txt")
 
+extras_require['vlm'] = req_file(["requirements_vlm.txt")
+extras_require['all'] = extras_require['all'] = list(chain(*extras_require.values()))
+
 ###############################################################################
 #                            Code style checkers                              #
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -208,6 +211,7 @@ setuptools.setup(
     packages=setuptools.find_packages(include=['automodel']),
     python_requires='>=3.10',
     install_requires=install_requires,
+    extras_require=extras_require,
     # Add in any packaged data.
     include_package_data=True,
     exclude=['tests'],
