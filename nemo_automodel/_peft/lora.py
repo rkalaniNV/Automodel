@@ -186,7 +186,7 @@ class TritonLinearLoRA(LinearLoRA):
 
         if self.dropout_position == 'pre':
             x = self.dropout(x)
-        lora_res = LoRATritonFunction.apply(x, self.lora_a.weight, self.lora_b.weight, self.scale, x.dtype)
+        lora_res = LoRATritonFunction.apply(x, self.lora_A.weight, self.lora_B.weight, self.scale, x.dtype)
         if self.dropout_position == "post":
             lora_res = self.dropout(lora_res)
 
@@ -318,12 +318,12 @@ class LoRATritonFunction(torch.autograd.Function):
         """
         Stores context for LoRA backward pass.
         """
-        x, lora_a, lora_b, scale, _, _ = inputs
-        ctx.save_for_backward(x, lora_a, lora_b)
+        x, lora_A, lora_B, scale, _, _ = inputs
+        ctx.save_for_backward(x, lora_A, lora_B)
         ctx.scale = scale
 
     @staticmethod
-    def forward(x, lora_a, lora_b, scale, dtype):
+    def forward(x, lora_A, lora_B, scale, dtype):
         """
         Forward method for LoRA. Reshapes 3D tensors into 2D and then calls the triton kernel.
         """
@@ -332,7 +332,7 @@ class LoRATritonFunction(torch.autograd.Function):
             bs, seq_len, d = x.shape
             x = x.reshape(-1, d)
 
-        lora_res = lora_forward_wrapper(x, lora_a.t(), lora_b.t(), res=None, scale=scale, dtype=dtype)
+        lora_res = lora_forward_wrapper(x, lora_A.t(), lora_B.t(), res=None, scale=scale, dtype=dtype)
 
         if reshape:
             return lora_res.view(bs, seq_len, -1)
@@ -345,7 +345,7 @@ class LoRATritonFunction(torch.autograd.Function):
         Backward method for LoRA. Reshapes 3D tensors into 2D and then calls the kernels to update
         d_lora_a, d_lora_b, and dx.
         """
-        x, lora_a, lora_b = ctx.saved_tensors
+        x, lora_A, lora_B = ctx.saved_tensors
         scale = ctx.scale
 
         reshape = x.dim() == 3
@@ -354,10 +354,10 @@ class LoRATritonFunction(torch.autograd.Function):
             d_y = d_y.reshape(-1, d_y.shape[-1])
             x = x.reshape(-1, d)
 
-        d_lora_a, d_x = lora_da_dx_update_wrapper(x.t(), d_y, lora_b, lora_a, scale, dtype=dtype)
-        d_lora_b = lora_db_update_wrapper(lora_a, x.t(), d_y, scale, dtype)
+        d_lora_A, d_x = lora_da_dx_update_wrapper(x.t(), d_y, lora_B, lora_A, scale, dtype=dtype)
+        d_lora_B = lora_db_update_wrapper(lora_A, x.t(), d_y, scale, dtype)
 
         if reshape:
             d_x = d_x.view(bs, seq_len, d)
-        return d_x, None, d_lora_a, d_lora_b, None, None
+        return d_x, None, d_lora_A, d_lora_B, None, None
 

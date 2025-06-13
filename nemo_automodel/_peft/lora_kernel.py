@@ -176,36 +176,36 @@ def lora_forward_kernel(
 
 
 
-def lora_forward_wrapper(x, lora_a, lora_b, res, scale, dtype=torch.float32):
+def lora_forward_wrapper(x, lora_A, lora_B, res, scale, dtype=torch.float32):
     """
     Computes LoRA forward pass.
 
     x: input activations,  (M x K)
-    lora_a: LoRA A weights (K x N)
-    lora_b: LoRA B weights (N x L)
+    lora_A: LoRA A weights (K x N)
+    lora_B: LoRA B weights (N x L)
     scale: LoRA scale factor (scalar)
     dtype: dtype for output
     """
-    assert x.shape[1] == lora_a.shape[0], "Incompatible X and LoRA A dimensions"
-    assert lora_a.shape[1] == lora_b.shape[0], "Incompatible LoRA dimensions"
+    assert x.shape[1] == lora_A.shape[0], "Incompatible X and LoRA A dimensions"
+    assert lora_A.shape[1] == lora_B.shape[0], "Incompatible LoRA dimensions"
     if res is not None:
         assert x.shape[0] == res.shape[0], "Incompatible X and output dimensions"
-        assert lora_b.shape[1] == res.shape[1], "Incompatible LoRA B and output dimensions"
+        assert lora_B.shape[1] == res.shape[1], "Incompatible LoRA B and output dimensions"
 
     M, K = x.shape
-    K, N = lora_a.shape
-    N, L = lora_b.shape
+    K, N = lora_A.shape
+    N, L = lora_B.shape
     
     if res is None:
         res = torch.zeros((M, L), device=x.device, dtype=dtype)
 
     grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']),)  # noqa: E731
     lora_forward_kernel[grid](
-        x, lora_a, lora_b, res,
+        x, lora_A, lora_B, res,
         M, N, K, L, #
         x.stride(0), x.stride(1),  #
-        lora_a.stride(0), lora_a.stride(1), 
-        lora_b.stride(0), lora_b.stride(1), #
+        lora_A.stride(0), lora_A.stride(1), 
+        lora_B.stride(0), lora_B.stride(1), #
         res.stride(0), res.stride(1),
         scale,
     )
@@ -307,25 +307,25 @@ def lora_da_dx_kernel(xt_ptr, dy_ptr, b_ptr, a_ptr, dx_ptr, da_ptr,
         da_ptrs += BLOCK_SIZE_S * stride_da_s
         xt_ptrs += BLOCK_SIZE_S * stride_xt_s
 
-def lora_da_dx_update_wrapper(xt, dy, lora_b, lora_a, scale, dtype=torch.float32):
+def lora_da_dx_update_wrapper(xt, dy, lora_B, lora_A, scale, dtype=torch.float32):
     """
-    Computes d_lora_a and dx.
+    Computes dlora_A and dx.
 
     xt: input activation weights, transposed (S x M)
     dy: gradients (M x K)
-    lora_b: LoRA B weights (K x N)
-    lora_a: LoRA A weights (N x L)
+    lora_B: LoRA B weights (K x N)
+    lora_A: LoRA A weights (N x L)
     scale: LoRA scale factor (scalar)
     dtype: dtype for output
     """
     assert xt.shape[1] == dy.shape[0], "Incompatible X and dY dimensions"
-    assert dy.shape[1] == lora_b.shape[0], "Incompatible dY and B dimensions"
-    assert lora_b.shape[1] == lora_a.shape[0], "LoRA dimensions must match"
+    assert dy.shape[1] == lora_B.shape[0], "Incompatible dY and B dimensions"
+    assert lora_B.shape[1] == lora_A.shape[0], "LoRA dimensions must match"
 
     S, M = xt.shape
     M, K = dy.shape
-    K, N = lora_b.shape
-    N, L = lora_a.shape
+    K, N = lora_B.shape
+    N, L = lora_A.shape
 
     BLOCK_N = max(triton.next_power_of_2(N), 16)
     BLOCK_M = 32 if M < 3072 else 64
@@ -334,21 +334,21 @@ def lora_da_dx_update_wrapper(xt, dy, lora_b, lora_a, scale, dtype=torch.float32
     L1 = num_blocks_m * BLOCK_N
 
     dx = torch.zeros((M, L), device=xt.device, dtype=dtype)
-    dlora_a = torch.zeros((S, L1), device=lora_a.device, dtype=dtype)
+    dlora_A = torch.zeros((S, L1), device=lora_A.device, dtype=dtype)
     grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']),) # noqa: E731
-    lora_da_dx_kernel[grid](xt, dy, lora_b, lora_a, dx, dlora_a,
+    lora_da_dx_kernel[grid](xt, dy, lora_B, lora_A, dx, dlora_A,
                     S, M, K, N, L,
                     xt.stride(0), xt.stride(1),
                     dy.stride(0), dy.stride(1),  #
-                    lora_b.stride(0), lora_b.stride(1),
-                    lora_a.stride(0), lora_a.stride(1),
+                    lora_B.stride(0), lora_B.stride(1),
+                    lora_A.stride(0), lora_A.stride(1),
                     dx.stride(0), dx.stride(1), #
-                    dlora_a.stride(0), dlora_a.stride(1),
+                    dlora_A.stride(0), dlora_A.stride(1),
                     scale,
                     BLOCK_M,
                     )
-    dlora_a = dlora_a.reshape(S, -1, BLOCK_N).sum(1)[:, :N]
-    return dx, dlora_a
+    dlora_A = dlora_A.reshape(S, -1, BLOCK_N).sum(1)[:, :N]
+    return dx, dlora_A
 
 
 def db_autotune_configs():
@@ -425,20 +425,20 @@ def lora_db_kernel(a_ptr, xt_ptr, dy_ptr, db_ptr,
         db_ptrs += BLOCK_SIZE_S * stride_db_s
 
 
-def lora_db_update_wrapper(lora_a, xt, dy, scale, dtype=torch.float32):
+def lora_db_update_wrapper(lora_A, xt, dy, scale, dtype=torch.float32):
     """
-    Computes d_lora_b.
+    Computes d_lora_B.
 
-    lora_a: LoRA A weights (M x K)
+    lora_A: LoRA A weights (M x K)
     xt: input activation weights, transposed (K x N)
     dy: gradients (N x S)
     scale: LoRA scale factor (scalar)
     dtype: dtype for output
     """
     assert xt.shape[1] == dy.shape[0], "Incompatible X and dY dimensions"
-    assert lora_a.shape[1] == xt.shape[0], "Incompatible X and A dimensions"
+    assert lora_A.shape[1] == xt.shape[0], "Incompatible X and A dimensions"
 
-    M, K = lora_a.shape
+    M, K = lora_A.shape
     K, N = xt.shape
     N, S = dy.shape
 
@@ -448,18 +448,18 @@ def lora_db_update_wrapper(lora_a, xt, dy, scale, dtype=torch.float32):
     num_blocks_n = (N + BLOCK_N - 1) // BLOCK_N
     L1 = num_blocks_n * BLOCK_M
 
-    dlora_b = torch.zeros((L1, S), device=lora_a.device, dtype=dtype)
+    dlora_B = torch.zeros((L1, S), device=lora_A.device, dtype=dtype)
     grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']),)  # noqa: E731
-    lora_db_kernel[grid](lora_a, xt, dy, dlora_b,
+    lora_db_kernel[grid](lora_A, xt, dy, dlora_B,
                          M, K, N, S,
-                         lora_a.stride(0), lora_a.stride(1),
+                         lora_A.stride(0), lora_A.stride(1),
                          xt.stride(0), xt.stride(1),
                          dy.stride(0), dy.stride(1),  #
-                         dlora_b.stride(0), dlora_b.stride(1),
+                         dlora_B.stride(0), dlora_B.stride(1),
                          scale,
                          BLOCK_N,
                     )
-    dlora_b = dlora_b.reshape(-1, BLOCK_M, S).sum(0).t()
+    dlora_B = dlora_B.reshape(-1, BLOCK_M, S).sum(0).t()
     if M < BLOCK_M:
-        dlora_b = dlora_b[:, :M]
-    return dlora_b
+        dlora_B = dlora_B[:, :M]
+    return dlora_B
