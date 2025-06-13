@@ -315,6 +315,7 @@ def lora_da_dx_update_wrapper(xt, dy, lora_B, lora_A, scale, dtype=torch.float32
     K, N = lora_B.shape
     N, L = lora_A.shape
 
+<<<<<<< HEAD
     dx = torch.empty((M, L), device=xt.device, dtype=dtype)
     dyb = torch.empty((M, N), device=xt.device, dtype=dtype)
     grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']),) # noqa: E731
@@ -329,6 +330,30 @@ def lora_da_dx_update_wrapper(xt, dy, lora_B, lora_A, scale, dtype=torch.float32
                     )
     dlora_A = torch.matmul(xt, dyb)
     return dlora_A, dx
+=======
+    BLOCK_N = max(triton.next_power_of_2(N), 16)
+    BLOCK_M = 32 if M < 3072 else 64
+
+    num_blocks_m = (M + BLOCK_M - 1) // BLOCK_M
+    L1 = num_blocks_m * BLOCK_N
+
+    dx = torch.zeros((M, L), device=xt.device, dtype=dtype)
+    dlora_A = torch.zeros((S, L1), device=lora_A.device, dtype=dtype)
+    grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']),) # noqa: E731
+    lora_da_dx_kernel[grid](xt, dy, lora_B, lora_A, dx, dlora_A,
+                    S, M, K, N, L,
+                    xt.stride(0), xt.stride(1),
+                    dy.stride(0), dy.stride(1),  #
+                    lora_B.stride(0), lora_B.stride(1),
+                    lora_A.stride(0), lora_A.stride(1),
+                    dx.stride(0), dx.stride(1), #
+                    dlora_A.stride(0), dlora_A.stride(1),
+                    scale,
+                    BLOCK_M,
+                    )
+    dlora_A = dlora_A.reshape(S, -1, BLOCK_N).sum(1)[:, :N]
+    return dx, dlora_A
+>>>>>>> 89edea5 (sync up capitalization)
 
 
 def db_autotune_configs():
