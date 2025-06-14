@@ -129,7 +129,7 @@ def block_vector_mul(pid_m, pid_n,
 
 @triton.autotune(
     configs=forward_autotune_configs(),
-    key=['M', 'N', 'K', 'L'],
+    key=['N', 'K', 'L'],
 )
 # This optimization exploits that N is the LoRA dimension and thus we only need one block.
 @triton.heuristics(values={'BLOCK_SIZE_N': lambda args: max(triton.next_power_of_2(args['N']), 16)})
@@ -232,7 +232,7 @@ def da_dx_autotune_configs():
 
 @triton.autotune(
     configs=da_dx_autotune_configs(),
-    key=['S', 'M', 'N', 'K', 'L'],
+    key=['S', 'N', 'K', 'L'],
 )
 @triton.heuristics(values={'BLOCK_SIZE_N': lambda args: max(triton.next_power_of_2(args['N']), 16)})
 @triton.jit
@@ -369,7 +369,7 @@ def db_autotune_configs():
 
 @triton.autotune(
     configs=db_autotune_configs(),
-    key=['S', 'M', 'N', 'K'],
+    key=['S', 'M', 'K'],
 )
 @triton.heuristics(values={'BLOCK_SIZE_M': lambda args: max(triton.next_power_of_2(args['M']), 16),
                            'GROUP_SIZE_M': lambda args: 8})

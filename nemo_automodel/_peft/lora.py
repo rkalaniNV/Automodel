@@ -338,13 +338,14 @@ class LoRATritonFunction(torch.autograd.Function):
             return lora_res
 
     @staticmethod
-    def backward(ctx, d_y, dtype):
+    def backward(ctx, d_y):
         """
         Backward method for LoRA. Reshapes 3D tensors into 2D and then calls the kernels to update
         d_lora_a, d_lora_b, and dx.
         """
         x, lora_A, lora_B = ctx.saved_tensors
         scale = ctx.scale
+        dtype = x.dtype
 
         reshape = x.dim() == 3
         if reshape:
@@ -357,5 +358,5 @@ class LoRATritonFunction(torch.autograd.Function):
 
         if reshape:
             d_x = d_x.view(bs, seq_len, d)
-        return d_x, None, d_lora_A, d_lora_B, None, None
+        return d_x, d_lora_A.t(), d_lora_B, None, None, None
 
