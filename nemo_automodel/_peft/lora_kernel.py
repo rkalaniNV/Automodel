@@ -197,15 +197,15 @@ def lora_forward_wrapper(x, lora_A, lora_B, res, scale, dtype=torch.float32):
     N, L = lora_B.shape
     
     if res is None:
-        res = torch.zeros((M, L), device=x.device, dtype=dtype)
+        res = torch.empty((M, L), device=x.device, dtype=dtype)
 
     grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']),)  # noqa: E731
     lora_forward_kernel[grid](
         x, lora_A, lora_B, res,
-        M, N, K, L, #
-        x.stride(0), x.stride(1),  #
+        M, N, K, L,
+        x.stride(0), x.stride(1),
         lora_A.stride(0), lora_A.stride(1), 
-        lora_B.stride(0), lora_B.stride(1), #
+        lora_B.stride(0), lora_B.stride(1),
         res.stride(0), res.stride(1),
         scale,
     )
@@ -218,12 +218,13 @@ def da_dx_autotune_configs():
     Method for generating Triton configs for lora_da_dx_kernel.
     """
     out = list()
-    for blk_s in [32, 64, 128]:
-        for blk_k in [32, 64, 128]:
-            for blk_l in [32, 64, 128, 256]:
+    for blk_k in [64, 128]:
+        for blk_l in [64, 128, 256]:
+            for blk_m in [64, 128]:
                 out.append(
                     triton.Config(
-                        {'BLOCK_SIZE_S': blk_s, 'BLOCK_SIZE_K': blk_k, 'BLOCK_SIZE_L': blk_l},
+                        {'BLOCK_SIZE_K': blk_k,  'BLOCK_SIZE_L': blk_l, 
+                        'BLOCK_SIZE_M': blk_m, 'GROUP_SIZE_M': 8},
                         num_stages=4,
                         num_warps=4,
                     ))
@@ -232,27 +233,26 @@ def da_dx_autotune_configs():
 
 @triton.autotune(
     configs=da_dx_autotune_configs(),
-    key=['S', 'N', 'K', 'L'],
+    key=['N', 'K', 'L'],
 )
 @triton.heuristics(values={'BLOCK_SIZE_N': lambda args: max(triton.next_power_of_2(args['N']), 16)})
 @triton.jit
-def lora_da_dx_kernel(xt_ptr, dy_ptr, b_ptr, a_ptr, dx_ptr, da_ptr,
-                    S, M, K, N, L,
-                    stride_xt_s, stride_xt_m,
+def lora_da_dx_kernel(dy_ptr, b_ptr, a_ptr, dx_ptr, dyb_ptr,
+                    M, K, N, L,
                     stride_dy_m, stride_dy_k,
                     stride_lorab_k, stride_lorab_n,
                     stride_loraa_n, stride_loraa_l,
                     stride_dx_m, stride_dx_l,
-                    stride_da_s, stride_da_l1,
+                    stride_dyb_m, stride_dyb_n,
                     scale,
                     BLOCK_SIZE_M: tl.constexpr,
                     GROUP_SIZE_M: tl.constexpr,
                     BLOCK_SIZE_N: tl.constexpr,
-                    BLOCK_SIZE_S: tl.constexpr,
                     BLOCK_SIZE_K: tl.constexpr,
-                    BLOCK_SIZE_L: tl.constexpr):
+                    BLOCK_SIZE_L: tl.constexpr,
+):
     """
-    Kernel for computing the matmul DA = XT x DY x B and DX = DY * B * A
+    Kernel for computing the matmul DYB = DY x B and DX = DY * B * A
     XT has shape (S, M), DY has shape (M, K), B has shape (K, N), and A has shape (N, L)
     N, the LoRA dimension must be less than or equal to than BLOCK_SIZE_N.
     The result returned by this kernel is reduced in the wrapper.
@@ -288,24 +288,12 @@ def lora_da_dx_kernel(xt_ptr, dy_ptr, b_ptr, a_ptr, dx_ptr, da_ptr,
         la_ptrs += BLOCK_SIZE_L * stride_loraa_l
         dx_ptrs += BLOCK_SIZE_L * stride_dx_l
 
-    offs_xt_s = tl.arange(0, BLOCK_SIZE_S)
-    offs_xt_m = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
-    xt_ptrs = xt_ptr + stride_xt_s * offs_xt_s[:, None] + stride_xt_m * offs_xt_m[None, :]
-    xt_mask = (offs_xt_s[:, None] < S) & (offs_xt_m[None, :] < M)
+    offs_cm = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M))
+    offs_cn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N))
+    dyb_ptrs = dyb_ptr + stride_dyb_m * offs_cm[:, None] + stride_dyb_n * offs_cn[None, :]
+    dyb_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
+    tl.store(dyb_ptrs, dyb, mask=dyb_mask)
 
-    L1 = tl.cdiv(M, BLOCK_SIZE_M) * BLOCK_SIZE_N
-    offs_da_s = tl.arange(0, BLOCK_SIZE_S)
-    offs_da_l = pid_m * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
-    da_ptrs = da_ptr + stride_da_s * offs_da_s[:, None] + stride_da_l1 * offs_da_l[None, :]
-    da_mask = (offs_da_s[:, None] < S) & (offs_da_l[None, :] < L1)
-
-    for s in tl.range(0, tl.cdiv(S, BLOCK_SIZE_S)):
-        xt = tl.load(xt_ptrs, mask=xt_mask, other=0.0)
-        dlora_a = tl.dot(xt, dyb)
-        dlora_a = dlora_a.to(da_ptr.dtype.element_ty)
-        tl.store(da_ptrs, dlora_a, mask=da_mask)
-        da_ptrs += BLOCK_SIZE_S * stride_da_s
-        xt_ptrs += BLOCK_SIZE_S * stride_xt_s
 
 def lora_da_dx_update_wrapper(xt, dy, lora_B, lora_A, scale, dtype=torch.float32):
     """
@@ -322,33 +310,25 @@ def lora_da_dx_update_wrapper(xt, dy, lora_B, lora_A, scale, dtype=torch.float32
     assert dy.shape[1] == lora_B.shape[0], "Incompatible dY and B dimensions"
     assert lora_B.shape[1] == lora_A.shape[0], "LoRA dimensions must match"
 
-    S, M = xt.shape
+    _, M = xt.shape
     M, K = dy.shape
     K, N = lora_B.shape
     N, L = lora_A.shape
 
-    BLOCK_N = max(triton.next_power_of_2(N), 16)
-    BLOCK_M = 32 if M < 3072 else 64
-
-    num_blocks_m = (M + BLOCK_M - 1) // BLOCK_M
-    L1 = num_blocks_m * BLOCK_N
-
-    dx = torch.zeros((M, L), device=xt.device, dtype=dtype)
-    dlora_A = torch.zeros((S, L1), device=lora_A.device, dtype=dtype)
+    dx = torch.empty((M, L), device=xt.device, dtype=dtype)
+    dyb = torch.empty((M, N), device=xt.device, dtype=dtype)
     grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']),) # noqa: E731
-    lora_da_dx_kernel[grid](xt, dy, lora_B, lora_A, dx, dlora_A,
-                    S, M, K, N, L,
-                    xt.stride(0), xt.stride(1),
+    lora_da_dx_kernel[grid](dy, lora_B, lora_A, dx, dyb,
+                    M, K, N, L,
                     dy.stride(0), dy.stride(1),  #
                     lora_B.stride(0), lora_B.stride(1),
                     lora_A.stride(0), lora_A.stride(1),
-                    dx.stride(0), dx.stride(1), #
-                    dlora_A.stride(0), dlora_A.stride(1),
-                    scale,
-                    BLOCK_M,
+                    dx.stride(0), dx.stride(1),
+                    dyb.stride(0), dyb.stride(1),
+                    scale
                     )
-    dlora_A = dlora_A.reshape(S, -1, BLOCK_N).sum(1)[:, :N]
-    return dx, dlora_A
+    dlora_A = torch.matmul(xt, dyb)
+    return dlora_A, dx
 
 
 def db_autotune_configs():
@@ -356,73 +336,53 @@ def db_autotune_configs():
     Method for generating Triton configs for lora_db_kernel.
     """
     out = list()
-    for s in [32, 64, 128]:
-        for k in [32, 64, 128]:
+    for blk_n in [32, 64, 128]:
+        for blk_k in [32, 64, 128]:
+            for blk_m in [64, 128]:
                 out.append(
                     triton.Config(
-                        {'BLOCK_SIZE_S': s, 'BLOCK_SIZE_K': k},
+                        {'BLOCK_SIZE_N': blk_n, 'BLOCK_SIZE_K': blk_k,
+                         'BLOCK_SIZE_M': blk_m, 'GROUP_SIZE_M': 8},
                         num_stages=4,
-                        num_warps=4,
-                    ))
+                        num_warps=4
+                        )
+                    )
     return out
-
 
 @triton.autotune(
     configs=db_autotune_configs(),
     key=['S', 'M', 'K'],
-)
-@triton.heuristics(values={'BLOCK_SIZE_M': lambda args: max(triton.next_power_of_2(args['M']), 16),
-                           'GROUP_SIZE_M': lambda args: 8})
+    )
 @triton.jit
-def lora_db_kernel(a_ptr, xt_ptr, dy_ptr, db_ptr,
-                  M, K, N, S,
-                  stride_loraa_m, stride_loraa_k,
-                  stride_xt_k, stride_xt_n,
-                  stride_dy_n, stride_dy_s,
-                  stride_db_l1, stride_db_s,
-                  scale,
-                  BLOCK_SIZE_N: tl.constexpr,
-                  BLOCK_SIZE_M: tl.constexpr,
-                  GROUP_SIZE_M: tl.constexpr,
-                  BLOCK_SIZE_K: tl.constexpr,
-                  BLOCK_SIZE_S: tl.constexpr):
-    """
-    Kernel for computing the matmul DBT = A x XT x DY
-    A has shape (M, K), XT has shape (K, N), and DY has shape (N, S).
-    M, the LoRA dimension must be less than or equal to than BLOCK_SIZE_M.
-    The result returned by this kernel is reduced in the wrapper.
-    """
-    pid_m, pid_n = get_pid_coords(M, N,
-                                  BLOCK_SIZE_M,
-                                  BLOCK_SIZE_N,
-                                  GROUP_SIZE_M)
-    axt = inner_kernel(pid_m, pid_n,
-                    a_ptr, xt_ptr,
+def lora_db_kernel(a_ptr, b_ptr, c_ptr,
                     M, K, N,
-                    stride_loraa_m, stride_loraa_k,
-                    stride_xt_k, stride_xt_n,
+                    stride_am, stride_ak,
+                    stride_bk, stride_bn,
+                    stride_cm, stride_cn,
+                    scale,
+                    BLOCK_SIZE_M: tl.constexpr,
+                    BLOCK_SIZE_K: tl.constexpr,
+                    BLOCK_SIZE_N: tl.constexpr,
+                    GROUP_SIZE_M: tl.constexpr
+                    ):
+
+    pid_m, pid_n = get_pid_coords(M, N,
+                                BLOCK_SIZE_M,
+                                BLOCK_SIZE_N,
+                                GROUP_SIZE_M)
+    ab = inner_kernel(pid_m, pid_n,
+                    a_ptr, b_ptr,
+                    M, K, N,
+                    stride_am, stride_ak,
+                    stride_bk, stride_bn,
                     BLOCK_SIZE_M, BLOCK_SIZE_K, BLOCK_SIZE_N,
                     scale)
-    axt = axt.to(a_ptr.dtype.element_ty)
 
-    offs_dy_n = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N))
-    offs_db_m = (pid_n * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M))
-    offs_s = tl.arange(0, BLOCK_SIZE_S)
-
-    dy_ptrs = dy_ptr + stride_dy_n * offs_dy_n[:, None] + stride_dy_s * offs_s[None, :]
-    db_ptrs = db_ptr + stride_db_l1 * offs_db_m[:, None] + stride_db_s * offs_s[None, :]
-
-    L1 = tl.cdiv(N, BLOCK_SIZE_N) * BLOCK_SIZE_M
-    for s in tl.range(0, tl.cdiv(S, BLOCK_SIZE_S)):
-        dy_mask = (offs_dy_n[:, None] < N) & (offs_s[None, :] < S - s * BLOCK_SIZE_S)
-        db_mask = (offs_db_m[:, None] < L1) & (offs_s[None, :] < S - s * BLOCK_SIZE_S)
-        dy = tl.load(dy_ptrs, mask=dy_mask, other=0.0)
-        dlora_b = tl.dot(axt, dy)
-        dlora_b = dlora_b.to(a_ptr.dtype.element_ty)
-        tl.store(db_ptrs, dlora_b, mask=db_mask)
-
-        dy_ptrs += BLOCK_SIZE_S * stride_dy_s
-        db_ptrs += BLOCK_SIZE_S * stride_db_s
+    offs_cm = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M))
+    offs_cn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N))
+    c_ptrs = c_ptr + stride_cm * offs_cm[:, None] + stride_cn * offs_cn[None, :]
+    c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
+    tl.store(c_ptrs, ab, mask=c_mask)
 
 
 def lora_db_update_wrapper(lora_A, xt, dy, scale, dtype=torch.float32):
@@ -440,26 +400,17 @@ def lora_db_update_wrapper(lora_A, xt, dy, scale, dtype=torch.float32):
 
     M, K = lora_A.shape
     K, N = xt.shape
-    N, S = dy.shape
+    N, _ = dy.shape
 
-    BLOCK_M = max(triton.next_power_of_2(M), 16)
-    BLOCK_N = 32 if N < 3072 else 64
+    axt = torch.empty((M, N), device=dy.device, dtype=dtype)
 
-    num_blocks_n = (N + BLOCK_N - 1) // BLOCK_N
-    L1 = num_blocks_n * BLOCK_M
+    grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']),)
 
-    dlora_B = torch.zeros((L1, S), device=lora_A.device, dtype=dtype)
-    grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']),)  # noqa: E731
-    lora_db_kernel[grid](lora_A, xt, dy, dlora_B,
-                         M, K, N, S,
+    lora_db_kernel[grid](lora_A, xt, axt,
+                         M, K, N,
                          lora_A.stride(0), lora_A.stride(1),
                          xt.stride(0), xt.stride(1),
-                         dy.stride(0), dy.stride(1),  #
-                         dlora_B.stride(0), dlora_B.stride(1),
-                         scale,
-                         BLOCK_N,
-                    )
-    dlora_B = dlora_B.reshape(-1, BLOCK_M, S).sum(0).t()
-    if M < BLOCK_M:
-        dlora_B = dlora_B[:, :M]
-    return dlora_B
+                         axt.stride(0), axt.stride(1),
+                         scale)
+
+    return torch.matmul(axt, dy).t()
