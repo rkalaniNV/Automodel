@@ -110,7 +110,7 @@ def block_vector_mul(pid_m, pid_n,
     offs_l = tl.arange(0, BLOCK_SIZE_L)
     offs_dm = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M))
 
-    c_ptrs = c_ptr + (offs_cn[:, None] * stride_cn + offs_l[None, :] * stride_cl) 
+    c_ptrs = c_ptr + (offs_cn[:, None] * stride_cn + offs_l[None, :] * stride_cl)
     d_ptrs = d_ptr + stride_dm * offs_dm[:, None] + stride_dl * offs_l[None, :]
     d_mask = (offs_dm[:, None] < M) & (offs_l[None, :] < L)
     c_mask = (offs_cn[:, None] < N) & (offs_l[None, :] < L)
@@ -122,7 +122,6 @@ def block_vector_mul(pid_m, pid_n,
 
         abc = tl.dot(ab_result, c)
         tl.store(d_ptrs, abc, mask=d_mask)
-        
         c_ptrs += BLOCK_SIZE_L * stride_cl
         d_ptrs += BLOCK_SIZE_L * stride_dl
 
@@ -195,7 +194,7 @@ def lora_forward_wrapper(x, lora_A, lora_B, res, scale, dtype=torch.float32):
     M, K = x.shape
     K, N = lora_A.shape
     N, L = lora_B.shape
-    
+
     if res is None:
         res = torch.empty((M, L), device=x.device, dtype=dtype)
 
@@ -204,7 +203,7 @@ def lora_forward_wrapper(x, lora_A, lora_B, res, scale, dtype=torch.float32):
         x, lora_A, lora_B, res,
         M, N, K, L,
         x.stride(0), x.stride(1),
-        lora_A.stride(0), lora_A.stride(1), 
+        lora_A.stride(0), lora_A.stride(1),
         lora_B.stride(0), lora_B.stride(1),
         res.stride(0), res.stride(1),
         scale,
