@@ -232,11 +232,7 @@ def da_dx_autotune_configs():
 
 @triton.autotune(
     configs=da_dx_autotune_configs(),
-<<<<<<< HEAD
     key=['N', 'K', 'L'],
-=======
-    key=['S', 'N', 'K', 'L'],
->>>>>>> 596bafc (bug fixes)
 )
 @triton.heuristics(values={'BLOCK_SIZE_N': lambda args: max(triton.next_power_of_2(args['N']), 16)})
 @triton.jit

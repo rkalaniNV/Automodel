@@ -235,124 +235,6 @@ def patch_linear_module(
     assert not hasattr(orig_linear, 'super_fwd'), orig_linear.super_fwd
 
     if isinstance(orig_linear, nn.Linear):
-        if use_triton:
-            TritonLinearLoRA._init_adapter(
-                orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, 
-                lora_dtype)
-        else:
-            LinearLoRA._init_adapter(
-                orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, 
-                lora_dtype)
-        cls = orig_linear.__class__
-        new_cls = type('PatchedLinearLoRA', (LinearLoRA, cls), {})
-    else:
-        raise NotImplementedError("Expected isinstance(orig_linear, nn.Linear)")
-
-    # If the model uses quantized weights, we want to use orig_linear's forward
-    if (
-        getattr(orig_linear, 'quant_state', None) is not None
-        and orig_linear.quant_state.__class__ == bitsandbytes.functional.QuantState
-    ):
-        orig_linear.super_fwd = orig_linear.forward
-
-    orig_linear.__class__ = new_cls
-    return orig_linear
-
-# -----------------------------------------------------------------------------#
-# 2.  Convenience: patch a model in-place                                      #
-# -----------------------------------------------------------------------------#
-def apply_lora_to_linear_modules(
-    model: nn.Module,
-    target_modules = [],
-    exclude_modules = [],
-    match_all_linear = False,
-    dim: int = 8,
-    alpha: int = 32,
-    dropout: float = 0.0,
-    dropout_position: Literal["pre", "post"] = "post",
-    lora_A_init: str = "xavier",
-    lora_dtype: Optional[torch.dtype] = None,
-    use_triton: bool = True
-):
-    """
-    Replace selected nn.Linear layers with LinearLoRA layers (in-place).
-
-    target_modules accepts wildcard fragments, e.g. ["q_proj", "k_proj", ".*fc.*"].
-    """
-    # Freeze base model parameters
-    for w in model.parameters():
-        w.requires_grad_(False)
-
-    matcher = ModuleMatcher(target_modules, exclude_modules, match_all_linear)
-
-    num_modules_matched = 0
-    for name, module in list(model.named_modules()):
-        if matcher.match(module, name):
-            num_modules_matched += 1
-            patch_linear_module(
-                module,
-                dim=dim,
-                alpha=alpha,
-                dropout=dropout,
-                dropout_position=dropout_position,
-                lora_A_init_method=lora_A_init,
-                lora_dtype=lora_dtype,
-                use_triton=use_triton
-           )
-    return num_modules_matched
-
-
-def _parent_and_attr(root: nn.Module, fqname: str):
-    """Return (parent_module, attribute_name) for fully-qualified module name."""
-    parts = fqname.split(".")
-    parent = root
-    for p in parts[:-1]:
-        parent = getattr(parent, p)
-    return parent, parts[-1]
-
-
-def patch_linear_module(
-    orig_linear,
-    dim=8,
-    alpha=32,
-    dropout=0.0,
-    dropout_position='post',
-    lora_A_init_method='xavier',
-    lora_dtype=None,
-    use_triton=True
-):
-    """Monkey-patches a nn.Linear (orig_linear param) to be a LinearAdapter, for all purposes
-    think of this function as replacing a nn.Linear with a LinearAdapter defined above.
-
-    The orig_linear might not contain valid weights, for example, the given orig_linear was
-    initialized within a context-manager that uses a "meta" device. Therefore, we cannot copy
-    the weight/bias from the orig_linear to the LinearAdapter, since those have not been allocated,
-
-    To circumvent this scenario, LinearAdapter's additional functionality (_init_adapter, _forward)
-    is based on static functions, so that we can use them for patching or when allocating a
-    new LinearAdapter object.
-
-    Args:
-        orig_linear (nn.Linear): the module we add adapter to.
-        dim (int, optional): Lora dim. Defaults to 8.
-        alpha (int, optional): Lora alpha scale. Defaults to 32.
-        dropout (float, optional): dropout prob. Defaults to 0.0.
-        dropout_position (str, optional): location to apply dropout wrt lora.
-            Defaults to 'post' (choices: 'pre', 'post').
-        lora_A_init_method (str, optional): lora_a init method. Defaults to 'xavier'.
-        lora_dtype (_type_, optional): Lora weights' dtype. By default will use orig_linear's dtype
-        but orig_linear might use non-trainable dtype (e.g., 4bit), in which case the user must
-        specify the dtype manually. Defaults to None.
-        use_triton (bool, optional): By default we use the triton kernel LoRA implementation.
-
-    Returns:
-        (nn.Module): the monkey-patched (nn.Linear + LoRA) nn.Module
-    """
-
-    assert isinstance(orig_linear, nn.Linear), type(orig_linear)
-    assert not hasattr(orig_linear, 'super_fwd'), orig_linear.super_fwd
-
-    if isinstance(orig_linear, nn.Linear):
         linear_lora_cls = TritonLinearLoRA if use_triton else LinearLoRA
         linear_lora_cls._init_adapter(
             orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method,
@@ -360,7 +242,7 @@ def patch_linear_module(
         cls = orig_linear.__class__
         new_cls = type('PatchedLinearLoRA', (linear_lora_cls, cls), {})
     else:
-        raise NotImplementedError("Expected isinstance(orig_linear, (nn.Linear, te.Linear))")
+        raise NotImplementedError("Expected isinstance(orig_linear, nn.Linear)")
 
     # If the model uses quantized weights, we want to use orig_linear's forward
     if (
@@ -467,3 +349,12 @@ class LoRATritonFunction(torch.autograd.Function):
         if reshape:
             d_x = d_x.view(bs, seq_len, d)
         return d_x, d_lora_A.t(), d_lora_B, None, None, None
+
+
+def _parent_and_attr(root: nn.Module, fqname: str):
+    """Return (parent_module, attribute_name) for fully-qualified module name."""
+    parts = fqname.split(".")
+    parent = root
+    for p in parts[:-1]:
+        parent = getattr(parent, p)
+    return parent, parts[-1]
