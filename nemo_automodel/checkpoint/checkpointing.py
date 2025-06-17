@@ -154,7 +154,7 @@ def save_model(
         fqn_to_file_index_mapping = None
         if checkpoint_config.save_consolidated:
             # we first need to find the FQN -> .safetensors mapping
-            fqn_to_file_index_mapping = abc(model,
+            fqn_to_file_index_mapping = build_safetensor_shard_map(model,
                 model_state,
                 checkpoint_config.model_cache_dir,
                 checkpoint_config.model_repo_id
