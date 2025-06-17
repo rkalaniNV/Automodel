@@ -144,6 +144,18 @@ class OptimizerParamScheduler:
         return self.start_wd + coeff * delta_wd
 
     def get_lr(self, param_group: dict) -> float:
+        """
+        Returns the current LR.
+
+        Args:
+            param_group (dict[str, Any]): _description_
+
+        Raises:
+            ValueError: if the lr decay style is unkown
+
+        Returns:
+            float: the new LR.
+        """
         max_lr = param_group.get("max_lr", self.max_lr)
         min_lr = param_group.get("min_lr", self.min_lr)
 
