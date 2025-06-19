@@ -13,12 +13,6 @@ import wandb
 from nemo_automodel.loggers.wandb_utils import suppress_wandb_log_messages
 from wandb import Settings
 
-try:
-    from nvfsdp import nvFSDP
-    HAVE_NVFSDP = True
-except:
-    HAVE_NVFSDP = False
-
 import logging
 
 from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
@@ -50,7 +44,7 @@ logger = logging.getLogger(__name__)
 #  Stateless helper functions
 # ---------------------------
 
-def build_model_and_optimizer(device, cfg_model, cfg_opt, use_hf_fa2, cfg_peft, model_wrapper, seed, tp_size=1) -> tuple[nn.Module, 'Optimizer']:
+def build_model_and_optimizer(device, cfg_model, cfg_opt, use_hf_fa2, cfg_peft, model_wrapper, seed, tp_size=1) -> tuple[nn.Module, 'Optimizer']: # noqa: F821
     """Build and initialize a model.
 
     Args:
@@ -90,7 +84,7 @@ def build_model_and_optimizer(device, cfg_model, cfg_opt, use_hf_fa2, cfg_peft, 
         optimizer = cfg_opt.instantiate(params=trainable_params)
 
         if callable(getattr(model_wrapper, 'parallelize', None)):
-            if HAVE_NVFSDP and isinstance(model_wrapper, NVFSDPManager):
+            if isinstance(model_wrapper, NVFSDPManager):
                 model, optimizer = model_wrapper.parallelize(model, optimizer)
             else:
                 model = model_wrapper.parallelize(model)
