@@ -26,9 +26,8 @@ python make_and_submit.py \
   --dry-run          # inspect only
 """
 
-import argparse, dataclasses, getpass, os, socket, subprocess, sys, tempfile
+import os
 from dataclasses import dataclass, field
-from datetime import datetime
 
 @dataclass
 class SlurmConfig:
