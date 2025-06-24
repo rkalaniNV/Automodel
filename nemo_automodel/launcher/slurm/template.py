@@ -84,7 +84,7 @@ srun \\
     bash -c "$CMD"
 """
 
-def render_script(opts: SlurmOpts) -> str:
+def render_script(opts: SlurmConfig) -> str:
     return TEMPLATE.format(
         user=getpass.getuser(),
         host=socket.gethostname(),
