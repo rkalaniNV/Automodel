@@ -20,12 +20,6 @@ import torch
 import torch.nn as nn
 from torch.optim import Optimizer
 
-from nemo_automodel.checkpoint.checkpointing import (
-    load_model,
-    load_optimizer,
-    save_model,
-    save_optimizer,
-)
 
 
 def has_load_restore_state(object):
@@ -86,6 +80,11 @@ class BaseRecipe:
             epoch (int): The current epoch.
             step (int): The current step.
         """
+        from nemo_automodel.checkpoint.checkpointing import (
+            save_model,
+            save_optimizer,
+        )
+
         if not self.checkpoint_config.enabled:
             return
 
@@ -120,6 +119,11 @@ class BaseRecipe:
         """
         Loads the latest checkpoint.
         """
+        from nemo_automodel.checkpoint.checkpointing import (
+            load_model,
+            load_optimizer
+        )
+
         if not self.checkpoint_config.enabled:
             if (
                 (

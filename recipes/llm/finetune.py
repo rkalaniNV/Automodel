@@ -21,12 +21,9 @@ except:
 
 import logging
 
-from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
 from transformers import AutoTokenizer
 
-from nemo_automodel.checkpoint.checkpointing import CheckpointingConfig
 from nemo_automodel.config.cli import parse_args_and_load_config
-from nemo_automodel.datasets.llm.packed_sequence import PackedSequence
 from nemo_automodel.distributed.init_utils import initialize_distributed
 from nemo_automodel.distributed.parallelizer import (
     create_context_parallel_ctx,
@@ -94,6 +91,7 @@ def build_checkpoint_config(cfg_ckpt, cache_dir, model_repo_id):
     """Build a checkpoint configuration.
     """
     from transformers.utils import TRANSFORMERS_CACHE
+    from nemo_automodel.checkpoint.checkpointing import CheckpointingConfig
 
     ckpt_kwargs = dict(
         enabled=False,
@@ -155,6 +153,7 @@ def build_dataloader(cfg_ds, cfg_dl, cfg_model, cfg_ps, device_mesh, seed) -> Da
     Returns:
         The instantiated DataLoader.
     """
+    from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
     dist_sampler_kwargs = {
         "shuffle": cfg_dl.get("shuffle", True),
     }
@@ -175,6 +174,7 @@ def build_dataloader(cfg_ds, cfg_dl, cfg_model, cfg_ps, device_mesh, seed) -> Da
         # Apply packing if configured
         if getattr(cfg_ps, 'packed_sequence_size', 0) > 0:
             logger.info(f"Packing dataset with size: {cfg_ps.packed_sequence_size}")
+            from nemo_automodel.datasets.llm.packed_sequence import PackedSequence
             ds = PackedSequence(
                 ds,
                 split=cfg_ds.split,  # Assumes split is defined in dataset config
@@ -640,7 +640,9 @@ def main():
     Loads the configuration, sets up the trainer, and initiates the training loop.
     """
     script_path = pathlib.Path(__file__).parent.resolve()
-    cfg = parse_args_and_load_config(script_path / "llama_3_2_1b_hellaswag.yaml")
+    cfg = parse_args_and_load_config(script_path / "llama_3_2_1b_squad_slurm.yaml")
+    print(cfg)
+    quit()
     trainer = FinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
     trainer.run_train_validation_loop()
