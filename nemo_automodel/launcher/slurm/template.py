@@ -26,7 +26,7 @@ python make_and_submit.py \
   --dry-run          # inspect only
 """
 
-from dataclasses import dataclass
+import dataclasses
 from datetime import datetime
 
 HEADER = (
