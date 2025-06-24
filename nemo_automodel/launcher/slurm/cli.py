@@ -26,7 +26,7 @@ python make_and_submit.py \
   --dry-run          # inspect only
 """
 
-import argparse, dataclasses, subprocess, sys, tempfile
+import argparse, dataclasses, subprocess, sys, tempfile, yaml
 from nemo_automodel.launcher.slurm.template import render_script
 from nemo_automodel.launcher.slurm.opts import SlurmConfig
 

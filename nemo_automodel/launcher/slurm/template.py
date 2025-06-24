@@ -26,8 +26,9 @@ python make_and_submit.py \
   --dry-run          # inspect only
 """
 
-import dataclasses
+import dataclasses, getpass, socket
 from datetime import datetime
+from nemo_automodel.launcher.slurm.config import SlurmConfig
 
 HEADER = (
     "# -------------------------------------------------------------------\n"
