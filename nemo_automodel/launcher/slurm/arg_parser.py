@@ -28,7 +28,7 @@ python make_and_submit.py \
 
 import argparse, dataclasses, subprocess, sys, tempfile, yaml
 from nemo_automodel.launcher.slurm.template import render_script
-from nemo_automodel.launcher.slurm.opts import SlurmConfig
+from nemo_automodel.launcher.slurm.config import SlurmConfig
 
 def build_slurm_parser() -> argparse.ArgumentParser:
     """Create an ArgumentParser directly from the dataclass definition."""
