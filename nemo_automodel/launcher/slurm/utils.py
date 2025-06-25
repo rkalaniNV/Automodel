@@ -1,0 +1,39 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from nemo_automodel.launcher.slurm.arg_parser import render_script
+import tempfile
+import subprocess
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def submit_slurm_job(config):
+    sbatch_script = render_script(config)
+
+    tmp_path = tempfile.NamedTemporaryFile(
+        delete=False, suffix=f"_{config.job_name}.sbatch", mode="w"
+    ).name
+    with open(tmp_path, "w") as fp:
+        fp.write(sbatch_script)
+
+    logger.info("Generated Slurm script ➜ {}".format(tmp_path))
+
+    try:
+        out = subprocess.check_output(["sbatch", tmp_path], text=True)
+        logger.info(out)
+        return 0
+    except subprocess.CalledProcessError as exc:
+        logging.error("sbatch submission failed:\n", exc.output)
+        return exc.returncode

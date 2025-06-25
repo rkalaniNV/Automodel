@@ -650,29 +650,13 @@ def main():
     # if this has a Slurm section, then make an sbatch script and submit it to Slurm
     if 'slurm' in cfg and not 'SLURM_JOB_ID' in os.environ and int(os.environ('RANK', '0')) == 0:
         from nemo_automodel.launcher.slurm.config import SlurmConfig
-        from nemo_automodel.launcher.slurm.arg_parser import render_script
+        from nemo_automodel.launcher.slurm.utils import submit_slurm_job
         opts = cfg.get('slurm').to_dict()
         if opts.get('job_name', '') == '':
             opts['job_name'] = 'llm_finetune'
         opts['command'] = f'PYTHONPATH=/lustre/fsw/coreai_dlalgo_llm/akoumparouli/Automodel:$PYTHONPATH python3 {__file__}'
         slurm_config = SlurmConfig(**opts)
-        script_txt = render_script(slurm_config)
-
-        tmp_path = tempfile.NamedTemporaryFile(
-            delete=False, suffix=f"_{slurm_config.job_name}.sbatch", mode="w"
-        ).name
-        with open(tmp_path, "w") as fp:
-            fp.write(script_txt)
-
-        logging.info("Generated Slurm script ➜ {}".format(tmp_path))
-
-        try:
-            out = subprocess.check_output(["sbatch", tmp_path], text=True)
-            print(out.strip())
-        except subprocess.CalledProcessError as exc:
-            logging.error("sbatch submission failed:\n", exc.output)
-            sys.exit(exc.returncode)
-        return
+        return submit_slurm_job(slurm_config)
 
     trainer = FinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
