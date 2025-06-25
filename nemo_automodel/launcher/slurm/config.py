@@ -11,20 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#!/usr/bin/env python3
-"""
-make_and_submit.py  ·  Generate a Slurm batch script from CLI args (defined in a
-dataclass), drop it to a temp file, and optionally submit it via sbatch.
-
-Example
--------
-python make_and_submit.py \
-  --job-name llama3-test \
-  --nodes 2 \
-  --time 00:05:00 \
-  --command "pip3 install torchdata; python3 /lustre/.../finetune.py --config cfg.yaml" \
-  --dry-run          # inspect only
-"""
 
 import os
 from dataclasses import dataclass, field
