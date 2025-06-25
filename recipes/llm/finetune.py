@@ -49,6 +49,7 @@ from nemo_automodel.distributed.parallelizer import (
 )
 from nemo_automodel.loggers.log_utils import setup_logging
 from nemo_automodel.training.base_recipe import BaseRecipe
+from nemo_automodel.training.compile import build_compile_config, compile_model
 from nemo_automodel.training.rng import StatefulRNG
 from nemo_automodel.training.step_scheduler import StepScheduler
 from nemo_automodel.utils.dist_utils import (
@@ -65,7 +66,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------
 
 
-def build_model(device, cfg_model, use_hf_fa2, cfg_peft, model_wrapper, seed) -> nn.Module:
+def build_model(device, cfg_model, use_hf_fa2, cfg_peft, model_wrapper, seed, compile_config=None) -> nn.Module:
     """Build and initialize a model.
 
     Args:
@@ -76,6 +77,7 @@ def build_model(device, cfg_model, use_hf_fa2, cfg_peft, model_wrapper, seed) ->
         cfg_peft: Configuration for PEFT.
         model_wrapper: Optional parallelism wrapper.
         seed: Random seed.
+        compile_config: Optional compile configuration.
 
     Returns:
         The instantiated model on the specified device.
@@ -102,9 +104,16 @@ def build_model(device, cfg_model, use_hf_fa2, cfg_peft, model_wrapper, seed) ->
             model = model_wrapper.parallelize(model)
 
             # FSDP2 and nvFSDP should already be on the correct device
+            # Compile the model after parallelization if enabled
+            if compile_config is not None:
+                model = compile_model(model, compile_config)
             return model
         else:
-            return model.to(device)
+            model = model.to(device)
+            # Compile the model if enabled
+            if compile_config is not None:
+                model = compile_model(model, compile_config)
+            return model
 
 
 def build_checkpoint_config(cfg_ckpt, cache_dir, model_repo_id, is_peft):
@@ -310,6 +319,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         # Check if packed_sequence_size > 0 and use HF's flash_attention_2 for attn implementation.
         use_hf_fa2 = self.cfg.get("packed_sequence.packed_sequence_size", 0) > 0
 
+        # Build compile config first
+        self.compile_config = build_compile_config(self.cfg.get("compile", None))
+
         # Build components
         self.model = build_model(
             self.dist_env.device,
@@ -318,6 +330,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             self.cfg.get("peft", None),
             self.model_wrapper,
             seed=self.cfg.get("seed", 42),
+            compile_config=self.compile_config,  # Pass compile config to build_model
         )
         self.optimizer = build_optimizer(
             self.cfg.optimizer,
@@ -508,12 +521,13 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             # log
             reporting_loss = self.log_train_metrics(grad_norm)
             logging.info(
-                "step {} | epoch {} | loss {:.4f} | grad_norm {:.4f} | mem: {:.2f} GiB".format(
+                "step {} | epoch {} | loss {:.4f} | grad_norm {:.4f} | mem: {:.2f} GiB | compiled: {}".format(
                     self.step_scheduler.step,
                     self.step_scheduler.epoch,
                     reporting_loss,
                     grad_norm,
                     torch.cuda.max_memory_allocated() / 1024**3,
+                    self.compile_config.enabled,
                 )
             )
             torch.cuda.reset_peak_memory_stats()
@@ -635,6 +649,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             "epoch": self.step_scheduler.epoch,
             "grad_norm": grad_norm,
             "num_tokens_per_step": total_num_tokens,
+            "compiled": self.compile_config.enabled,
         }
         if self.optimizer.param_groups:
             log_data["learning_rate"] = self.optimizer.param_groups[0]["lr"]
