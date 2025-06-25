@@ -9,9 +9,6 @@ import torch.nn as nn
 from torch.distributed.device_mesh import _mesh_resources
 from torch.utils.data import DataLoader
 
-import wandb
-from nemo_automodel.loggers.wandb_utils import suppress_wandb_log_messages
-from wandb import Settings
 
 try:
     from nvfsdp import nvFSDP
@@ -20,8 +17,12 @@ except:
     HAVE_NVFSDP = False
 
 import logging
-
-from transformers import AutoTokenizer
+import os, sys, subprocess, tempfile
+try:
+    import wandb
+    HAVE_WANDB = True
+except ImportError:
+    HAVE_WANDB = False
 
 from nemo_automodel.config.cli import parse_args_and_load_config
 from nemo_automodel.distributed.init_utils import initialize_distributed
@@ -162,6 +163,7 @@ def build_dataloader(cfg_ds, cfg_dl, cfg_model, cfg_ps, device_mesh, seed) -> Da
             "num_replicas": device_mesh["data_parallel"].size(),
             "rank": device_mesh["data_parallel"].get_local_rank(),
         }
+    from transformers import AutoTokenizer
     if 'tokenizer' not in cfg_ds:
         tokenizer = AutoTokenizer.from_pretrained(cfg_model.pretrained_model_name_or_path)
     elif '_target_' not in cfg_ds.tokenizer:
@@ -230,6 +232,10 @@ def build_wandb(cfg):
     """Instantiates wandb and returns the instance.
     If no name is given, it will use the model name
     """
+    from nemo_automodel.loggers.wandb_utils import suppress_wandb_log_messages
+    import wandb
+    suppress_wandb_log_messages()
+
     assert cfg.get('wandb', None) is not None
     kwargs = cfg.wandb.to_dict()
     if kwargs.get('name', "") == "":
@@ -237,7 +243,7 @@ def build_wandb(cfg):
     run = wandb.init(
         **kwargs,
         config=cfg,
-        settings=Settings(silent=True),
+        settings=wandb.Settings(silent=True),
     )
     return run
 
@@ -257,6 +263,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             cfg: Configuration dictionary/object for training.
         """
         self.cfg = cfg
+        logger.info(cfg)
 
     # ------------------ build phase ------------------
     def setup(self):
@@ -281,7 +288,6 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             self.device_mesh = getattr(self.model_wrapper, "device_mesh", None)
 
         if self.dist_env.is_main and hasattr(self.cfg, 'wandb'):
-            suppress_wandb_log_messages()
             run = build_wandb(self.cfg)
             logging.info("🚀 View run at {}".format(run.url))
 
@@ -579,7 +585,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
         val_loss = total_loss / max(total_tokens, 1e-8)
         if self.dist_env.is_main:
-            if wandb.run is not None:
+            if HAVE_WANDB and wandb.run is not None:
                 wandb.log(
                     {
                         "val_loss": val_loss,
@@ -641,8 +647,33 @@ def main():
     """
     script_path = pathlib.Path(__file__).parent.resolve()
     cfg = parse_args_and_load_config(script_path / "llama_3_2_1b_squad_slurm.yaml")
-    print(cfg)
-    quit()
+    # if this has a Slurm section, then make an sbatch script and submit it to Slurm
+    if 'slurm' in cfg and not 'SLURM_JOB_ID' in os.environ and int(os.environ('RANK', '0')) == 0:
+        from nemo_automodel.launcher.slurm.config import SlurmConfig
+        from nemo_automodel.launcher.slurm.arg_parser import render_script
+        opts = cfg.get('slurm').to_dict()
+        if opts.get('job_name', '') == '':
+            opts['job_name'] = 'llm_finetune'
+        opts['command'] = f'PYTHONPATH=/lustre/fsw/coreai_dlalgo_llm/akoumparouli/Automodel:$PYTHONPATH python3 {__file__}'
+        slurm_config = SlurmConfig(**opts)
+        script_txt = render_script(slurm_config)
+
+        tmp_path = tempfile.NamedTemporaryFile(
+            delete=False, suffix=f"_{slurm_config.job_name}.sbatch", mode="w"
+        ).name
+        with open(tmp_path, "w") as fp:
+            fp.write(script_txt)
+
+        logging.info("Generated Slurm script ➜ {}".format(tmp_path))
+
+        try:
+            out = subprocess.check_output(["sbatch", tmp_path], text=True)
+            print(out.strip())
+        except subprocess.CalledProcessError as exc:
+            logging.error("sbatch submission failed:\n", exc.output)
+            sys.exit(exc.returncode)
+        return
+
     trainer = FinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
     trainer.run_train_validation_loop()
