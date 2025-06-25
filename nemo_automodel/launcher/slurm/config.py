@@ -58,9 +58,12 @@ class SlurmConfig:
 
     # Container / mounts
     container: str = field(
-        default="/lustre/fsw/coreai_dlalgo_llm/akoumparouli/sqsh_images/"
-                "nemo:25.04.rc4.unsloth.sqsh",
+        default="nvcr.io/nvidia/nemo:dev",
         metadata=dict(help="SquashFS / OCI image path")
+    )
+    log_dir: str = field(
+        default_factory=lambda: os.path.join(os.getcwd(), "logs"),
+        metadata=dict(help="Directory for slurm stdout file")
     )
     nemo_mount: str = field(
         default="/lustre/fsw/coreai_dlalgo_llm/akoumparouli/Automodel",
@@ -82,10 +85,6 @@ class SlurmConfig:
         default="/lustre/fsw/coreai_dlalgo_llm/akoumparouli:"
                 "/lustre/fsw/coreai_dlalgo_llm/akoumparouli",
         metadata=dict(help="Additional mounts host:container (comma-separated)"))
-    log_dir: str = field(
-        default_factory=lambda: os.path.join(os.getcwd(), "logs"),
-        metadata=dict(help="Directory for slurm stdout file")
-    )
 
     # Misc env / training specifics
     master_port: int = field(
