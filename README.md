@@ -35,8 +35,8 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
       <th rowspan="2">Domain</th>
       <th rowspan="2">Family</th>
       <th rowspan="2">Model&nbsp;ID</th>
-      <th colspan="3">LoRA</th>
-      <th colspan="3">SFT</th>
+      <th colspan="3">LoRA (HellaSwag)</th>
+      <th colspan="3">SFT (SQuAD)</th>
     </tr>
     <tr>
       <th>Single-GPU</th><th>Single-Node</th><th>Multi-Node</th>
@@ -47,23 +47,27 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
     <tr>
       <td><strong>LLM</strong></td>
       <td>Llama-3.1</td>
-      <td><a href="https://huggingface.co/eta-llama/Llama-3.1-8B-Instruct">8B-Instruct</a></td>
-      <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml">HellaSwag&nbsp;+&nbsp;LoRA</a></td>
-      <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
+      <td><a href="https://huggingface.co/eta-llama/Llama-3.1-8B-Instruct"><code>8B-Instruct</code></a></td>
+      <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml"><code>8B-I</code></a></td>
+      <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml"><code>8B-I</code></a></td>
       <td>Coming&nbsp;Soon</td>
-      <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
-      <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
+      <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml"><code>8B-I</code></a></td>
+      <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml"><code>8B-I</code></a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
     <tr>
       <td><strong>LLM</strong></td>
       <td>Llama-3.2</td>
       <td>
-        <a href="https://huggingface.co/meta-llama/Llama-3.2-1B">1B</a>,
-        <a href="https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct">1B-Instruct</a>,
-        <a href="https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct">3B-Instruct</a>
+        <a href="https://huggingface.co/meta-llama/Llama-3.2-1B"><code>1B</code></a>,
+        <a href="https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct">1B-Instruct</code></a>,
+        <a href="https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct">3B-Instruct</code></a>
       </td>
-      <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml">HellaSwag&nbsp;+&nbsp;LoRA</a></td>
+      <td>
+        <a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml"><code>1B</code></a>,
+        <a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml"><code>1B-I</code></a>,
+        <a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml"><code>3B-I</code></a>
+      </td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
