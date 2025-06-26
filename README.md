@@ -29,6 +29,16 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
 
 ### 📋 Ready-to-Use Recipes
 
+<table>
+  <tr>
+    <th colspan="3">Merged header</th>
+  </tr>
+  <tr>
+    <td>A1</td><td>B1</td><td>C1</td>
+  </tr>
+</table>
+
+
 | Domain | Family | Model ID | Single-GPU | Single-Node | Multi-Node |
 |--------|--------|----------|------------|-------------|------------|
 | **LLM** | Llama-3.1 | [`8B-Instruct`](https://huggingface.co/eta-llama/Llama-3.1-8B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
