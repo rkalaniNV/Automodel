@@ -28,8 +28,14 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
 
 
 ### 📋 Ready-to-Use Recipes
+<style>
+#hero_table td {
+  font-size: 14px;
+  padding: 4px 8px;
+}
+</style>
 
-<table>
+<table id="hero_table">
   <thead>
     <tr>
       <th rowspan="2">Domain</th>
@@ -47,7 +53,7 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
     <tr>
       <td><strong>LLM</strong></td>
       <td>Llama-3.1</td>
-      <td><a href="https://huggingface.co/eta-llama/Llama-3.1-8B-Instruct"><code>8B-Instruct</code></a></td>
+      <td><a href="https://huggingface.co/Meta-llama/Llama-3.1-8B-Instruct" alt="Meta-llama/Llama-3.1-8B-Instruct"><code>8B-Instruct</code></a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml"><code>8B-I</code></a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml"><code>8B-I</code></a></td>
       <td>Coming&nbsp;Soon</td>
