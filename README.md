@@ -32,7 +32,8 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
 | Domain | Model ID | Single-GPU | Single-Node | Multi-Node |
 |--------|----------|------------|-------------|------------|
 | **LLM** | `meta-llama/Llama-3.2-1B` | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) • [SQuAD](recipes/llm/llama_3_2_1b_squad.yaml) |  [HellaSwag + nvFSDP](recipes/llm/llama_3_2_1b_hellaswag_nvfsdp.yaml) |
-| **VLM** | `google/gemma-3-4b-it` | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
+| **VLM** | [`google/gemma-3-4b-it`](https://huggingface.co/google/gemma-3-4b-it) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
+| **VLM** | [`google/gemma-3-27b-it`](https://huggingface.co/google/gemma-3-27b-it) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
 
 
 ### 🚀 Key Features
@@ -205,7 +206,7 @@ NeMo AutoModel delivers significant speedups through optimized kernels and distr
 | Model | Method | Speedup | Memory Savings |
 |-------|--------|---------|----------------|
 | LLaMA-3-8B | LoRA + Liger | **3.2x** | 60% |
-| Qwen2.5-7B | Full FT + FSDP2 | **2.8x** | 40% |  
+| Qwen2.5-7B | Full FT + FSDP2 | **2.8x** | 40% |
 | Gemma-2-9B | DoRA + Cut-CE | **4.1x** | 55% |
 
 ### Optimizations Included
@@ -223,7 +224,7 @@ NeMo AutoModel delivers significant speedups through optimized kernels and distr
 NeMo-Automodel/
 ├── nemo_automodel/              # Core library
 │   ├── _peft/                   # PEFT implementations (LoRA)
-│   ├── _transformers/           # HF model integrations  
+│   ├── _transformers/           # HF model integrations
 │   ├── checkpoint/              # Distributed checkpointing
 │   ├── datasets/                # Dataset loaders
 │   │   ├── llm/                 # LLM datasets (HellaSwag, SQuAD, etc.)
@@ -233,7 +234,7 @@ NeMo-Automodel/
 │   └── training/                # Training recipes and utilities
 ├── recipes/                     # Ready-to-use training recipes
 │   ├── llm/                     # LLM fine-tuning recipes
-│   └── vlm/                     # VLM fine-tuning recipes  
+│   └── vlm/                     # VLM fine-tuning recipes
 └── tests/                       # Comprehensive test suite
 ```
 
