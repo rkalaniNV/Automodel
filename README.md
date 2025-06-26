@@ -36,7 +36,7 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
 | **LLM** | Mistral | [`7B-Instruct-v0.2`](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2),[`7B-Instruct-v0.3`](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
 
 | **LLM** | Qwen3 | [`Qwen/Qwen3-32B`](https://huggingface.co/Qwen/Qwen3-32B), [`Qwen/Qwen3-8B`](https://huggingface.co/Qwen/Qwen3-8B) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | Qwen2.5 | [`14B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct), [`7B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct), [`3B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct), [`1.5B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) • [SQuAD](recipes/
+| **LLM** | Qwen2.5 | [`14B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct), [`7B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct), [`3B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct), [`1.5B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
 | **LLM** | Qwen2 | [`7B-Instruct`](https://huggingface.co/Qwen/Qwen2-7B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
 
 
