@@ -31,7 +31,6 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
 
 <table>
   <thead>
-    <!-- top header -->
     <tr>
       <th rowspan="2">Domain</th>
       <th rowspan="2">Family</th>
@@ -39,32 +38,23 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
       <th colspan="3">LoRA</th>
       <th colspan="3">SFT</th>
     </tr>
-
-    <!-- sub-header -->
     <tr>
       <th>Single-GPU</th><th>Single-Node</th><th>Multi-Node</th>
       <th>Single-GPU</th><th>Single-Node</th><th>Multi-Node</th>
     </tr>
   </thead>
-
   <tbody>
-    <!-- ------------- LLMs ------------- -->
     <tr>
       <td><strong>LLM</strong></td>
       <td>Llama-3.1</td>
       <td><a href="https://huggingface.co/eta-llama/Llama-3.1-8B-Instruct">8B-Instruct</a></td>
-
-      <!-- LoRA -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml">HellaSwag&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
     <tr>
       <td><strong>LLM</strong></td>
       <td>Llama-3.2</td>
@@ -73,18 +63,13 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
         <a href="https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct">1B-Instruct</a>,
         <a href="https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct">3B-Instruct</a>
       </td>
-
-      <!-- LoRA -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml">HellaSwag&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
     <tr>
       <td><strong>LLM</strong></td>
       <td>Mistral</td>
@@ -92,18 +77,13 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
         <a href="https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2">7B-v0.2</a>,
         <a href="https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3">7B-v0.3</a>
       </td>
-
-      <!-- LoRA -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml">HellaSwag&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
     <tr>
       <td><strong>LLM</strong></td>
       <td>Qwen3</td>
@@ -111,18 +91,13 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
         <a href="https://huggingface.co/Qwen/Qwen3-32B">32B</a>,
         <a href="https://huggingface.co/Qwen/Qwen3-8B">8B</a>
       </td>
-
-      <!-- LoRA -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml">HellaSwag&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
     <tr>
       <td><strong>LLM</strong></td>
       <td>Qwen2.5</td>
@@ -132,83 +107,57 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
         <a href="https://huggingface.co/Qwen/Qwen2.5-3B-Instruct">3B</a>,
         <a href="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct">1.5B</a>
       </td>
-
-      <!-- LoRA -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml">HellaSwag&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
     <tr>
       <td><strong>LLM</strong></td>
       <td>Qwen2</td>
       <td><a href="https://huggingface.co/Qwen/Qwen2-7B-Instruct">7B-Instruct</a></td>
-
-      <!-- LoRA -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml">HellaSwag&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
     <tr>
       <td><strong>LLM</strong></td>
       <td>Phi4</td>
       <td><a href="https://huggingface.co/microsoft/phi-4">phi-4</a></td>
-
-      <!-- LoRA -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml">HellaSwag&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
     <tr>
       <td><strong>LLM</strong></td>
       <td>Phi3</td>
       <td><a href="https://huggingface.co/microsoft/Phi-3-mini-4k-instruct">Phi-3-mini-4k-instruct</a></td>
-
-      <!-- LoRA -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml">HellaSwag&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
     <tr>
       <td><strong>LLM</strong></td>
       <td>Phi2</td>
       <td><a href="https://huggingface.co/microsoft/phi-2">phi-2</a></td>
-
-      <!-- LoRA -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag_peft.yaml">HellaSwag&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td><a href="recipes/llm/llama_3_2_1b_hellaswag.yaml">HellaSwag</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
-    <!-- ------------- VLMs ------------- -->
     <tr>
       <td><strong>VLM</strong></td>
       <td>Gemma3</td>
@@ -216,18 +165,13 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
         <a href="https://huggingface.co/google/gemma-3-4b-it">4b-it</a>,
         <a href="https://huggingface.co/google/gemma-3-27b-it">27b-it</a>
       </td>
-
-      <!-- LoRA -->
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml">CORD-v2&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
     <tr>
       <td><strong>VLM</strong></td>
       <td>Qwen2.5-VL</td>
@@ -235,45 +179,31 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
         <a href="https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct">3B</a>,
         <a href="https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct">7B</a>
       </td>
-
-      <!-- LoRA -->
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml">CORD-v2&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
     <tr>
       <td><strong>VLM</strong></td>
       <td>Llama-3.2</td>
       <td><a href="https://huggingface.co/meta-llama/Llama-3.2-11B-Vision">11B-Vision</a></td>
-
-      <!-- LoRA -->
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml">CORD-v2&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td>Coming&nbsp;Soon</td>
     </tr>
-
     <tr>
       <td><strong>VLM</strong></td>
       <td>Phi-3.5</td>
       <td><a href="https://huggingface.co/microsoft/Phi-3.5-vision-instruct">vision-instruct</a></td>
-
-      <!-- LoRA -->
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml">CORD-v2&nbsp;+&nbsp;LoRA</a></td>
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td>Coming&nbsp;Soon</td>
-
-      <!-- SFT -->
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2.yaml">CORD-v2</a></td>
       <td>Coming&nbsp;Soon</td>
