@@ -28,13 +28,7 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
 
 
 ### 📋 Ready-to-Use Recipes
-<table id="hero_table">
-  <style>
-  td {
-    font-size: 14px;
-    padding: 4px 8px;
-  }
-  </style>
+<table style="padding: 4px 8px; font-size: 14px">
   <thead>
     <tr>
       <th rowspan="2">Domain</th>
