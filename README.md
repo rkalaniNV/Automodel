@@ -176,7 +176,7 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
       <td><strong>VLM</strong></td>
       <td>Qwen2.5-VL</td>
       <td>
-        <a href="https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct">3B</a>,
+        <a href="https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct"><code>3B</code></a>,
         <a href="https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct">7B</a>
       </td>
       <td><a href="recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml">CORD-v2&nbsp;+&nbsp;LoRA</a></td>
