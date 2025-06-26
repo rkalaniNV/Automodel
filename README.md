@@ -29,30 +29,27 @@ NeMo AutoModel delivers true **zero-day**, drop-in compatibility for Hugging Fac
 
 ### 📋 Ready-to-Use Recipes
 
-| Domain | Model ID | Single-GPU | Single-Node | Multi-Node |
-|--------|----------|------------|-------------|------------|
-| **LLM** | [`eta-llama/Llama-3.1-8B-Instruct`](https://huggingface.co/eta-llama/Llama-3.1-8B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`meta-llama/Llama-3.2-1B`](https://huggingface.co/meta-llama/Llama-3.2-1B) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`meta-llama/Llama-3.2-1B-Instruct`](https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`meta-llama/Llama-3.2-3B-Instruct`](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`mistralai/Mistral-7B-Instruct-v0.2`](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`mistralai/Mistral-7B-Instruct-v0.3`](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`microsoft/phi-4`](https://huggingface.co/microsoft/phi-4) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`microsoft/Phi-3-mini-4k-instruct`](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`microsoft/phi-2`](https://huggingface.co/microsoft/phi-2) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`Qwen/Qwen3-32B`](https://huggingface.co/Qwen/Qwen3-32B) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`Qwen/Qwen3-8B`](https://huggingface.co/Qwen/Qwen3-8B) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`Qwen/Qwen2-7B-Instruct`](https://huggingface.co/Qwen/Qwen2-7B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`Qwen/Qwen2.5-14B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`Qwen/Qwen2.5-7B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`Qwen/Qwen2.5-3B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
-| **LLM** | [`Qwen/Qwen2.5-1.5B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) • [SQuAD](recipes/llm/llama_3_2_1b_squad.yaml) |  [HellaSwag + nvFSDP](recipes/llm/llama_3_2_1b_hellaswag_nvfsdp.yaml) |
-| **VLM** | [`google/gemma-3-4b-it`](https://huggingface.co/google/gemma-3-4b-it) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
-| **VLM** | [`google/gemma-3-27b-it`](https://huggingface.co/google/gemma-3-27b-it) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
-| **VLM** | [`Qwen/Qwen2.5-VL-3B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
-| **VLM** | [`Qwen/Qwen2.5-VL-7B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
-| **VLM** | [`meta-llama/Llama-3.2-11B-Vision`](https://huggingface.co/meta-llama/Llama-3.2-11B-Vision) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
-| **VLM** | [`microsoft/Phi-3.5-vision-instruct`](https://huggingface.co/microsoft/Phi-3.5-vision-instruct) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
+| Domain | Domain | Model-id | Single-GPU | Single-Node | Multi-Node |
+|--------|--------|----------|------------|-------------|------------|
+| **LLM** | Llama-3.1 | [`8B-Instruct`](https://huggingface.co/eta-llama/Llama-3.1-8B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
+| **LLM** | Llama-3.2 | [`1B`](https://huggingface.co/meta-llama/Llama-3.2-1B), [`1B-Instruct`](https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct), [`3B-Instruct`](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
+| **LLM** | Mistral | [`7B-Instruct-v0.2`](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2),[`7B-Instruct-v0.3`](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
+
+| **LLM** | Qwen3 | [`Qwen/Qwen3-32B`](https://huggingface.co/Qwen/Qwen3-32B), [`Qwen/Qwen3-8B`](https://huggingface.co/Qwen/Qwen3-8B) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
+| **LLM** | Qwen2.5 | [`14B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct), [`7B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct), [`3B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct), [`1.5B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) • [SQuAD](recipes/
+| **LLM** | Qwen2 | [`7B-Instruct`](https://huggingface.co/Qwen/Qwen2-7B-Instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
+
+
+
+| **LLM** | Phi4 | [`phi-4`](https://huggingface.co/microsoft/phi-4) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
+| **LLM** | Phi3 | [`Phi-3-mini-4k-instruct`](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
+| **LLM** | Phi2 | [`phi-2`](https://huggingface.co/microsoft/phi-2) | [HellaSwag + LoRA](recipes/llm/llama_3_2_1b_hellaswag_peft.yaml) |[HellaSwag](recipes/llm/llama_3_2_1b_hellaswag.yaml) | Coming Soon |
+
+
+| **VLM** | Gemma3    | [`4b-it`](https://huggingface.co/google/gemma-3-4b-it), [`27b-it`](https://huggingface.co/google/gemma-3-27b-it) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
+| **VLM** | Qwen2.5-VL| [`3B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct), [`7B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
+| **VLM** | Llama-3.2 | [`11B-Vision`](https://huggingface.co/meta-llama/Llama-3.2-11B-Vision) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
+| **VLM** | Phi-3.5   | [`vision-instruct`](https://huggingface.co/microsoft/Phi-3.5-vision-instruct) | [CORD-v2 + LoRA](recipes/vlm/gemma_3_vl_3b_cord_v2_peft.yaml) | [CORD-v2](recipes/vlm/gemma_3_vl_3b_cord_v2.yaml) | Coming Soon |
 
 
 ### 🚀 Key Features
