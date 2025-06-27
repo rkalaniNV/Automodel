@@ -49,6 +49,7 @@ jobs:
           files_yaml: |
             doc:
               - '**.md'
+              - '**.yml'
               - docs/**
             src:
               - '!**.md'
