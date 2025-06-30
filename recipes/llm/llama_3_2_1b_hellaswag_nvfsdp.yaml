@@ -1,5 +1,5 @@
 step_scheduler:
-  grad_acc_steps: 4
+  grad_acc_steps: 16
   ckpt_every_steps: 1000
   val_every_steps: 10  # will run every x number of gradient steps
   num_epochs: 1
@@ -19,9 +19,10 @@ model:
 
 distributed:
   _target_: nemo_automodel.distributed.nvfsdp.NVFSDPManager
-  dp_size: 8
+  dp_size: 2
   tp_size: 1
   cp_size: 1
+  data_parallel_sharding_strategy: optim_grads_params
 
 loss_fn: nemo_automodel.loss.masked_ce.masked_cross_entropy
 
@@ -30,10 +31,15 @@ dataset:
   path_or_dataset: rowan/hellaswag
   split: train
 
+packed_sequence:
+  # Set packed_sequence_size > 0 to run with packed sequences
+  packed_sequence_size: 0
+  split_across_pack: False
+
 dataloader:
   _target_: torchdata.stateful_dataloader.StatefulDataLoader
   collate_fn: nemo_automodel.datasets.utils.default_collater
-  batch_size: 8
+  batch_size: 2
   shuffle: false
 
 validation_dataset:
@@ -45,7 +51,7 @@ validation_dataset:
 validation_dataloader:
   _target_: torchdata.stateful_dataloader.StatefulDataLoader
   collate_fn: nemo_automodel.datasets.utils.default_collater
-  batch_size: 8
+  batch_size: 2
   
 optimizer:
   _target_: torch.optim.Adam

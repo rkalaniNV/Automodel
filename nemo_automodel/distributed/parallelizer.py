@@ -246,7 +246,7 @@ def nvfsdp_strategy_parallelize(
         dp_mesh_name="data_parallel",
         cp_mesh_name="context_parallel",
         tp_mesh_name="tensor_parallel",
-        dp_cp_mesh_name="dp_cp",
+        # dp_cp_mesh_name="dp_cp",
         data_parallel_sharding_strategy=data_parallel_sharding_strategy,
         init_model_with_meta_device=init_nvfsdp_with_meta_device,
         grad_reduce_in_fp32=grad_reduce_in_fp32,
