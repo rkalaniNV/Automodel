@@ -11,3 +11,57 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib
+from .package_info import __package_name__, __version__
+
+__all__ = [
+    "_peft",
+    "config",
+    "datasets",
+    "distributed",
+    "loggers",
+    "loss",
+    "optim",
+    "training",
+    "_transformers",
+    "utils",
+    "__version__",
+    "__package_name__",
+]
+
+# ==== Promote NeMoAutoModelForCausalLM, AutoModelForImageTextToText into the top level ====
+try:
+    # adjust this import path if your class lives somewhere else
+    from ._transformers.auto_model import NeMoAutoModelForCausalLM, AutoModelForImageTextToText
+
+    globals()["NeMoAutoModelForCausalLM"] = NeMoAutoModelForCausalLM
+    globals()["AutoModelForImageTextToText"] = AutoModelForImageTextToText
+    __all__.append("NeMoAutoModelForCausalLM")
+    __all__.append("AutoModelForImageTextToText")
+except:
+    # optional dependency might be missing,
+    # leave the name off the module namespace so other imports still work
+    pass
+
+
+def __getattr__(name: str):
+    """
+    Lazily import and cache submodules listed in __all__ when accessed.
+
+    Raises:
+        AttributeError if the name isn’t in __all__.
+    """
+    if name in __all__:
+        # import submodule on first access
+        module = importlib.import_module(f"{__name__}.{name}")
+        # cache it in globals() so future lookups do not re-import
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    """
+    Expose the names of all available submodules for auto-completion.
+    """
+    return sorted(__all__)

@@ -18,11 +18,36 @@ from functools import partial
 from logging import Filter, LogRecord
 from typing import Callable, Optional, Union
 
+
 logger = logging.getLogger(__name__)
 
+class RankFilter(logging.Filter):
+    """
+    A logging filter that controls log output based on the process rank.
+
+    This filter allows log messages only for rank 0 by default.
+    """
+    def filter(self, record):
+        """Decide whether to log the provided record.
+
+        Args:
+            record (logging.LogRecord): The log record to be evaluated.
+
+        Returns:
+            bool: True if the log record should be logged, False otherwise.
+        """
+        # TODO(@akoumparouli): make this PP aware.
+        if 'RANK' in os.environ:
+            rank = int(os.environ.get('RANK'))
+            # permantly disable logging for rank != 0
+            if rank > 0:
+                logging.disable(logging.CRITICAL)
+                return False
+        return True
 
 def warning_filter(record: LogRecord) -> bool:
-    """Logging filter to exclude WARNING level messages.
+    """
+    Logging filter to exclude WARNING level messages.
 
     Args:
         record: The logging record to check.
@@ -30,14 +55,12 @@ def warning_filter(record: LogRecord) -> bool:
     Returns:
         False if the record level is WARNING, True otherwise.
     """
-    if record.levelno == logging.WARNING:
-        return False
-
-    return True
+    return record.levelno != logging.WARNING
 
 
 def module_filter(record: LogRecord, modules_to_filter: list[str]) -> bool:
-    """Logging filter to exclude messages from specific modules.
+    """
+    Logging filter to exclude messages from specific modules.
 
     Args:
         record: The logging record to check.
@@ -54,7 +77,8 @@ def module_filter(record: LogRecord, modules_to_filter: list[str]) -> bool:
 
 
 def add_filter_to_all_loggers(filter: Union[Filter, Callable[[LogRecord], bool]]) -> None:
-    """Add a filter to the root logger and all existing loggers.
+    """
+    Add a filter to the root logger and all existing loggers.
 
     Args:
         filter: A logging filter instance or callable to add.
@@ -75,14 +99,15 @@ def setup_logging(
     modules_to_filter: Optional[list[str]] = None,
     set_level_for_all_loggers: bool = False,
 ) -> None:
-    """Set up logging level and filters for the application.
+    """
+    Set up logging level and filters for the application.
 
     Configures the logging level based on arguments, environment variables,
     or defaults. Optionally adds filters to suppress warnings or messages
     from specific modules.
 
     Logging Level Precedence:
-    1. Env var `NEMOLM_LOGGING_LEVEL`
+    1. Env var `LOGGING_LEVEL`
     2. `logging_level` argument
     3. Default: `logging.INFO`
 
@@ -94,7 +119,7 @@ def setup_logging(
                                    loggers. If False (default), only sets the level
                                    for the root logger and loggers starting with 'nemo'.
     """
-    env_logging_level = os.getenv("NEMOLM_LOGGING_LEVEL", None)
+    env_logging_level = os.getenv("LOGGING_LEVEL", None)
     if env_logging_level is not None:
         logging_level = int(env_logging_level)
 
@@ -108,5 +133,9 @@ def setup_logging(
 
     if filter_warning:
         add_filter_to_all_loggers(warning_filter)
+    add_filter_to_all_loggers(RankFilter())
+    root = logging.getLogger()
+    for h in root.handlers:
+        h.addFilter(RankFilter())
     if modules_to_filter:
         add_filter_to_all_loggers(partial(module_filter, modules_to_filter=modules_to_filter))
