@@ -242,13 +242,15 @@ def nvfsdp_strategy_parallelize(
     nvfsdp_unit_modules = import_classes_from_paths(nvfsdp_unit_modules)
 
     # Wrap model with nvFSDP.
-    model = nvfsdp_fully_shard(
+    model, _ = nvfsdp_fully_shard(
         module=model,
         fsdp_unit_modules=nvfsdp_unit_modules,
-        dp_cp_group=dp_mesh.get_group(),
+        device_mesh=device_mesh,
+        dp_mesh_dim_name="data_parallel",
+        cp_mesh_dim_name="context_parallel",
+        tp_mesh_dim_name="tensor_parallel",
         init_model_with_meta_device=init_nvfsdp_with_meta_device,
         data_parallel_sharding_strategy=data_parallel_sharding_strategy,
-        init_nvfsdp_with_meta_device=init_nvfsdp_with_meta_device,
         grad_reduce_in_fp32=grad_reduce_in_fp32,
         preserve_fp32_weights=preserve_fp32_weights,
         overlap_grad_reduce=overlap_grad_reduce,
