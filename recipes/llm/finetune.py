@@ -180,8 +180,10 @@ def build_dataloader(cfg_ds, cfg_dl, cfg_model, cfg_ps, device_mesh, seed) -> Da
     Returns:
         The instantiated DataLoader.
     """
+    if shuffle := cfg_dl.get("shuffle", True):
+        delattr(cfg_dl, "shuffle")
     dist_sampler_kwargs = {
-        "shuffle": cfg_dl.get("shuffle", True),
+        "shuffle": shuffle,
     }
     if device_mesh is not None:
         dist_sampler_kwargs |= {
