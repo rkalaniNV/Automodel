@@ -86,7 +86,7 @@ def build_model(device, cfg_model, use_hf_fa2, cfg_peft, model_wrapper, seed) ->
     with StatefulRNG(seed=seed, ranked=True):
         kwargs = {}
         if use_hf_fa2:
-            kwargs["attn_implementation"] = "flash_attention_2"
+            # kwargs["attn_implementation"] = "flash_attention_2"
             logger.warning(
                 "Packed sequence is supported only with Flash Attention. "
                 "Setting model's attn_implementation to flash_attention_2"
@@ -363,7 +363,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         self.checkpoint_config = build_checkpoint_config(
             self.cfg.get("checkpoint", None),
             self.cfg.get("model.cache_dir", None),
-            self.cfg.model.pretrained_model_name_or_path,
+            'a', #self.cfg.model.pretrained_model_name_or_path,
             True if self.cfg.get("peft", None) else False,
         )
 
@@ -422,8 +422,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels, loss_mask)
         with train_ctx():
             out  = self.model(**batch)
+            logits = out.logits if hasattr(out, 'logits') else out
             local_loss = self.loss_fn(
-                out.logits.view(-1, out.logits.size(-1)), labels.view(-1), mask=loss_mask, reduction="sum"
+                logits.view(-1, logits.size(-1)), labels.view(-1), mask=loss_mask, reduction="sum"
             )
 
         local_num_tokens = loss_mask.sum().detach().to(torch.int)
