@@ -166,6 +166,7 @@ def nvfsdp_strategy_parallelize(
     keep_fp8_transpose_cache_when_using_custom_fsdp: bool = False,
     nccl_ub: bool = False,
     fsdp_double_buffer: bool = False,
+    sync_grads_each_step: bool = False,
 ):
     """
     Apply tensor/data parallelism (nvFSDP) and optional activation-checkpointing to the model.
@@ -210,6 +211,7 @@ def nvfsdp_strategy_parallelize(
             latency on some networks.
         fsdp_double_buffer (bool): Enable double buffering of parameters to
             overlap communication and computation in nvFSDP.
+        sync_grads_each_step (bool): Sync gradients each step if True.
 
     NOTE: The passed-in model should preferably reside on the meta device.
     Otherwise, ensure the model fits into available GPU or CPU memory.
@@ -262,6 +264,7 @@ def nvfsdp_strategy_parallelize(
         keep_fp8_transpose_cache_when_using_custom_fsdp=keep_fp8_transpose_cache_when_using_custom_fsdp,
         nccl_ub=nccl_ub,
         fsdp_double_buffer=fsdp_double_buffer,
+        sync_grads_each_step=sync_grads_each_step,
     )
 
     return model

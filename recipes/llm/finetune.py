@@ -450,6 +450,12 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 else None,
             )
 
+            if HAVE_NVFSDP and isinstance(self.model, nvFSDP):
+                # If the model uses nvFSDP, wait for all sharded gradients to be reduced and unsharded.
+                # Necessary because the post-backward reduce-scatter is asynchronous, so gradients and backward
+                # computations are concurrent, but the gradients of the final layer may not be available yet.
+                self.model.finish_grad_sync()
+
             # Clip gradients **after** any rescaling.
             # TODO(@boxiangw): Fix TP gradient clipping
             if not self.device_mesh or self.device_mesh["tensor_parallel"].size() == 1:
@@ -457,12 +463,6 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             else:
                 # TODO: TP WAR
                 grad_norm = 0.0
-
-            if HAVE_NVFSDP and isinstance(self.model, nvFSDP):
-                # If the model uses nvFSDP, wait for all sharded gradients to be reduced and unsharded.
-                # Necessary because the post-backward reduce-scatter is asynchronous, so gradients and backward
-                # computations are concurrent, but the gradients of the final layer may not be available yet.
-                self.model.finish_grad_sync()
 
             self.optimizer.step()
             self.optimizer.zero_grad()
@@ -578,6 +578,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             "grad_norm": grad_norm,
             "num_tokens_per_step": total_num_tokens,
             "steps_per_second": 1 / avg_step_time,
+            "torch_memory_alloc_gb": torch.cuda.max_memory_allocated() / 1024**3,
         }
         if self.optimizer.param_groups:
             log_data["learning_rate"] = self.optimizer.param_groups[0]["lr"]
