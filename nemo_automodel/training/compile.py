@@ -23,17 +23,6 @@ import torch.nn as nn
 
 logger = logging.getLogger(__name__)
 
-# Try to import common HuggingFace transformer base classes for general approach
-try:
-    from transformers.modeling_utils import PreTrainedModel
-    from transformers.models.llama.modeling_llama import LlamaDecoderLayer
-    HUGGINGFACE_AVAILABLE = True
-except ImportError:
-    PreTrainedModel = None
-    LlamaDecoderLayer = None
-    HUGGINGFACE_AVAILABLE = False
-
-
 class CompileConfig:
     """Configuration for torch.compile settings."""
 
@@ -52,15 +41,16 @@ class CompileConfig:
             enabled: Whether to enable torch.compile.
             mode: Compilation mode ('default', 'reduce-overhead', 'max-autotune').
             fullgraph: Whether to compile the entire graph.
-            dynamic: Whether to enable dynamic shapes. Set to False for Flash Attention compatibility.
-            backend: Backend to use for compilation. If None, uses TORCH_COMPILE_BACKEND env var or "inductor".
+            dynamic: Whether to enable dynamic shapes.
+            backend: Backend to use for compilation. If None, uses TORCH_COMPILE_BACKEND env var.
             options: Additional options to pass to torch.compile.
         """
         self.enabled = enabled
         self.mode = mode
         self.fullgraph = fullgraph
         self.dynamic = dynamic
-        self.backend = backend if backend is not None else os.environ.get("TORCH_COMPILE_BACKEND", "inductor")
+        default_backend = os.environ.get("TORCH_COMPILE_BACKEND", "inductor")
+        self.backend = backend if backend is not None else default_backend
         self.options = options or {}
 
     def to_dict(self) -> Dict[str, Any]:
@@ -87,9 +77,7 @@ def disable_flash_attention_compilation(model: nn.Module) -> nn.Module:
     Returns:
         The model with Flash Attention functions excluded from compilation.
     """
-    if not HUGGINGFACE_AVAILABLE:
-        logger.warning("HuggingFace transformers not available - cannot disable Flash Attention compilation")
-        return model
+
     
     modified_modules = 0
     
@@ -157,8 +145,10 @@ def disable_flash_attention_compilation(model: nn.Module) -> nn.Module:
                 modified_modules += 1
     
     if modified_modules > 0:
-        logger.info(f"Disabled torch.compile for {modified_modules} Flash Attention modules - "
-                   f"keeping FA v2 enabled but excluding from compilation")
+        logger.info(
+            f"Disabled torch.compile for {modified_modules} Flash Attention modules - "
+            f"keeping FA v2 enabled but excluding from compilation"
+        )
     else:
         logger.info("No Flash Attention modules found to exclude from compilation")
     
@@ -282,7 +272,8 @@ def _compile_selective_layers(model: nn.Module, compile_kwargs: dict) -> nn.Modu
         if should_compile:
             try:
                 # Apply torch.compile directly to the transformer block (torchtitan style)
-                compiled_module = torch.compile(m, backend=backend, **{k: v for k, v in compile_kwargs.items() if k != 'backend'})
+                filtered_kwargs = {k: v for k, v in compile_kwargs.items() if k != 'backend'}
+                compiled_module = torch.compile(m, backend=backend, **filtered_kwargs)
                 # Replace using name-based approach (cleaner and more reliable)
                 _replace_module_in_parent(model, name, compiled_module)
                 compiled_layers += 1
@@ -295,12 +286,17 @@ def _compile_selective_layers(model: nn.Module, compile_kwargs: dict) -> nn.Modu
     
     # Report results
     if compiled_layers > 0:
-        logger.info(f"Selective compilation successful! Compiled {compiled_layers} transformer block modules "
-                   f"({failed_layers} failed)")
+        logger.info(
+            f"Selective compilation successful! Compiled {compiled_layers} transformer block modules "
+            f"({failed_layers} failed)"
+        )
         return model
     else:
         logger.warning("No transformer block modules found for compilation")
-        logger.warning("This approach targets modules with 'Block'/'Layer' names that contain attention and feedforward components")
+        logger.warning(
+            "This approach targets modules with 'Block'/'Layer' names that contain "
+            "attention and feedforward components"
+        )
         raise RuntimeError("No transformer block modules could be compiled")
 
 
