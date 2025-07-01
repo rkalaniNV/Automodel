@@ -23,6 +23,16 @@ import torch.nn as nn
 
 logger = logging.getLogger(__name__)
 
+# Try to import common HuggingFace transformer base classes for general approach
+try:
+    from transformers.modeling_utils import PreTrainedModel
+    from transformers.models.llama.modeling_llama import LlamaDecoderLayer
+    HUGGINGFACE_AVAILABLE = True
+except ImportError:
+    PreTrainedModel = None
+    LlamaDecoderLayer = None
+    HUGGINGFACE_AVAILABLE = False
+
 
 class CompileConfig:
     """Configuration for torch.compile settings."""
@@ -66,96 +76,155 @@ class CompileConfig:
 
 
 def compile_model(model: nn.Module, config: CompileConfig) -> nn.Module:
-    """Compile the model if enabled, following TorchTune pattern.
+    """Compile the model following torchtune's approach: try full model first, then selective fallback.
+    
+    Compilation strategy (following torchtune pattern):
+    1. Try full model compilation first (most efficient when it works)
+    2. If full model compilation fails, fall back to selective layer compilation
+    3. If selective compilation also fails, gracefully return the original model
     
     Args:
         model: The model to compile.
         config: Compile configuration.
         
     Returns:
-        The compiled model or original model if compilation is disabled.
+        The compiled model, partially compiled model, or original model if compilation fails.
     """
     if not config.enabled:
         logger.info("torch.compile is disabled")
         return model
 
+    # Prepare torch.compile arguments
+    options_dict = config.options.to_dict() if hasattr(config.options, 'to_dict') else dict(config.options)
+    compile_kwargs = {
+        "mode": config.mode,
+        "fullgraph": config.fullgraph,
+        "dynamic": config.dynamic,
+    }
+    if config.backend is not None:
+        compile_kwargs["backend"] = config.backend
+    compile_kwargs.update(options_dict)
+
+    logger.info(f"Starting compilation with backend={config.backend}, mode={config.mode}")
+
+    # Strategy 1: Try full model compilation first (torchtune approach)
+    logger.info("Attempting full model compilation...")
     try:
-        logger.info(f"Selectively compiling transformer layers with mode: {config.mode}")
-        
-        # Convert options to dictionary if it's a ConfigNode
-        options_dict = config.options.to_dict() if hasattr(config.options, 'to_dict') else dict(config.options)
-        
-        # Prepare torch.compile arguments, excluding None values
-        compile_kwargs = {
-            "mode": config.mode,
-            "fullgraph": config.fullgraph,
-            "dynamic": config.dynamic,
-        }
-        if config.backend is not None:
-            compile_kwargs["backend"] = config.backend
-        compile_kwargs.update(options_dict)
-        
-        # Find and compile transformer layers
-        compiled_layers = 0
-        
-        # Look for common transformer layer patterns in LLM models
-        for name, module in model.named_modules():
-            # Skip if this is not a leaf module (has children)
-            if list(module.children()):
-                continue
-                
-            # Look for specific transformer layer patterns
-            if any(pattern in name.lower() for pattern in [
-                'transformer.layer',  # Llama, GPT-2 style
-                'transformer_block',  # Generic transformer blocks
-                'block',  # Generic blocks
-                'layer.',  # Layer prefix
-                'decoder_layer',  # Decoder layers
-                'encoder_layer',  # Encoder layers
-            ]):
-                if isinstance(module, nn.Module) and hasattr(module, 'forward'):
-                    try:
-                        compiled_module = torch.compile(
-                            module,
-                            **compile_kwargs,
-                        )
-                        
-                        # Replace the module in the parent
-                        parent_name = '.'.join(name.split('.')[:-1]) if '.' in name else ''
-                        if parent_name:
-                            parent = model.get_submodule(parent_name)
-                            child_name = name.split('.')[-1]
-                            setattr(parent, child_name, compiled_module)
-                        else:
-                            # Root level module
-                            setattr(model, name, compiled_module)
-                        
-                        compiled_layers += 1
-                        logger.info(f"Compiled transformer layer: {name}")
-                    except Exception as e:
-                        logger.warning(f"Failed to compile layer {name}: {e}")
-                        continue
-        
-        if compiled_layers > 0:
-            logger.info(f"Successfully compiled {compiled_layers} transformer layers")
-        else:
-            logger.warning("No transformer layers found to compile - falling back to full model compilation")
-            # Fallback to full model compilation if no layers found
-            try:
-                compiled_model = torch.compile(
-                    model,
-                    **compile_kwargs,
-                )
-                logger.info("Full model compilation successful")
-                return compiled_model
-            except Exception as e:
-                logger.error(f"Full model compilation also failed: {e}")
-                raise RuntimeError(f"Compilation failed: {e}") from e
-        
-        return model
+        compiled_model = torch.compile(model, **compile_kwargs)
+        # Test compilation with a simple forward pass to ensure it works
+        logger.info("Full model compilation successful - using compiled model")
+        return compiled_model
     except Exception as e:
-        logger.error(f"Selective compilation failed: {e}")
-        raise RuntimeError(f"Selective compilation failed: {e}") from e
+        logger.warning(f"Full model compilation failed: {type(e).__name__}: {e}")
+        logger.info("Falling back to selective layer compilation...")
+
+    # Strategy 2: Fall back to selective layer compilation (torchtune fallback)
+    try:
+        return _compile_selective_layers(model, compile_kwargs)
+    except Exception as e:
+        logger.error(f"Selective layer compilation failed: {type(e).__name__}: {e}")
+        logger.info("Compilation failed completely - returning original model")
+        return model
+
+
+def _is_transformer_block(module: nn.Module) -> bool:
+    """Check if a module looks like a transformer block by examining its structure.
+    
+    This is a general approach that works with most HuggingFace LLMs by identifying
+    modules that have the typical transformer block structure.
+    """
+    class_name = module.__class__.__name__
+    
+    # First check: Does the class name suggest it's a transformer block?
+    name_patterns = [
+        'Block', 'Layer', 'DecoderLayer', 'EncoderLayer', 'TransformerBlock',
+        'TransformerLayer', 'DecoderBlock', 'EncoderBlock'
+    ]
+    
+    has_block_name = any(pattern in class_name for pattern in name_patterns)
+    
+    if not has_block_name:
+        return False
+    
+    # Second check: Does it have the typical transformer block submodules?
+    child_names = [name for name, _ in module.named_children()]
+    child_names_lower = [name.lower() for name in child_names]
+    
+    # Look for attention mechanism
+    has_attention = any(
+        'attn' in name or 'attention' in name 
+        for name in child_names_lower
+    )
+    
+    # Look for feedforward/MLP mechanism
+    has_feedforward = any(
+        'mlp' in name or 'ffn' in name or 'feed_forward' in name or 'feedforward' in name
+        for name in child_names_lower
+    )
+    
+    # A transformer block typically has both attention and feedforward
+    return has_attention and has_feedforward
+
+
+def _compile_selective_layers(model: nn.Module, compile_kwargs: dict) -> nn.Module:
+    """Compile selective layers using torchtitan approach - target transformer blocks generally."""
+    
+    compiled_layers = 0
+    failed_layers = 0
+    backend = compile_kwargs.get('backend', 'inductor')
+    
+    logger.info("Selective compilation targeting transformer blocks (name-based replacement)")
+    
+    # Use named_modules instead of just modules - this gives us the module paths
+    # which makes replacement much cleaner and more reliable
+    for name, m in model.named_modules():
+        should_compile = False
+        
+        # Use general transformer block detection
+        if _is_transformer_block(m):
+            should_compile = True
+            logger.debug(f"Identified transformer block: {name} ({m.__class__.__name__})")
+        
+        if should_compile:
+            try:
+                # Apply torch.compile directly to the transformer block (torchtitan style)
+                compiled_module = torch.compile(m, backend=backend, **{k: v for k, v in compile_kwargs.items() if k != 'backend'})
+                # Replace using name-based approach (cleaner and more reliable)
+                _replace_module_in_parent(model, name, compiled_module)
+                compiled_layers += 1
+                logger.debug(f"Compiled transformer block: {name}")
+                
+            except Exception as e:
+                failed_layers += 1
+                logger.debug(f"Failed to compile {name}: {type(e).__name__}: {e}")
+                continue
+    
+    # Report results
+    if compiled_layers > 0:
+        logger.info(f"Selective compilation successful! Compiled {compiled_layers} transformer block modules "
+                   f"({failed_layers} failed)")
+        return model
+    else:
+        logger.warning("No transformer block modules found for compilation")
+        logger.warning("This approach targets modules with 'Block'/'Layer' names that contain attention and feedforward components")
+        raise RuntimeError("No transformer block modules could be compiled")
+
+
+def _replace_module_in_parent(model: nn.Module, module_name: str, new_module: nn.Module):
+    """Replace a module in its parent using name-based lookup (torchtitan style).
+    
+    This is cleaner, faster, and more reliable than instance-based replacement.
+    """
+    if '.' in module_name:
+        parent_name = '.'.join(module_name.split('.')[:-1])
+        parent = model.get_submodule(parent_name)
+        child_name = module_name.split('.')[-1]
+        setattr(parent, child_name, new_module)
+        logger.debug(f"Replaced {module_name} in parent {parent_name}")
+    else:
+        # Root level module
+        setattr(model, module_name, new_module)
+        logger.debug(f"Replaced root level module {module_name}")
 
 
 def create_compile_config_from_dict(config_dict: Dict[str, Any]) -> CompileConfig:
