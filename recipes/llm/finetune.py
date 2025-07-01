@@ -501,20 +501,28 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             reporting_loss = self.log_train_metrics(grad_norm, tps)
             logging.info(
 <<<<<<< HEAD
+<<<<<<< HEAD
                 "step {} | epoch {} | loss {:.4f} | grad_norm {:.4f} | mem: {:.2f} GiB | compiled: {}".format(
 =======
                 "step {} | epoch {} | loss {:.4f} | grad_norm {:.4f} | mem: {:.2f} GiB | tps {:.2f}".format(
 >>>>>>> 6370793... feat: log tps (#62)
+=======
+                "step {} | epoch {} | loss {:.4f} | grad_norm {:.4f} | mem: {:.2f} GiB | tps {:.2f}".format(
+>>>>>>> origin/yz/dev/compile
                     self.step_scheduler.step,
                     self.step_scheduler.epoch,
                     reporting_loss,
                     grad_norm,
                     torch.cuda.max_memory_allocated() / 1024**3,
 <<<<<<< HEAD
+<<<<<<< HEAD
                     self.compile_config.enabled,
 =======
                     tps,
 >>>>>>> 6370793... feat: log tps (#62)
+=======
+                    tps,
+>>>>>>> origin/yz/dev/compile
                 )
             )
             torch.cuda.reset_peak_memory_stats()
@@ -604,10 +612,14 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             "grad_norm": grad_norm,
             "num_tokens_per_step": total_num_tokens,
 <<<<<<< HEAD
+<<<<<<< HEAD
             "compiled": self.compile_config.enabled,
 =======
             "tps": tps,
 >>>>>>> f89f3d9... log TPS on wandb (#149)
+=======
+            "tps": tps,
+>>>>>>> origin/yz/dev/compile
         }
         if self.optimizer.param_groups:
             log_data["learning_rate"] = self.optimizer.param_groups[0]["lr"]
