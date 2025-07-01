@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import pathlib
+import time
 from typing import Any, Dict
 
 import torch
@@ -278,6 +279,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             cfg: Configuration dictionary/object for training.
         """
         self.cfg = cfg
+        self.step_times = []
 
     # ------------------ build phase ------------------
     def setup(self):
@@ -396,6 +398,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         Returns:
             Grad norm from the training step.
         """
+        # Time training step.
+        start_time = time.perf_counter()
+
         self.model.train()
 
         batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
@@ -424,6 +429,10 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
         with get_sync_ctx(self.model, is_optim_step):
             local_loss.backward()
+
+        # Collect step times in (fractional/float) seconds.
+        end_time = time.perf_counter()
+        self.step_times.append(end_time - start_time)
 
         grad_norm = None
         if is_optim_step:
@@ -465,15 +474,20 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 self.model.install_optimized_model_weights()
                 self.model.zero_grad_buffer()
 
+            # Compute average step time.
+            avg_step_time = sum(self.step_times) / len(self.step_times)
+            self.step_times = []
+
             # log
-            reporting_loss = self.log_train_metrics(grad_norm)
+            reporting_loss = self.log_train_metrics(grad_norm, avg_step_time)
             logging.info(
-                "step {} | epoch {} | loss {:.4f} | grad_norm {:.4f} | mem: {:.2f} GiB".format(
+                "step {} | epoch {} | loss {:.4f} | grad_norm {:.4f} | mem: {:.2f} GiB | steps_per_second: {:.4f} it/s".format(
                     self.step_scheduler.step,
                     self.step_scheduler.epoch,
                     reporting_loss,
                     grad_norm,
                     torch.cuda.max_memory_allocated() / 1024**3,
+                    1 / avg_step_time,
                 )
             )
             torch.cuda.reset_peak_memory_stats()
@@ -532,11 +546,12 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             )
         )
 
-    def log_train_metrics(self, grad_norm):
+    def log_train_metrics(self, grad_norm, avg_step_time):
         """Log metrics to wandb.
 
         Args:
             grad_norm: Grad norm from the training step.
+            avg_step_time: Average step time in seconds.
 
         Returns:
             Reporting loss.
@@ -562,6 +577,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             "epoch": self.step_scheduler.epoch,
             "grad_norm": grad_norm,
             "num_tokens_per_step": total_num_tokens,
+            "steps_per_second": 1 / avg_step_time,
         }
         if self.optimizer.param_groups:
             log_data["learning_rate"] = self.optimizer.param_groups[0]["lr"]

@@ -110,6 +110,9 @@ class NVFSDPManager:
     overlap_param_gather: Optional[bool] = field(
         default=True, metadata={"help": "Overlap parameter gathering if True."}
     )
+    sync_grads_each_step: Optional[bool] = field(
+        default=False, metadata={"help": "Sync gradients each step if True."}
+    )
     check_for_nan_in_grad: Optional[bool] = field(
         default=True, metadata={"help": "Check for NaN in gradients if True."}
     )
@@ -263,6 +266,7 @@ class NVFSDPManager:
             keep_fp8_transpose_cache_when_using_custom_fsdp=self.keep_fp8_transpose_cache_when_using_custom_fsdp,
             nccl_ub=self.nccl_ub,
             fsdp_double_buffer=self.fsdp_double_buffer,
+            sync_grads_each_step=self.sync_grads_each_step,
         )
 
         return model
