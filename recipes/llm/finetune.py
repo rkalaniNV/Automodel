@@ -14,8 +14,15 @@
 
 from __future__ import annotations
 
+import os
 import pathlib
 from typing import Any, Dict
+
+# Configure environment for distributed training
+os.environ.update({
+    "CUDA_DEVICE_MAX_CONNECTIONS": "1",  # Keep: Helps with distributed training stability
+    "TORCH_NCCL_ASYNC_ERROR_HANDLING": "1",  # Keep: Better error reporting for distributed
+})
 
 import torch
 import torch.distributed as dist
@@ -319,11 +326,19 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             run = build_wandb(self.cfg)
             logging.info("🚀 View run at {}".format(run.url))
 
-        # Check if packed_sequence_size > 0 and use HF's flash_attention_2 for attn implementation.
-        use_hf_fa2 = self.cfg.get("packed_sequence.packed_sequence_size", 0) > 0
-
         # Build compile config first
         self.compile_config = build_compile_config(self.cfg.get("compile", None))
+        
+        # Check if packed_sequence_size > 0 and use HF's flash_attention_2 for attn implementation.
+        use_hf_fa2 = self.cfg.get("packed_sequence.packed_sequence_size", 0) > 0
+        
+        # When compilation is enabled, compile.py will selectively disable compilation for Flash Attention
+        # functions while keeping Flash Attention v2 enabled for performance
+        if self.compile_config.enabled:
+            logger.info(
+                "torch.compile enabled - Flash Attention functions will be selectively excluded "
+                "from compilation while keeping FA v2 enabled (including packed sequences)"
+            )
 
         # Build components
         self.model = build_model(

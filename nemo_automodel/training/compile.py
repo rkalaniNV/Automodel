@@ -42,7 +42,7 @@ class CompileConfig:
         enabled: bool = False,
         mode: str = "default",
         fullgraph: bool = False,
-        dynamic: bool = True,
+        dynamic: bool = False,
         backend: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
     ):
@@ -52,7 +52,7 @@ class CompileConfig:
             enabled: Whether to enable torch.compile.
             mode: Compilation mode ('default', 'reduce-overhead', 'max-autotune').
             fullgraph: Whether to compile the entire graph.
-            dynamic: Whether to enable dynamic shapes.
+            dynamic: Whether to enable dynamic shapes. Set to False for Flash Attention compatibility.
             backend: Backend to use for compilation. If None, uses TORCH_COMPILE_BACKEND env var or "inductor".
             options: Additional options to pass to torch.compile.
         """
@@ -75,6 +75,96 @@ class CompileConfig:
         }
 
 
+def disable_flash_attention_compilation(model: nn.Module) -> nn.Module:
+    """Selectively disable torch.compile for Flash Attention functions while keeping FA enabled.
+    
+    This approach keeps Flash Attention v2 active for performance but excludes the problematic
+    Flash Attention functions from compilation to avoid FakeTensor/varlen compatibility issues.
+    
+    Args:
+        model: The model to modify.
+        
+    Returns:
+        The model with Flash Attention functions excluded from compilation.
+    """
+    if not HUGGINGFACE_AVAILABLE:
+        logger.warning("HuggingFace transformers not available - cannot disable Flash Attention compilation")
+        return model
+    
+    modified_modules = 0
+    
+    # First, try to disable Flash Attention functions at the package level
+    try:
+        import flash_attn
+        if hasattr(flash_attn, '_flash_attn_varlen_forward'):
+            flash_attn._flash_attn_varlen_forward = torch._dynamo.disable(flash_attn._flash_attn_varlen_forward)
+            logger.debug("Disabled compilation for flash_attn._flash_attn_varlen_forward")
+        if hasattr(flash_attn, '_flash_attn_forward'):
+            flash_attn._flash_attn_forward = torch._dynamo.disable(flash_attn._flash_attn_forward)
+            logger.debug("Disabled compilation for flash_attn._flash_attn_forward")
+    except ImportError:
+        logger.debug("flash_attn package not available for function-level disabling")
+    
+    # Disable compilation for Flash Attention modules and functions
+    for name, module in model.named_modules():
+        should_disable = False
+        
+        # Check for Flash Attention related modules/functions
+        if any(pattern in name.lower() for pattern in ['flash', 'attention']):
+            if hasattr(module, '_attn_implementation') and module._attn_implementation == 'flash_attention_2':
+                should_disable = True
+            elif 'flash' in name.lower():
+                should_disable = True
+        
+        # Also disable for modules that might call Flash Attention functions
+        if hasattr(module, '__class__'):
+            class_name = module.__class__.__name__.lower()
+            if 'attention' in class_name and hasattr(module, '_attn_implementation'):
+                if getattr(module, '_attn_implementation', None) == 'flash_attention_2':
+                    should_disable = True
+        
+        # Also check for specific Flash Attention modules by looking for key methods
+        if hasattr(module, 'forward'):
+            # Look for modules that might call flash attention functions
+            try:
+                import inspect
+                source = inspect.getsource(module.forward)
+                if 'flash_attn' in source or '_flash_attn' in source:
+                    should_disable = True
+                    logger.debug(f"Found flash_attn usage in {name}")
+            except (OSError, TypeError):
+                # Can't get source code, continue with other checks
+                pass
+        
+        if should_disable:
+            # Wrap forward method to disable compilation
+            if hasattr(module, 'forward') and not hasattr(module, '_compile_disabled'):
+                original_forward = module.forward
+                
+                # Create a wrapper function that preserves the original function in closure
+                def make_disabled_forward(orig_func):
+                    @torch._dynamo.disable
+                    def disabled_forward(*args, **kwargs):
+                        return orig_func(*args, **kwargs)
+                    return disabled_forward
+                
+                # Replace forward method with disabled version
+                module.forward = make_disabled_forward(original_forward)
+                module._compile_disabled = True  # Mark as already processed
+                module._original_forward = original_forward  # Keep reference to original
+                
+                logger.debug(f"Disabled compilation for Flash Attention module: {name}")
+                modified_modules += 1
+    
+    if modified_modules > 0:
+        logger.info(f"Disabled torch.compile for {modified_modules} Flash Attention modules - "
+                   f"keeping FA v2 enabled but excluding from compilation")
+    else:
+        logger.info("No Flash Attention modules found to exclude from compilation")
+    
+    return model
+
+
 def compile_model(model: nn.Module, config: CompileConfig) -> nn.Module:
     """Compile the model following torchtune's approach: try full model first, then selective fallback.
     
@@ -94,6 +184,10 @@ def compile_model(model: nn.Module, config: CompileConfig) -> nn.Module:
         logger.info("torch.compile is disabled")
         return model
 
+    # Selectively disable compilation for Flash Attention functions while keeping FA enabled
+    # TODO: This is a temporary solution to disable compilation for Flash Attention functions while keeping FA enabled
+    model = disable_flash_attention_compilation(model)
+
     # Prepare torch.compile arguments
     options_dict = config.options.to_dict() if hasattr(config.options, 'to_dict') else dict(config.options)
     compile_kwargs = {
@@ -105,13 +199,13 @@ def compile_model(model: nn.Module, config: CompileConfig) -> nn.Module:
         compile_kwargs["backend"] = config.backend
     compile_kwargs.update(options_dict)
 
-    logger.info(f"Starting compilation with backend={config.backend}, mode={config.mode}")
+    logger.info(f"Starting compilation with backend={config.backend}, mode={config.mode}, dynamic={config.dynamic}")
 
-    # Strategy 1: Try full model compilation first (torchtune approach)
+    # Strategy 1: Try full model compilation
     logger.info("Attempting full model compilation...")
     try:
         compiled_model = torch.compile(model, **compile_kwargs)
-        # Test compilation with a simple forward pass to ensure it works
+        #TODO: Test compilation with a simple forward pass to ensure it works
         logger.info("Full model compilation successful - using compiled model")
         return compiled_model
     except Exception as e:
@@ -240,7 +334,7 @@ def create_compile_config_from_dict(config_dict: Dict[str, Any]) -> CompileConfi
         enabled=config_dict.get("enabled", False),
         mode=config_dict.get("mode", "default"),
         fullgraph=config_dict.get("fullgraph", False),
-        dynamic=config_dict.get("dynamic", True),
+        dynamic=config_dict.get("dynamic", False),
         backend=config_dict.get("backend", None),
         options=config_dict.get("options", {}),
     )
