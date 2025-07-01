@@ -67,7 +67,7 @@ dataloader:
   _target_: torchdata.stateful_dataloader.StatefulDataLoader
   collate_fn: nemo_automodel.datasets.utils.default_collater
   batch_size: 8
-  shuffle: true
+  shuffle: false
 
 validation_dataset:
   _target_: nemo_automodel.datasets.llm.squad.make_squad_dataset
