@@ -31,12 +31,12 @@ dist_env:
   timeout_minutes: 10
 
 rng:
-  _target_: nemo_automodel.training.rng.StatefulRNG
+  _target_: nemo.automodel.training.rng.StatefulRNG
   seed: 42
   ranked: true
 
 model:
-  _target_: nemo_automodel._transformers.NeMoAutoModelForImageTextToText.from_pretrained
+  _target_: nemo.automodel._transformers.NeMoAutoModelForImageTextToText.from_pretrained
   pretrained_model_name_or_path: google/gemma-3-4b-it
 # pretrained_model_name_or_path: Qwen/Qwen2.5-VL-3B-Instruct
 
@@ -52,16 +52,16 @@ checkpoint:
   model_save_format: torch_save
 
 distributed:
-  _target_: nemo_automodel.distributed.fsdp2.FSDP2Manager
+  _target_: nemo.automodel.distributed.fsdp2.FSDP2Manager
   dp_size: none
   tp_size: 1
   cp_size: 1
   sequence_parallel: false
 
-loss_fn: nemo_automodel.loss.masked_ce.masked_cross_entropy
+loss_fn: nemo.automodel.loss.masked_ce.masked_cross_entropy
 
 dataset:
-  _target_: nemo_automodel.datasets.vlm.datasets.make_cord_v2_dataset
+  _target_: nemo.automodel.datasets.vlm.datasets.make_cord_v2_dataset
   path_or_dataset: naver-clova-ix/cord-v2
   split: train
 
@@ -73,7 +73,7 @@ dataloader:
   persistent_workers: true
 
 validation_dataset:
-  _target_: nemo_automodel.datasets.vlm.datasets.make_cord_v2_dataset
+  _target_: nemo.automodel.datasets.vlm.datasets.make_cord_v2_dataset
   path_or_dataset: naver-clova-ix/cord-v2
   split: validation
 

@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 import torch
 
-import nemo_automodel.utils.sig_utils as sutils
+nemo.automodel.utils.sig_utils as sutils
 
 
 # ---------------------------------------------------------------------------

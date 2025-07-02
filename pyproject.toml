@@ -20,10 +20,10 @@ build-backend = "setuptools.build_meta"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["nemo_automodel", "nemo_automodel.*"]
+include = ["nemo", "nemo.*"]
 
 [tool.setuptools.dynamic]
-version = { attr = "nemo_automodel.package_info.__version__" } # any module attribute compatible with ast.literal_eval
+version = { attr = "nemo.automodel.package_info.__version__" } # any module attribute compatible with ast.literal_eval
 readme = { file = "README.md", content-type = "text/markdown" }
 
 [project]
@@ -112,7 +112,7 @@ source = [".", "/workspace", "/home/runner/work/Automodel/Automodel"]
 
 [tool.coverage.run]
 omit = [
-    "nemo_automodel/checkpoint/_backports/*.py",
+    "nemo/automodel/checkpoint/_backports/*.py",
     "tests/*",
 ]
 

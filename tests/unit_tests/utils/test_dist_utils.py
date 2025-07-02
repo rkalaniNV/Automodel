@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 import torch
 
-import nemo_automodel.utils.dist_utils as du
+nemo.automodel.utils.dist_utils as du
 
 
 class _FakeDist(SimpleNamespace):

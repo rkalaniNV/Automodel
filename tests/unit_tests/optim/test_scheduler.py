@@ -16,7 +16,7 @@ import pytest
 import math
 import torch
 from torch.optim import Adam
-from nemo_automodel.optim.scheduler import OptimizerParamScheduler
+from nemo.automodel.optim.scheduler import OptimizerParamScheduler
 import logging
 
 @pytest.fixture

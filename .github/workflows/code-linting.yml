@@ -58,8 +58,8 @@ jobs:
           pip install ruff
           set +e
           # todo: use changed_files?
-          ruff check nemo_automodel/
-          ruff format --check nemo_automodel/
+          ruff check nemo/automodel/
+          ruff format --check nemo/automodel/
           echo "exit-code=$?" | tee -a "$GITHUB_OUTPUT"
 
       - name: Run PyLint

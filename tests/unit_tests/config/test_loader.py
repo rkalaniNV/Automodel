@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 import yaml
 
-from nemo_automodel.config.loader import (
+from nemo.automodel.config.loader import (
     ConfigNode,
     _resolve_target,
     load_yaml_config,

@@ -20,9 +20,9 @@ from pathlib import Path
 import json
 
 from recipes.llm.finetune import FinetuneRecipeForNextTokenPrediction
-from nemo_automodel.config.cli import parse_args_and_load_config
-from nemo_automodel.checkpoint.stateful_wrappers import ModelState, OptimizerState
-from nemo_automodel.checkpoint._backports.hf_storage import _HuggingFaceStorageReader
+from nemo.automodel.config.cli import parse_args_and_load_config
+from nemo.automodel.checkpoint.stateful_wrappers import ModelState, OptimizerState
+from nemo.automodel.checkpoint._backports.hf_storage import _HuggingFaceStorageReader
 import torch
 import torch.distributed.tensor
 import torch.distributed.checkpoint as dcp

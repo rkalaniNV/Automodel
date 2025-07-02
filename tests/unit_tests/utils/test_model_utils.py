@@ -19,7 +19,7 @@ from typing import Dict
 import torch.nn as nn
 import pytest
 
-import nemo_automodel.utils.model_utils as model_utils
+nemo.automodel.utils.model_utils as model_utils
 
 
 @pytest.fixture()

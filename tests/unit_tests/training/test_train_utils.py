@@ -15,7 +15,7 @@
 import torch
 import pytest
 
-from nemo_automodel.training.utils import count_tail_padding
+from nemo.automodel.training.utils import count_tail_padding
 
 
 def test_docstring_example():

@@ -19,7 +19,7 @@ from typing import List, Dict
 import pytest
 from unittest.mock import patch
 
-import nemo_automodel.datasets.vlm.datasets as ds
+nemo.automodel.datasets.vlm.datasets as ds
 
 
 @pytest.fixture(autouse=True)

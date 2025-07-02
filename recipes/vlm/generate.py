@@ -39,12 +39,12 @@ from transformers import AutoProcessor, AutoConfig
 from PIL import Image
 import requests
 
-from nemo_automodel._transformers import NeMoAutoModelForImageTextToText
-from nemo_automodel.checkpoint.checkpointing import load_model, CheckpointingConfig
+from nemo.automodel._transformers import NeMoAutoModelForImageTextToText
+from nemo.automodel.checkpoint.checkpointing import load_model, CheckpointingConfig
 
 import logging
 
-from nemo_automodel.loggers.log_utils import setup_logging
+from nemo.automodel.loggers.log_utils import setup_logging
 
 # TODO: Parse config from YAML and run generate with FSDP2/distributed in general
 

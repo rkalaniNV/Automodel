@@ -132,7 +132,7 @@ docker run --gpus all -it --rm \
 
 ### Verify the Installation
 ```
-uv run python -c "import nemo_automodel; print('✅ NeMo AutoModel ready')"
+uv run python -c "nemo.automodel; print('✅ NeMo AutoModel ready')"
 ```
 
 ---
@@ -142,7 +142,7 @@ uv run python -c "import nemo_automodel; print('✅ NeMo AutoModel ready')"
 <!-- ### 30-Second Fine-tuning
 
 ```python
-import nemo_automodel as na
+nemo.automodel as na
 
 # Load any Hugging Face model
 model = na.NeMoAutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B")

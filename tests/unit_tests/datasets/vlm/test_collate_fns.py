@@ -82,7 +82,7 @@ def collate_mod():
     Import the module under test fresh for every test so monkey-patching of
     module-level variables does not leak between tests.
     """
-    import nemo_automodel.datasets.vlm.collate_fns as _m
+    nemo.automodel.datasets.vlm.collate_fns as _m
 
     # Always reload so each test starts from a clean module object.
     return importlib.reload(_m)

@@ -16,7 +16,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from nemo_automodel._peft.lora import LinearLoRA, apply_lora_to_linear_modules
+from nemo.automodel._peft.lora import LinearLoRA, apply_lora_to_linear_modules
 
 
 class DummyModel(nn.Module):

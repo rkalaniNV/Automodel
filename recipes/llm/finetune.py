@@ -24,7 +24,7 @@ from torch.distributed.device_mesh import _mesh_resources
 from torch.utils.data import DataLoader
 
 import wandb
-from nemo_automodel.loggers.wandb_utils import suppress_wandb_log_messages
+from nemo.automodel.loggers.wandb_utils import suppress_wandb_log_messages
 from wandb import Settings
 
 try:
@@ -35,26 +35,26 @@ except:
     HAVE_NVFSDP = False
 
 import logging
-from nemo_automodel.training.base_recipe import BaseRecipe
-from nemo_automodel.training.step_scheduler import StepScheduler
-from nemo_automodel.training.utils import count_tail_padding
+from nemo.automodel.training.base_recipe import BaseRecipe
+from nemo.automodel.training.step_scheduler import StepScheduler
+from nemo.automodel.training.utils import count_tail_padding
 
 from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
 from transformers import AutoTokenizer
-from nemo_automodel.loggers.log_utils import setup_logging
+from nemo.automodel.loggers.log_utils import setup_logging
 import time
 import logging
 
-from nemo_automodel.checkpoint.checkpointing import CheckpointingConfig
-from nemo_automodel.config.cli import parse_args_and_load_config
-from nemo_automodel.datasets.llm.packed_sequence import PackedSequence
-from nemo_automodel.distributed.cp_utils import make_cp_batch_and_ctx
-from nemo_automodel.distributed.init_utils import initialize_distributed
-from nemo_automodel.loggers.log_utils import setup_logging
-from nemo_automodel.training.base_recipe import BaseRecipe
-from nemo_automodel.training.rng import StatefulRNG
-from nemo_automodel.training.step_scheduler import StepScheduler
-from nemo_automodel.utils.dist_utils import (
+from nemo.automodel.checkpoint.checkpointing import CheckpointingConfig
+from nemo.automodel.config.cli import parse_args_and_load_config
+from nemo.automodel.datasets.llm.packed_sequence import PackedSequence
+from nemo.automodel.distributed.cp_utils import make_cp_batch_and_ctx
+from nemo.automodel.distributed.init_utils import initialize_distributed
+from nemo.automodel.loggers.log_utils import setup_logging
+from nemo.automodel.training.base_recipe import BaseRecipe
+from nemo.automodel.training.rng import StatefulRNG
+from nemo.automodel.training.step_scheduler import StepScheduler
+from nemo.automodel.utils.dist_utils import (
     clip_gradients,
     get_sync_ctx,
     reduce_loss,

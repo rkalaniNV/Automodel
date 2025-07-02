@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 import torch
 
-import nemo_automodel.datasets.utils as sftp
+nemo.automodel.datasets.utils as sftp
 
 
 class DummyTokenizer:

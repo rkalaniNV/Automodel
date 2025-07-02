@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 import torch
 
-from nemo_automodel.training.rng import init_all_rng, StatefulRNG
+from nemo.automodel.training.rng import init_all_rng, StatefulRNG
 
 def _next_values():
     """Return a tuple with one sample from each RNG backend."""

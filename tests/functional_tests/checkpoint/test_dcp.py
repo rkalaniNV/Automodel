@@ -23,8 +23,8 @@ import torch
 import torch.distributed.checkpoint as dcp
 import torch.distributed.tensor
 
-from nemo_automodel.checkpoint.stateful_wrappers import ModelState, OptimizerState
-from nemo_automodel.config.cli import parse_args_and_load_config
+from nemo.automodel.checkpoint.stateful_wrappers import ModelState, OptimizerState
+from nemo.automodel.config.cli import parse_args_and_load_config
 from recipes.llm.finetune import FinetuneRecipeForNextTokenPrediction
 
 

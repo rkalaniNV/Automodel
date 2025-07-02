@@ -68,7 +68,7 @@ def test_suppress_wandb_log_messages(monkeypatch):
     # Import *after* fake package is installed so that module under test
     # uses the stub.
     import logging
-    import nemo_automodel.loggers.wandb_utils as suppress_wandb
+    nemo.automodel.loggers.wandb_utils as suppress_wandb
 
     # Pre-conditions: functions return non-None, log-level is NOT CRITICAL
     import wandb.sdk.internal.file_pusher as fp

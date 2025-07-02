@@ -20,7 +20,7 @@ import uuid
 import pytest
 from packaging.version import Version as PkgVersion
 
-import nemo_automodel.shared.import_utils as si
+nemo.automodel.shared.import_utils as si
 
 
 @pytest.fixture(scope="module")

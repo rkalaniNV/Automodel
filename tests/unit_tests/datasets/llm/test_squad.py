@@ -18,7 +18,7 @@ import pytest
 import importlib
 from datasets import Dataset, Features, Value
 from datasets import Dataset
-import nemo_automodel.datasets.llm.squad as mqd
+nemo.automodel.datasets.llm.squad as mqd
 make_squad_dataset = mqd.make_squad_dataset
 
 class DummyTokenizer:

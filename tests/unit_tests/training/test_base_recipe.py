@@ -18,8 +18,8 @@ import torch
 import torch.nn as nn
 import pytest
 
-import nemo_automodel.training.base_recipe as base_recipe
-from nemo_automodel.training.base_recipe import BaseRecipe, _find_latest_checkpoint
+nemo.automodel.training.base_recipe as base_recipe
+from nemo.automodel.training.base_recipe import BaseRecipe, _find_latest_checkpoint
 try:
     import expecttest
     HAS_ET = True
