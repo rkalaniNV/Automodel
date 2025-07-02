@@ -102,7 +102,7 @@ class NVFSDPManager:
         default=False, metadata={"help": "Reduce gradients in fp32 if True."}
     )
     preserve_fp32_weights: Optional[bool] = field(
-        default=False, metadata={"help": "Preserve fp32 weights if True."}
+        default=True, metadata={"help": "Preserve fp32 weights if True."}
     )
     overlap_grad_reduce: Optional[bool] = field(
         default=True, metadata={"help": "Overlap gradient reduction if True."}
