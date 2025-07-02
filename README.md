@@ -73,17 +73,17 @@ uv run recipes/vlm/finetune.py --config recipes/vlm/gemma_3_vl_3b_cord_v2_peft.y
 
 ## 🚀 Key Features
 
-- ** Day-0 Hugging Face Support**: Instantly fine-tune any model from the Hugging Face Hub
-- ** Lightning Fast Performance**: Custom CUDA kernels and memory optimizations deliver 2–5× speedups
-- ** Large-Scale Distributed Training**: Built-in FSDP2 and nvFSDP for seamless multi-node scaling
-- ** Vision-Language Model Ready**: Native support for VLMs (Qwen2-VL, Gemma-3-VL, etc)
-- ** Advanced PEFT Methods**: LoRA and extensible PEFT system out of the box
-- ** Seamless HF Ecosystem**: Fine-tuned models work perfectly with Transformers pipeline, VLM, etc.
-- ** Robust Infrastructure**: Distributed checkpointing with integrated logging and monitoring
-- ** Optimized Recipes**: Pre-built configurations for common models and datasets
-- ** Flexible Configuration**: YAML-based configuration system for reproducible experiments
-- ** FP8 Precision**: Native FP8 training & inference for higher throughput and lower memory use
-- ** INT4 / INT8 Quantization**: Turn-key quantization workflows for ultra-compact, low-memory training
+- **Day-0 Hugging Face Support**: Instantly fine-tune any model from the Hugging Face Hub
+- **Lightning Fast Performance**: Custom CUDA kernels and memory optimizations deliver 2–5× speedups
+- **Large-Scale Distributed Training**: Built-in FSDP2 and nvFSDP for seamless multi-node scaling
+- **Vision-Language Model Ready**: Native support for VLMs (Qwen2-VL, Gemma-3-VL, etc)
+- **Advanced PEFT Methods**: LoRA and extensible PEFT system out of the box
+- **Seamless HF Ecosystem**: Fine-tuned models work perfectly with Transformers pipeline, VLM, etc.
+- **Robust Infrastructure**: Distributed checkpointing with integrated logging and monitoring
+- **Optimized Recipes**: Pre-built configurations for common models and datasets
+- **Flexible Configuration**: YAML-based configuration system for reproducible experiments
+- **FP8 Precision**: Native FP8 training & inference for higher throughput and lower memory use
+- **INT4 / INT8 Quantization**: Turn-key quantization workflows for ultra-compact, low-memory training
 
 
 ---
