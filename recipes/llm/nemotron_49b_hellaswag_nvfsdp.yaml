@@ -44,6 +44,16 @@ distributed:
   tp_size: 1
   cp_size: 1
   data_parallel_sharding_strategy: optim_grads_params
+  init_nvfsdp_with_meta_device: true
+  nvfsdp_unit_modules: [
+    transformers_modules.nvidia.Llama-3_3-Nemotron-Super-49B-v1.$MODEL_HASH.modeling_decilm.DeciLMDecoderLayer,
+    transformers_modules.nvidia.Llama-3_3-Nemotron-Super-49B-v1.$MODEL_HASH.modeling_decilm.DeciLMRotaryEmbedding,
+    transformers_modules.nvidia.Llama-3_3-Nemotron-Super-49B-v1.$MODEL_HASH.modeling_decilm.DeciLMRMSNorm,
+    torch.nn.Embedding,
+    transformer_engine.pytorch.Linear,
+    transformer_engine.pytorch.LayerNorm,
+    transformer_engine.pytorch.RMSNorm
+  ]
 
 # distributed:
 #   _target_: nemo_automodel.distributed.ddp.DDPManager
