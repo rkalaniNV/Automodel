@@ -1042,7 +1042,7 @@ docs = [
     { name = "sphinx-autodoc2" },
     { name = "sphinx-copybutton" },
 ]
-nvfsdp = [{ name = "nvfsdp", git = "https://github.com/NVIDIA-NeMo/nvFSDP.git?rev=ee1f0b92dea7b3bb16f383c9a82fd209f954b084" }]
+nvfsdp = [{ name = "nvfsdp", git = "ssh://git@github.com/NVIDIA-NeMo/nvFSDP.git?rev=ee1f0b92dea7b3bb16f383c9a82fd209f954b084" }]
 test = [
     { name = "coverage" },
     { name = "pytest" },
@@ -1209,7 +1209,7 @@ wheels = [
 [[package]]
 name = "nvfsdp"
 version = "0.2.0rc0"
-source = { git = "https://github.com/NVIDIA-NeMo/nvFSDP.git?rev=ee1f0b92dea7b3bb16f383c9a82fd209f954b084#ee1f0b92dea7b3bb16f383c9a82fd209f954b084" }
+source = { git = "ssh://git@github.com/NVIDIA-NeMo/nvFSDP.git?rev=ee1f0b92dea7b3bb16f383c9a82fd209f954b084#ee1f0b92dea7b3bb16f383c9a82fd209f954b084" }
 dependencies = [
     { name = "packaging" },
     { name = "torch" },
