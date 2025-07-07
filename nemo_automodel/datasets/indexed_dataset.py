@@ -1,0 +1,311 @@
+# Copyright (c) 2025 NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""A self-contained port of Megatron-Core's indexed dataset loader.
+
+Supports the original mmap and file-pointer readers for local *.bin / *.idx
+pairs but drops all S3 / MSC logic and the Megatron logging helper.  The file
+pair is expected to live on a local or networked POSIX filesystem – just pass
+the common prefix without the extension::
+
+    from nemo_automodel.datasets.indexed_dataset import IndexedDataset
+
+    ds = IndexedDataset("/path/to/shard_00_text_document")
+    print(len(ds), ds[0][:20])
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import struct
+import time
+from abc import ABC, abstractmethod
+from enum import Enum
+from functools import lru_cache
+from itertools import accumulate
+from typing import List, Optional, Tuple, Type, Union, Any
+
+import numpy
+import torch
+
+logger = logging.getLogger(__name__)
+
+_INDEX_HEADER = b"MMIDIDX\x00\x00"
+
+
+class DType(Enum):
+    """Enum mapping of numpy dtypes used in the index file."""
+
+    uint8 = 1
+    int8 = 2
+    int16 = 3
+    int32 = 4
+    int64 = 5
+    float64 = 6
+    float32 = 7
+    uint16 = 8
+
+    # ---------------------------------------------------------------------
+    # Helpers for code <-> dtype mapping
+    # ---------------------------------------------------------------------
+    @classmethod
+    def code_from_dtype(cls, value: Type[numpy.number]) -> int:
+        return cls[value.__name__].value
+
+    @classmethod
+    def dtype_from_code(cls, value: int) -> Type[numpy.number]:
+        return getattr(numpy, cls(value).name)
+
+    @classmethod
+    def size(cls, key: Union[int, Type[numpy.number]]) -> int:
+        """Return size (in bytes) of dtype or dtype-code."""
+        if isinstance(key, int):
+            return cls.dtype_from_code(key)().itemsize
+        elif numpy.number in key.__mro__:
+            return key().itemsize
+        else:
+            raise ValueError("Invalid key passed to DType.size()")
+
+    @classmethod
+    def optimal_dtype(cls, cardinality: Optional[int]) -> Type[numpy.number]:
+        """Return the smallest dtype able to represent the given cardinality."""
+        if cardinality is not None and cardinality < 65500:
+            return numpy.uint16
+        return numpy.int32
+
+
+# -------------------------------------------------------------------------
+# Index file writer (not typically used at runtime, but kept for parity)
+# -------------------------------------------------------------------------
+
+
+# -------------------------------------------------------------------------
+# Index reader (fast MMAP of *.idx file)
+# -------------------------------------------------------------------------
+class _IndexReader:
+    """Read the *.idx file and expose sequence metadata."""
+
+    def __init__(self, idx_path: str, multimodal: bool) -> None:
+        logger.info("Loading index file %s", idx_path)
+
+        with open(idx_path, "rb") as f:
+            header = f.read(9)
+            assert header == _INDEX_HEADER, f"Bad header in {idx_path}"
+
+            version = struct.unpack("<Q", f.read(8))[0]
+            assert version == 1, f"Unsupported index version {version} in {idx_path}"
+
+            code = struct.unpack("<B", f.read(1))[0]
+            self.dtype = DType.dtype_from_code(code)
+            self.dtype_size = DType.size(self.dtype)
+
+            self.sequence_count = struct.unpack("<Q", f.read(8))[0]
+            self.document_count = struct.unpack("<Q", f.read(8))[0]
+            payload_offset = f.tell()
+
+        # memory-map the whole file for fast zero-copy slicing
+        self._mmap = numpy.memmap(idx_path, mode="r", order="C")
+        self._buffer = memoryview(self._mmap)
+
+        # extract views
+        self.sequence_lengths = numpy.frombuffer(
+            self._buffer, dtype=numpy.int32, count=self.sequence_count, offset=payload_offset
+        )
+        self.sequence_pointers = numpy.frombuffer(
+            self._buffer,
+            dtype=numpy.int64,
+            count=self.sequence_count,
+            offset=payload_offset + self.sequence_lengths.nbytes,
+        )
+        self.document_indices = numpy.frombuffer(
+            self._buffer,
+            dtype=numpy.int64,
+            count=self.document_count,
+            offset=payload_offset + self.sequence_lengths.nbytes + self.sequence_pointers.nbytes,
+        )
+
+        self.sequence_modes: Optional[numpy.ndarray] = None
+        if multimodal:
+            self.sequence_modes = numpy.frombuffer(
+                self._buffer,
+                dtype=numpy.int8,
+                count=self.sequence_count,
+                offset=
+                    payload_offset
+                    + self.sequence_lengths.nbytes
+                    + self.sequence_pointers.nbytes
+                    + self.document_indices.nbytes,
+            )
+
+        assert self.sequence_lengths.shape[0] == self.sequence_count
+        assert self.document_indices[-1] == self.sequence_count
+
+        logger.debug("Sequences: %d | Documents: %d", len(self), self.document_indices.shape[0] - 1)
+
+    # ------------------------------------------------------------------
+    def __len__(self) -> int:
+        return self.sequence_count
+
+    @lru_cache(maxsize=8)
+    def __getitem__(self, idx: int) -> Tuple[int, int, Optional[int]]:
+        """Return (pointer, length, mode) for a given sequence index."""
+        return (
+            int(self.sequence_pointers[idx]),
+            int(self.sequence_lengths[idx]),
+            int(self.sequence_modes[idx]) if self.sequence_modes is not None else None,
+        )
+
+    def __del__(self) -> None:
+        # release mmap early – helps tools like lsof
+        if hasattr(self, "_mmap"):
+            self._mmap._mmap.close()
+            del self._mmap
+
+
+# -------------------------------------------------------------------------
+# Binary file readers
+# -------------------------------------------------------------------------
+class _BinReader(ABC):
+    @abstractmethod
+    def read(self, dtype: Type[numpy.number], count: int, offset: int) -> numpy.ndarray:
+        ...
+
+
+class _MMapBinReader(_BinReader):
+    """Memory-mapped reader for the *.bin file."""
+
+    def __init__(self, bin_path: str) -> None:
+        self._file = open(bin_path, "rb")
+        self._mmap = numpy.memmap(self._file, mode="r", order="C")
+        self._buffer = memoryview(self._mmap.data)
+
+    def read(self, dtype: Type[numpy.number], count: int, offset: int) -> numpy.ndarray:
+        return numpy.frombuffer(self._buffer, dtype=dtype, count=count, offset=offset)
+
+    def __del__(self) -> None:
+        self._mmap._mmap.close()
+        self._file.close()
+
+
+class _FileBinReader(_BinReader):
+    """Simple file-seek reader (no mmap) for the *.bin file."""
+
+    def __init__(self, bin_path: str) -> None:
+        self._bin_path = bin_path
+
+    def read(self, dtype: Type[numpy.number], count: int, offset: int) -> numpy.ndarray:
+        out = numpy.empty(count, dtype=dtype)
+        with open(self._bin_path, "rb", buffering=0) as f:
+            f.seek(offset)
+            f.readinto(out)
+        return out
+
+
+# -------------------------------------------------------------------------
+# Public dataset class
+# -------------------------------------------------------------------------
+class IndexedDataset(torch.utils.data.Dataset):
+    """A fast, on-disk dataset backed by Megatron-style index + binary files."""
+
+    def __init__(self, path_prefix: str, multimodal: bool = False, mmap: bool = True) -> None:
+        super().__init__()
+        self.initialize(path_prefix, multimodal, mmap)
+
+    # ------------------------------------------------------------------
+    def initialize(self, path_prefix: str, multimodal: bool, mmap: bool) -> None:
+        idx_path, bin_path = get_idx_path(path_prefix), get_bin_path(path_prefix)
+        assert os.path.exists(idx_path) and os.path.exists(
+            bin_path
+        ), f"Missing .idx or .bin at prefix {path_prefix}"
+
+        self.path_prefix = path_prefix
+        self.multimodal = multimodal
+        self.mmap = mmap
+
+        self.bin_reader = _MMapBinReader(bin_path) if mmap else _FileBinReader(bin_path)
+        self.index = _IndexReader(idx_path, multimodal)
+
+    # ------------------------------------------------------------------
+    def __len__(self) -> int:
+        return len(self.index)
+
+    def __getitem__(
+        self, idx: Union[int, numpy.integer, slice]
+    ) -> Union[
+        numpy.ndarray,
+        Tuple[numpy.ndarray, Any],  # mode attached
+        List[numpy.ndarray],
+        Tuple[List[numpy.ndarray], numpy.ndarray],
+    ]:
+        if isinstance(idx, (int, numpy.integer)):
+            ptr, length, mode = self.index[int(idx)]
+            seq = self.bin_reader.read(self.index.dtype, length, ptr)
+            return (seq, mode) if mode is not None else seq
+
+        elif isinstance(idx, slice):
+            start, stop, step = idx.indices(len(self))
+            if step != 1:
+                raise ValueError("Slices into IndexedDataset must be contiguous (step=1)")
+            lengths = self.index.sequence_lengths[idx]
+            modes = self.index.sequence_modes[idx] if self.multimodal else None
+            offsets = list(accumulate(lengths))
+            buffer = self.bin_reader.read(
+                self.index.dtype,
+                int(sum(lengths)),
+                int(self.index.sequence_pointers[start]),
+            )
+            sequences = numpy.split(buffer, offsets[:-1])
+            return (sequences, modes) if modes is not None else sequences
+
+        else:
+            raise TypeError(f"Unexpected index type {type(idx)}")
+
+    # Convenience wrappers --------------------------------------------------
+    def get(
+        self, idx: int, offset: int = 0, length: Optional[int] = None
+    ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, Any]]:
+        ptr, seq_len, mode = self.index[idx]
+        length = seq_len - offset if length is None else length
+        ptr += offset * DType.size(self.index.dtype)
+        seq = self.bin_reader.read(self.index.dtype, length, ptr)
+        return (seq, mode) if mode is not None else seq
+
+    # ------------------------------------------------------------------
+    @property
+    def sequence_lengths(self):  # numpy.ndarray[int32]
+        return self.index.sequence_lengths
+
+    @property
+    def document_indices(self):  # numpy.ndarray[int64]
+        return self.index.document_indices
+
+    # Static helpers -------------------------------------------------------
+    @staticmethod
+    def exists(path_prefix: str) -> bool:
+        return os.path.exists(get_idx_path(path_prefix)) and os.path.exists(
+            get_bin_path(path_prefix)
+        )
+
+
+# -------------------------------------------------------------------------
+# Convenience helpers
+# -------------------------------------------------------------------------
+
+def get_idx_path(path_prefix: str) -> str:
+    return path_prefix + ".idx"
+
+
+def get_bin_path(path_prefix: str) -> str:
+    return path_prefix + ".bin" 
