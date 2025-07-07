@@ -55,6 +55,7 @@ from nemo_automodel.utils.dist_utils import (
     reduce_loss,
     rescale_gradients,
 )
+from nemo_automodel.utils.profiler import create_profiler_from_config
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +63,6 @@ logger = logging.getLogger(__name__)
 #  Stateless helper functions
 # ---------------------------
 
-<<<<<<< HEAD
-
-def build_model(device, cfg_model, use_hf_fa2, cfg_peft, model_wrapper, seed, compile_config=None) -> nn.Module:
-=======
 def build_model_and_optimizer(
         device,
         cfg_model,
@@ -75,8 +72,8 @@ def build_model_and_optimizer(
         model_wrapper,
         seed, 
         tp_size=1,
+        compile_config=None,
     ) -> tuple[nn.Module, 'Optimizer']: # noqa: F821
->>>>>>> origin/main
     """Build and initialize a model.
 
     Args:
@@ -123,25 +120,24 @@ def build_model_and_optimizer(
 
             model, optimizer = model_wrapper.parallelize(model, optimizer)
 
-            return model, optimizer
-
-<<<<<<< HEAD
-            # FSDP2 and nvFSDP should already be on the correct device
             # Compile the model after parallelization if enabled
             if compile_config is not None:
                 model = compile_model(model, compile_config)
-            return model
-        else:
-            model = model.to(device)
-            # Compile the model if enabled
-            if compile_config is not None:
-                model = compile_model(model, compile_config)
-            return model
-=======
+
+            return model, optimizer
+
         else:
             model = model_wrapper.parallelize(model)
+            
+            # Compile the model after parallelization if enabled
+            if compile_config is not None:
+                model = compile_model(model, compile_config)
     else:
         model = model.to(device)
+        
+        # Compile the model if enabled
+        if compile_config is not None:
+            model = compile_model(model, compile_config)
 
     trainable_params = list(filter(lambda x: x.requires_grad, model.parameters()))
     assert len(trainable_params) > 0, "trainable_params cannot be empty"
@@ -151,7 +147,6 @@ def build_model_and_optimizer(
     optimizer = cfg_opt.instantiate(params=trainable_params)
     
     return model, optimizer
->>>>>>> origin/main
 
 
 def build_checkpoint_config(cfg_ckpt, cache_dir, model_repo_id, is_peft):
@@ -349,16 +344,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             self.cfg.get('peft', None),
             self.model_wrapper,
             seed=self.cfg.get("seed", 42),
-<<<<<<< HEAD
-            compile_config=self.compile_config,  # Pass compile config to build_model
-        )
-        self.optimizer = build_optimizer(
-            self.cfg.optimizer,
-            self.model,
-            self.cfg.get("distributed.tp_size", 1),
-=======
             tp_size=self.cfg.get("distributed.tp_size", 1),
->>>>>>> origin/main
+            compile_config=self.compile_config,  # Pass compile config to build_model
         )
         self.loss_fn = build_loss_fn(self.dist_env.device, self.cfg.loss_fn)
         self.dataloader = build_dataloader(
@@ -403,6 +390,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         # Set up the stateful random number generator
         self.rng = StatefulRNG(seed=self.cfg.get("seed", 42), ranked=True)
 
+        # Initialize profiler
+        self.profiler = create_profiler_from_config(self.cfg)
+
         # Optionally resume
         self.load_checkpoint(restore_from)
 
@@ -419,7 +409,16 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         for epoch in self.step_scheduler.epochs:
             self.step_scheduler.set_epoch(epoch)
             for batch_idx, batch in enumerate(self.step_scheduler):
+                # Start profiling for this step
+                self.profiler.step_begin(self.step_scheduler.step)
+                
                 self._run_train_step(batch, self.step_scheduler.is_optim_step, 1.0)
+                
+                # Check if profiling is complete and we should stop
+                if self.profiler.step_end():
+                    logger.info("Training stopped after profiling completion")
+                    return
+                
                 if self.step_scheduler.is_ckpt_step:
                     self.save_checkpoint(epoch, self.step_scheduler.step)
 
@@ -453,6 +452,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(self.model.device)
 
         train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels, loss_mask)
+        
+        # Forward pass
         with train_ctx():
             out  = self.model(**batch)
             local_loss = self.loss_fn(
@@ -464,6 +465,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         self.total_num_tokens += local_num_tokens
         self.forward_data_store.append(local_loss.detach())
 
+        # Backward pass
         with get_sync_ctx(self.model, is_optim_step):
             local_loss.backward()
 
@@ -494,6 +496,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             # Note(nvFSDP): Need to call these functions for nvFSDP if not using latest api
             # self.model.finish_grad_sync()
 
+            # Optimizer step
             self.optimizer.step()
             self.optimizer.zero_grad()
 
