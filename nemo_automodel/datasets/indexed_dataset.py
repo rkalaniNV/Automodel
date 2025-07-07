@@ -46,7 +46,7 @@ _INDEX_HEADER = b"MMIDIDX\x00\x00"
 
 
 class DType(Enum):
-    """Enum mapping of numpy dtypes used in the index file."""
+    """The NumPy data type Enum for reading the IndexedDataset indices"""
 
     uint8 = 1
     int8 = 2
@@ -57,20 +57,43 @@ class DType(Enum):
     float32 = 7
     uint16 = 8
 
-    # ---------------------------------------------------------------------
-    # Helpers for code <-> dtype mapping
-    # ---------------------------------------------------------------------
     @classmethod
     def code_from_dtype(cls, value: Type[numpy.number]) -> int:
+        """Get the code from the dtype
+
+        Args:
+            value (Type[numpy.number]): The dtype
+
+        Returns:
+            int: The code
+        """
         return cls[value.__name__].value
 
     @classmethod
     def dtype_from_code(cls, value: int) -> Type[numpy.number]:
+        """Get the dtype from the code
+
+        Args:
+            value (int): The code
+
+        Returns:
+            Type[numpy.number]: The dtype
+        """
         return getattr(numpy, cls(value).name)
 
     @classmethod
     def size(cls, key: Union[int, Type[numpy.number]]) -> int:
-        """Return size (in bytes) of dtype or dtype-code."""
+        """Get the size of the dtype/code in bytes
+
+        Args:
+            key (Union[int, Type[numpy.number]]): The dtype or code
+
+        Raises:
+            ValueError: If the key is neither dtype nor integer code
+
+        Returns:
+            int: The size of the dtype/code in bytes
+        """
         if isinstance(key, int):
             return cls.dtype_from_code(key)().itemsize
         elif numpy.number in key.__mro__:
@@ -80,22 +103,26 @@ class DType(Enum):
 
     @classmethod
     def optimal_dtype(cls, cardinality: Optional[int]) -> Type[numpy.number]:
-        """Return the smallest dtype able to represent the given cardinality."""
+        """Get the dtype to use for an index of a certain cardinality
+
+        Args:
+            cardinality (Optional[int]): The number of elements to be indexed
+
+        Returns:
+            Type[numpy.number]: The dtype to use for the index
+        """
         if cardinality is not None and cardinality < 65500:
             return numpy.uint16
         return numpy.int32
 
-
-# -------------------------------------------------------------------------
-# Index file writer (not typically used at runtime, but kept for parity)
-# -------------------------------------------------------------------------
-
-
-# -------------------------------------------------------------------------
-# Index reader (fast MMAP of *.idx file)
-# -------------------------------------------------------------------------
 class _IndexReader:
-    """Read the *.idx file and expose sequence metadata."""
+    """Object class to read the index (.idx) file
+
+    Args:
+        idx_path (str): The path to the index file
+
+        multimodal (bool): Whether the dataset is multimodal
+    """
 
     def __init__(self, idx_path: str, multimodal: bool) -> None:
         logger.info("Loading index file %s", idx_path)
@@ -120,15 +147,18 @@ class _IndexReader:
         self._buffer = memoryview(self._mmap)
 
         # extract views
+        logger.info("Extracting sequence lengths")
         self.sequence_lengths = numpy.frombuffer(
             self._buffer, dtype=numpy.int32, count=self.sequence_count, offset=payload_offset
         )
+        logger.info("Extracting sequence pointers")
         self.sequence_pointers = numpy.frombuffer(
             self._buffer,
             dtype=numpy.int64,
             count=self.sequence_count,
             offset=payload_offset + self.sequence_lengths.nbytes,
         )
+        logger.info("Extracting document indices")
         self.document_indices = numpy.frombuffer(
             self._buffer,
             dtype=numpy.int64,
@@ -138,6 +168,7 @@ class _IndexReader:
 
         self.sequence_modes: Optional[numpy.ndarray] = None
         if multimodal:
+            logger.info("Extracting sequence modes")
             self.sequence_modes = numpy.frombuffer(
                 self._buffer,
                 dtype=numpy.int8,
@@ -149,63 +180,126 @@ class _IndexReader:
                     + self.document_indices.nbytes,
             )
 
+        assert self.sequence_lengths.shape[0] == len(self)
         assert self.sequence_lengths.shape[0] == self.sequence_count
-        assert self.document_indices[-1] == self.sequence_count
+        assert self.sequence_lengths.shape[0] == self.document_indices[-1]
 
-        logger.debug("Sequences: %d | Documents: %d", len(self), self.document_indices.shape[0] - 1)
+        logger.info("Sequences: %d | Documents: %d", len(self), self.document_indices.shape[0] - 1)
 
-    # ------------------------------------------------------------------
+    def __del__(self) -> None:
+        """Clean up the object"""
+        self._mmap._mmap.close()
+        del self._mmap
+
     def __len__(self) -> int:
+        """Get the number of sequences in the dataset
+
+        Returns:
+            int: The number of sequences in the dataset
+        """
         return self.sequence_count
 
     @lru_cache(maxsize=8)
-    def __getitem__(self, idx: int) -> Tuple[int, int, Optional[int]]:
-        """Return (pointer, length, mode) for a given sequence index."""
+    def __getitem__(self, idx: int) -> Tuple[numpy.int32, numpy.int64, Optional[numpy.int8]]:
+        """Return the pointer, length, and mode at the index
+
+        Args:
+            idx (int): The index into the dataset
+
+        Returns:
+            Tuple[numpy.int32, numpy.int64, Optional[numpy.int8]]: The pointer, length and mode
+                at the index
+        """
         return (
-            int(self.sequence_pointers[idx]),
-            int(self.sequence_lengths[idx]),
-            int(self.sequence_modes[idx]) if self.sequence_modes is not None else None,
+            self.sequence_pointers[idx],
+            self.sequence_lengths[idx],
+            self.sequence_modes[idx] if self.sequence_modes is not None else None,
         )
 
-    def __del__(self) -> None:
-        # release mmap early – helps tools like lsof
-        if hasattr(self, "_mmap"):
-            self._mmap._mmap.close()
-            del self._mmap
 
-
-# -------------------------------------------------------------------------
-# Binary file readers
-# -------------------------------------------------------------------------
 class _BinReader(ABC):
+    """Abstract class to read the data (.bin) file"""
+
     @abstractmethod
     def read(self, dtype: Type[numpy.number], count: int, offset: int) -> numpy.ndarray:
-        ...
+        """Read bytes into a numpy array.
+
+        Args:
+            dtype (Type[numpy.number]): Data-type of the returned array.
+
+            count (int): Number of items to read.
+
+            offset (int): Start reading from this offset (in bytes).
+
+        Returns:
+            numpy.ndarray: An array with `count` items and data-type `dtype` constructed from
+                reading bytes from the data file starting at `offset`.
+        """
+        pass
 
 
 class _MMapBinReader(_BinReader):
-    """Memory-mapped reader for the *.bin file."""
+    """A _BinReader that memory maps the data (.bin) file"""
 
     def __init__(self, bin_path: str) -> None:
+        """Initialize the _MMapBinReader
+
+        Args:
+            bin_path (str): The path to the data (.bin) file.
+        """
         self._file = open(bin_path, "rb")
         self._mmap = numpy.memmap(self._file, mode="r", order="C")
         self._buffer = memoryview(self._mmap.data)
 
     def read(self, dtype: Type[numpy.number], count: int, offset: int) -> numpy.ndarray:
+        """Read bytes into a numpy array.
+
+        Args:
+            dtype (Type[numpy.number]): Data-type of the returned array.
+
+            count (int): Number of items to read.
+
+            offset (int): Start reading from this offset (in bytes).
+
+        Returns:
+            numpy.ndarray: An array with `count` items and data-type `dtype` constructed from
+                reading bytes from the data file starting at `offset`.
+        """
         return numpy.frombuffer(self._buffer, dtype=dtype, count=count, offset=offset)
 
     def __del__(self) -> None:
+        """Clean up the object"""
         self._mmap._mmap.close()
         self._file.close()
+        del self._mmap
+        del self._file
 
 
 class _FileBinReader(_BinReader):
-    """Simple file-seek reader (no mmap) for the *.bin file."""
+    """A _BinReader that reads from the data (.bin) file using a file pointer"""
 
     def __init__(self, bin_path: str) -> None:
+        """Initialize the _FileBinReader
+
+        Args:
+            bin_path (str): The path to the data (.bin) file.
+        """
         self._bin_path = bin_path
 
     def read(self, dtype: Type[numpy.number], count: int, offset: int) -> numpy.ndarray:
+        """Read bytes into a numpy array.
+
+        Args:
+            dtype (Type[numpy.number]): Data-type of the returned array.
+
+            count (int): Number of items to read.
+
+            offset (int): Start reading from this offset (in bytes).
+
+        Returns:
+            numpy.ndarray: An array with `count` items and data-type `dtype` constructed from
+                reading bytes from the data file starting at `offset`.
+        """
         out = numpy.empty(count, dtype=dtype)
         with open(self._bin_path, "rb", buffering=0) as f:
             f.seek(offset)
@@ -220,6 +314,15 @@ class IndexedDataset(torch.utils.data.Dataset):
     """A fast, on-disk dataset backed by Megatron-style index + binary files."""
 
     def __init__(self, path_prefix: str, multimodal: bool = False, mmap: bool = True) -> None:
+        """Initialize the IndexedDataset
+
+        Args:
+        path_prefix (str): The index (.idx) and data (.bin) prefix
+
+        multimodal (bool): Whether the dataset is multimodal. Defaults to False.
+
+        mmap (bool): Whether to mmap the .bin files. Defaults to True.
+        """
         super().__init__()
         self.initialize(path_prefix, multimodal, mmap)
 
