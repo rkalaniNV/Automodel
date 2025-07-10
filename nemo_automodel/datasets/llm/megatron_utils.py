@@ -366,9 +366,9 @@ class IndexedDataset(torch.utils.data.Dataset):
         mmap (bool): Whether to mmap the .bin files. Defaults to True.
         """
         super().__init__()
-        self.initialize(path_prefix, multimodal, mmap)
+        normalized_prefix = _normalize_prefix(path_prefix)
+        self.initialize(normalized_prefix, multimodal, mmap)
 
-    # ------------------------------------------------------------------
     def initialize(self, path_prefix: str, multimodal: bool, mmap: bool) -> None:
         idx_path, bin_path = get_idx_path(path_prefix), get_bin_path(path_prefix)
         assert os.path.exists(idx_path) and os.path.exists(
@@ -382,7 +382,6 @@ class IndexedDataset(torch.utils.data.Dataset):
         self.bin_reader = _MMapBinReader(bin_path) if mmap else _FileBinReader(bin_path)
         self.index = _IndexReader(idx_path, multimodal)
 
-    # ------------------------------------------------------------------
     def __len__(self) -> int:
         return len(self.index)
 
@@ -417,7 +416,6 @@ class IndexedDataset(torch.utils.data.Dataset):
         else:
             raise TypeError(f"Unexpected index type {type(idx)}")
 
-    # Convenience wrappers --------------------------------------------------
     def get(
         self, idx: int, offset: int = 0, length: Optional[int] = None
     ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, Any]]:
@@ -427,7 +425,6 @@ class IndexedDataset(torch.utils.data.Dataset):
         seq = self.bin_reader.read(self.index.dtype, length, ptr)
         return (seq, mode) if mode is not None else seq
 
-    # ------------------------------------------------------------------
     @property
     def sequence_lengths(self):  # numpy.ndarray[int32]
         return self.index.sequence_lengths
@@ -436,7 +433,6 @@ class IndexedDataset(torch.utils.data.Dataset):
     def document_indices(self):  # numpy.ndarray[int64]
         return self.index.document_indices
 
-    # Static helpers -------------------------------------------------------
     @staticmethod
     def exists(path_prefix: str) -> bool:
         return os.path.exists(get_idx_path(path_prefix)) and os.path.exists(
@@ -444,13 +440,14 @@ class IndexedDataset(torch.utils.data.Dataset):
         )
 
 
-# -------------------------------------------------------------------------
-# Convenience helpers
-# -------------------------------------------------------------------------
-
 def get_idx_path(path_prefix: str) -> str:
     return path_prefix + ".idx"
 
 
 def get_bin_path(path_prefix: str) -> str:
     return path_prefix + ".bin" 
+
+def _normalize_prefix(path_prefix: str) -> str:
+    if path_prefix.endswith('.bin') or path_prefix.endswith('.idx'):
+        return path_prefix[:-4]
+    return path_prefix
