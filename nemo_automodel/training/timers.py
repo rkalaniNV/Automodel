@@ -364,7 +364,7 @@ class Timers:
         # pytorch yet. It is simpler to deal with a single tensor
         # and since we are only gathering a small amount of data,
         # it should be ok to use all-gather instead of gather.
-        device = torch.cuda.current_device() if torch.cuda.is_available() else torch.device('cpu')
+        device = torch.cuda.current_device() if torch.cuda.is_available() else torch.device("cpu")
         rank_name_to_time = torch.zeros((world_size, len(names)), dtype=torch.float, device=device)
         for i, name in enumerate(names):
             if name in self._timers:
@@ -511,7 +511,7 @@ class Timers:
                 rank = torch.distributed.get_world_size() - 1
             else:
                 rank = 0
-        
+
         current_rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
         if rank == current_rank and output_string is not None:
             print(output_string, flush=True)
