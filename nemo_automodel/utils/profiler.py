@@ -140,7 +140,7 @@ class NsysProfiler:
         self.profiling_started = True
         
         if self.config.verbose:
-            logger.info(f"🚀 Starting profiler at step {self.current_step}")
+            logger.info(f"Starting profiler at step {self.current_step}")
             
         if self.config.cuda_profiler_enabled:
             try:
@@ -158,7 +158,7 @@ class NsysProfiler:
                 logger.warning(f"Failed to stop CUDA profiler: {e}")
                 
         if self.config.verbose:
-            logger.info("✅ Profiler stopped. Check nsys output for results.")
+            logger.info("Profiler stopped. Check nsys output for results.")
             
         # Brief pause to ensure profiling data is flushed
         time.sleep(1)

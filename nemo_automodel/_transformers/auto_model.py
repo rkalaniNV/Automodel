@@ -20,14 +20,19 @@ from torch.nn.attention import SDPBackend, sdpa_kernel
 from transformers import AutoModelForCausalLM, AutoModelForImageTextToText
 
 from nemo_automodel import __version__
-from nemo_automodel.shared.import_utils import safe_import
+from nemo_automodel.shared.import_utils import safe_import, safe_import_from
 import types
 import inspect
 import functools
 
 
 HAS_LIGER_KERNEL, liger_kernel_trf = safe_import("liger_kernel.transformers")
+HAS_AUTO_LIGER, AutoLigerKernelForCausalLM = safe_import_from("liger_kernel.transformers", "AutoLigerKernelForCausalLM")
 logger = logging.getLogger(__name__)
+
+# Suppress liger kernel logging messages
+liger_logger = logging.getLogger("liger_kernel.transformers.monkey_patch")
+liger_logger.setLevel(logging.WARNING)
 
 def _assert_same_signature(original, patched):
     """
@@ -145,28 +150,36 @@ class NeMoAutoModelForCausalLM(AutoModelForCausalLM):
         torch_dtype = kwargs.pop("torch_dtype", torch.bfloat16)
         use_liger_kernel = kwargs.pop("use_liger_kernel", True)
         sdpa_method = kwargs.pop("sdpa_method", None)
-        model = super().from_pretrained(
-            pretrained_model_name_or_path,
-            *model_args,
-            **kwargs,
-            torch_dtype=torch_dtype,
-        )
-        if use_liger_kernel:
-            if not HAS_LIGER_KERNEL:
-                logging.warning("Asked to use Liger Kernel, but could not import")
-                return model
+        
+        if use_liger_kernel and HAS_AUTO_LIGER:
             try:
-                liger_kernel_trf._apply_liger_kernel_to_instance(model=model)
-            except Exception:
-                del model
-                # If patching failed, retry
-                return cls.from_pretrained(
+                # Use the proper liger API - this automatically applies optimizations
+                model = AutoLigerKernelForCausalLM.from_pretrained(
                     pretrained_model_name_or_path,
                     *model_args,
                     **kwargs,
                     torch_dtype=torch_dtype,
-                    use_liger_kernel=False,
                 )
+                logger.info("Successfully loaded model with Liger Kernel")
+            except Exception as e:
+                model = super().from_pretrained(
+                    pretrained_model_name_or_path,
+                    *model_args,
+                    **kwargs,
+                    torch_dtype=torch_dtype,
+                )
+        else:
+            if use_liger_kernel and not HAS_AUTO_LIGER:
+                logging.warning("Asked to use Liger Kernel, but AutoLigerKernelForCausalLM could not be imported")
+            
+            # Use regular model loading
+            model = super().from_pretrained(
+                pretrained_model_name_or_path,
+                *model_args,
+                **kwargs,
+                torch_dtype=torch_dtype,
+            )
+            
         model = patch_attention(model, sdpa_method)
         model.config.update({"nemo_version": __version__})
         return model
