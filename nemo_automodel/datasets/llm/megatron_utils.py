@@ -15,13 +15,19 @@
 """A self-contained port of Megatron-Core's indexed dataset loader.
 
 Supports the original mmap and file-pointer readers for local *.bin / *.idx
-pairs but drops all S3 / MSC logic and the Megatron logging helper.  The file
-pair is expected to live on a local or networked POSIX filesystem – just pass
-the common prefix without the extension::
+pairs. The file pair is expected to live on a local filesystem.
 
-    from nemo_automodel.datasets.indexed_dataset import IndexedDataset
+All three calls below are equivalent:
+
+    from nemo_automodel.datasets.llm.indexed_dataset import IndexedDataset
 
     ds = IndexedDataset("/path/to/shard_00_text_document")
+    print(len(ds), ds[0][:20])
+
+    ds = IndexedDataset("/path/to/shard_00_text_document.bin")
+    print(len(ds), ds[0][:20])
+
+    ds = IndexedDataset("/path/to/shard_00_text_document.idx")
     print(len(ds), ds[0][:20])
 """
 
@@ -30,12 +36,11 @@ from __future__ import annotations
 import logging
 import os
 import struct
-import time
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import lru_cache
 from itertools import accumulate
-from typing import List, Optional, Tuple, Type, Union, Any
+from typing import Any, List, Optional, Tuple, Type, Union
 
 import numpy
 import torch
@@ -114,6 +119,46 @@ class DType(Enum):
         if cardinality is not None and cardinality < 65500:
             return numpy.uint16
         return numpy.int32
+
+def get_blend_from_list(
+    blend: Optional[List[str]],
+) -> Optional[Tuple[List[str], Optional[List[float]]]]:
+    """Get the megatron.core.datasets.blended_megatron_dataset_config.BlendedMegatronDatasetConfig blend from the blend list
+
+    Args:
+        blend (Optional[List[str]]): The blend list, which can be either (1) a list of prefixes, e.g. ["path/to/dataset_1_prefix", "path/to/dataset_2_prefix"], or (2) a flattened, zipped list of weights and prefixes, e.g. ["30", "path/to/dataset_1_prefix", "70", "path/to/dataset_2_prefix"]
+
+    Returns:
+        Optional[Tuple[List[str], Optional[List[float]]]]: The blend, consisting of a list of dataset prefixes and optionally a list of dataset weights, e.g. [["path/to/dataset_1_prefix", "path/to/dataset_2_prefix"], [30.0, 70.0]].
+    """
+    if blend is None:
+        return None
+
+    if len(blend) % 2 == 1:
+        weight_per_dataset = None
+        raw_prefix_per_dataset = blend
+    else:
+        raw_weight_per_dataset, raw_prefix_per_dataset = zip(
+            *[(blend[i], blend[i + 1]) for i in range(0, len(blend), 2)]
+        )
+
+        weight_per_dataset = []
+        for rwpd in raw_weight_per_dataset:
+            try:
+                weight = float(rwpd)
+            except ValueError:
+                weight = None
+            weight_per_dataset.append(weight)
+
+        is_none = map(lambda _: _ is None, weight_per_dataset)
+        if any(is_none):
+            assert all(is_none)
+            weight_per_dataset = None
+            raw_prefix_per_dataset = blend
+
+    prefix_per_dataset = [rppd.strip() for rppd in raw_prefix_per_dataset]
+
+    return prefix_per_dataset, weight_per_dataset
 
 class _IndexReader:
     """Object class to read the index (.idx) file
@@ -307,9 +352,6 @@ class _FileBinReader(_BinReader):
         return out
 
 
-# -------------------------------------------------------------------------
-# Public dataset class
-# -------------------------------------------------------------------------
 class IndexedDataset(torch.utils.data.Dataset):
     """A fast, on-disk dataset backed by Megatron-style index + binary files."""
 
