@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ProfilerConfig:
     """Configuration for the profiler.
-    
+
     Args:
         enabled: Whether profiling is enabled.
         profile_step: Step number to start profiling (1-indexed).
@@ -41,6 +41,7 @@ class ProfilerConfig:
         cuda_profiler_enabled: Whether to use CUDA profiler APIs.
         verbose: Whether to log profiling actions.
     """
+
     enabled: bool = False
     profile_step: int = 30
     profile_duration: int = 1
@@ -52,22 +53,22 @@ class ProfilerConfig:
 class NsysProfiler:
     """
     NSYS profiler for training performance analysis.
-    
+
     Provides simple start/stop control for profiling training steps
     with configurable start/stop conditions.
-    
+
     Example:
         ```python
         profiler = NsysProfiler(config)
-        
+
         for step, batch in enumerate(dataloader):
             profiler.step_begin(step + 1)
-            
+
             # Your training code here
             outputs = model(batch)
             loss.backward()
             optimizer.step()
-                
+
             if profiler.step_end():
                 break  # Stop training after profiling
         ```
@@ -75,7 +76,7 @@ class NsysProfiler:
 
     def __init__(self, config: Optional[Union[ProfilerConfig, dict]] = None):
         """Initialize the profiler.
-        
+
         Args:
             config: Profiler configuration or dict to create ProfilerConfig.
         """
@@ -83,64 +84,64 @@ class NsysProfiler:
             config = ProfilerConfig()
         elif isinstance(config, dict):
             config = ProfilerConfig(**config)
-            
+
         self.config = config
         self.current_step = 0
         self.profiling_started = False
         self.profile_step_count = 0
-            
+
         if config.enabled and config.verbose:
-            logger.info(f"Profiler initialized: will profile at step {config.profile_step} "
-                       f"for {config.profile_duration} steps")
+            logger.info(
+                f"Profiler initialized: will profile at step {config.profile_step} for {config.profile_duration} steps"
+            )
 
     def step_begin(self, step: int) -> bool:
         """
         Call at the beginning of each training step.
-        
+
         Args:
             step: Current training step (1-indexed).
-            
+
         Returns:
             bool: True if profiling is active for this step.
         """
         self.current_step = step
-        
+
         if not self.config.enabled:
             return False
-            
+
         # Check if we should start profiling
-        if (step == self.config.profile_step and not self.profiling_started):
+        if step == self.config.profile_step and not self.profiling_started:
             self._start_profiling()
-            
+
         return self.profiling_started
 
     def step_end(self) -> bool:
         """
         Call at the end of each training step.
-        
+
         Returns:
             bool: True if training should stop (profiling complete).
         """
         if not self.profiling_started:
             return False
-            
+
         self.profile_step_count += 1
-        
+
         # Check if we should stop profiling
-        if (self.config.profile_duration > 0 and 
-            self.profile_step_count >= self.config.profile_duration):
+        if self.config.profile_duration > 0 and self.profile_step_count >= self.config.profile_duration:
             self._stop_profiling()
             return True
-            
+
         return False
 
     def _start_profiling(self):
         """Start profiling with CUDA profiler."""
         self.profiling_started = True
-        
+
         if self.config.verbose:
             logger.info(f"Starting profiler at step {self.current_step}")
-            
+
         if self.config.cuda_profiler_enabled:
             try:
                 torch.cuda.cudart().cudaProfilerStart()
@@ -155,10 +156,10 @@ class NsysProfiler:
                 torch.cuda.cudart().cudaProfilerStop()
             except Exception as e:
                 logger.warning(f"Failed to stop CUDA profiler: {e}")
-                
+
         if self.config.verbose:
             logger.info("Profiler stopped. Check nsys output for results.")
-            
+
         # Brief pause to ensure profiling data is flushed
         time.sleep(1)
 
@@ -170,15 +171,15 @@ class NsysProfiler:
 def create_profiler_from_config(cfg) -> NsysProfiler:
     """
     Create a profiler from configuration.
-    
+
     Args:
         cfg: Configuration object with profiler settings.
-        
+
     Returns:
         NsysProfiler instance.
     """
     profiler_cfg = cfg.get("profiler", {})
-    
+
     # Convert from config format to ProfilerConfig
     config = ProfilerConfig(
         enabled=profiler_cfg.get("enabled", False),
@@ -188,8 +189,5 @@ def create_profiler_from_config(cfg) -> NsysProfiler:
         cuda_profiler_enabled=profiler_cfg.get("cuda_profiler_enabled", True),
         verbose=profiler_cfg.get("verbose", True),
     )
-    
+
     return NsysProfiler(config)
-
-
- 

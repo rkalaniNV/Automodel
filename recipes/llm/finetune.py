@@ -58,16 +58,16 @@ logger = logging.getLogger(__name__)
 
 
 def build_model_and_optimizer(
-        device,
-        cfg_model,
-        cfg_opt,
-        use_hf_fa2,
-        cfg_peft,
-        model_wrapper,
-        seed, 
-        tp_size=1,
-        compile_config=None,
-    ) -> tuple[nn.Module, 'Optimizer']: # noqa: F821
+    device,
+    cfg_model,
+    cfg_opt,
+    use_hf_fa2,
+    cfg_peft,
+    model_wrapper,
+    seed,
+    tp_size=1,
+    compile_config=None,
+) -> tuple[nn.Module, "Optimizer"]:  # noqa: F821
     """Build and initialize a model.
 
     Args:
@@ -122,13 +122,13 @@ def build_model_and_optimizer(
 
         else:
             model = model_wrapper.parallelize(model)
-            
+
             # Compile the model after parallelization if enabled
             if compile_config is not None:
                 model = compile_model(model, compile_config)
     else:
         model = model.to(device)
-        
+
         # Compile the model if enabled
         if compile_config is not None:
             model = compile_model(model, compile_config)
@@ -326,7 +326,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
         # Build compile config first
         self.compile_config = build_compile_config(self.cfg.get("compile", None))
-        
+
         # Check if packed_sequence_size > 0 and use HF's flash_attention_2 for attn implementation.
         use_hf_fa2 = self.cfg.get("packed_sequence.packed_sequence_size", 0) > 0
 
@@ -406,14 +406,14 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             for batch_idx, batch in enumerate(self.step_scheduler):
                 # Start profiling for this step
                 self.profiler.step_begin(self.step_scheduler.step)
-                
+
                 self._run_train_step(batch, self.step_scheduler.is_optim_step, 1.0)
-                
+
                 # Check if profiling is complete and we should stop
                 if self.profiler.step_end():
                     logger.info("Training stopped after profiling completion")
                     return
-                
+
                 if self.step_scheduler.is_ckpt_step:
                     self.save_checkpoint(epoch, self.step_scheduler.step)
 
@@ -447,7 +447,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(self.model.device)
 
         train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels, loss_mask)
-        
+
         # Forward pass
         with train_ctx():
             out = self.model(**batch)
