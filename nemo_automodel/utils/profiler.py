@@ -21,9 +21,8 @@ controlling when to start and stop profiling for kernel trace collection.
 
 import logging
 import time
-from contextlib import contextmanager
-from typing import Optional, Union
 from dataclasses import dataclass
+from typing import Optional, Union
 
 import torch
 

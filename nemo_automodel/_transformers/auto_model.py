@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
+import inspect
 import logging
 import types
 
@@ -21,9 +23,6 @@ from transformers import AutoModelForCausalLM, AutoModelForImageTextToText
 
 from nemo_automodel import __version__
 from nemo_automodel.shared.import_utils import safe_import
-import types
-import inspect
-import functools
 
 
 HAS_LIGER_KERNEL, liger_kernel_trf = safe_import("liger_kernel.transformers")

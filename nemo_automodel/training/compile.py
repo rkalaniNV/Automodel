@@ -15,12 +15,11 @@
 from __future__ import annotations
 
 import logging
-import sys
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
-from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
