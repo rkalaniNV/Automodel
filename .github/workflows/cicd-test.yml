@@ -1,0 +1,18 @@
+name: Dependency CI
+
+on:
+  workflow_run:
+    workflows: ["Installation Test", "Validate PR title"]
+    types:
+      - completed
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Echo Output
+        shell: bash
+        run: echo "Installation Test and Validate PR title ran"
