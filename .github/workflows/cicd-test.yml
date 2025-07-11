@@ -2,7 +2,7 @@ name: Dependency CI
 
 on:
   workflow_run:
-    workflows: [Validate PR title]
+    workflows: [Child Dependency]
     types:
       - completed
 
