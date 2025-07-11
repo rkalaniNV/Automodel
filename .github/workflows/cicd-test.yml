@@ -2,7 +2,7 @@ name: Dependency CI
 
 on:
   workflow_run:
-    workflows: ["Installation Test", "Validate PR title"]
+    workflows: [Validate PR title]
     types:
       - completed
 
