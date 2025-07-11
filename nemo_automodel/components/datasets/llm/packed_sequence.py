@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-
-import torch
 from datasets import Dataset
 from torch.nn import functional as F
 from tqdm import tqdm
+import logging
+import torch
 
 logger = logging.getLogger(__name__)
 

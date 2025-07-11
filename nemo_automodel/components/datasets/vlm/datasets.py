@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datasets import load_dataset
+from nemo_automodel.components.datasets.vlm.utils import json2token
 import json
 import random
-
-from datasets import load_dataset
-
-from nemo_automodel.components.datasets.vlm.utils import json2token
 
 
 def make_rdr_dataset(path_or_dataset="quintend/rdr-items", split="train", **kwargs):
