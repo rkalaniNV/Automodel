@@ -25,12 +25,12 @@ dist_env:
   timeout_minutes: 10
 
 rng:
-  _target_: nemo_automodel.training.rng.StatefulRNG
+  _target_: nemo_automodel.components.training.rng.StatefulRNG
   seed: 42
   ranked: true
 
 model:
-  _target_: nemo_automodel.NeMoAutoModelForImageTextToText.from_pretrained
+  _target_: nemo_automodel.components.NeMoAutoModelForImageTextToText.from_pretrained
   pretrained_model_name_or_path: google/gemma-3n-e4b-it #HF model id or local path
   torch_dtype: torch.bfloat16
   use_liger_kernel: false
@@ -45,16 +45,16 @@ checkpoint:
   save_consolidated: False
 
 distributed:
-  _target_: nemo_automodel.distributed.fsdp2.FSDP2Manager
+  _target_: nemo_automodel.components.distributed.fsdp2.FSDP2Manager
   dp_size: none
   tp_size: 1
   cp_size: 1
   sequence_parallel: false
 
-loss_fn: nemo_automodel.loss.masked_ce.masked_cross_entropy
+loss_fn: nemo_automodel.components.loss.masked_ce.masked_cross_entropy
 
 dataset:
-  _target_: nemo_automodel.datasets.vlm.datasets.make_medpix_dataset
+  _target_: nemo_automodel.components.datasets.vlm.datasets.make_medpix_dataset
   path_or_dataset: mmoukouba/MedPix-VQA
   split: train[:1000]
 
@@ -64,11 +64,11 @@ dataloader:
   num_workers: 0
   pin_memory: true
   collate_fn:
-    _target_: nemo_automodel.datasets.vlm.collate_fns.default_collate_fn
+    _target_: nemo_automodel.components.datasets.vlm.collate_fns.default_collate_fn
     start_of_response_token: "<start_of_turn>model\n"
 
 validation_dataset:
-  _target_: nemo_automodel.datasets.vlm.datasets.make_medpix_dataset
+  _target_: nemo_automodel.components.datasets.vlm.datasets.make_medpix_dataset
   path_or_dataset: mmoukouba/MedPix-VQA
   split: validation[:100]
 
@@ -83,7 +83,7 @@ optimizer:
   betas: [0.9, 0.95]
 
 peft:
-  _target_: nemo_automodel._peft.lora.PeftConfig
+  _target_: nemo_automodel.components._peft.lora.PeftConfig
   match_all_linear: False
   exclude_modules:  # exclude all vision modules and lm_head
     - "*vision_tower*"
