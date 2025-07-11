@@ -15,4 +15,4 @@ jobs:
 
       - name: Echo Output
         shell: bash
-        run: echo "Installation Test and Validate PR title ran"
+        run: echo "Installation Test and Validate PR title ran."
