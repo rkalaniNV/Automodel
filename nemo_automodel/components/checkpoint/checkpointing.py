@@ -28,7 +28,6 @@ import torch.nn as nn
 from safetensors import safe_open
 from safetensors.torch import save_file
 
-from nemo_automodel._peft.lora import PeftConfig
 from nemo_automodel.checkpoint._backports.filesystem import SerializationFormat
 from nemo_automodel.checkpoint._backports.hf_storage import (
     _HuggingFaceStorageReader,
@@ -64,7 +63,7 @@ def save_model(
     model: nn.Module,
     weights_path: str,
     checkpoint_config: CheckpointingConfig,
-    peft_config: PeftConfig | None = None,
+    peft_config: Optional["PeftConfig"] = None,
 ):
     """
     Save a model state dictionary to a weights path.
@@ -286,7 +285,7 @@ def _get_safetensors_index_path(cache_dir: str, repo_id: str) -> str:
 
 def _save_peft_adapters(
     model_state: ModelState,
-    peft_config: PeftConfig,
+    peft_config: "PeftConfig",
     model_path: str,
 ):
     """
@@ -305,7 +304,7 @@ def _save_peft_adapters(
         save_file(state_dict, os.path.join(model_path, "adapter_model.safetensors"))
 
 
-def _get_hf_peft_config(peft_config: PeftConfig, model_state: ModelState) -> dict:
+def _get_hf_peft_config(peft_config: "PeftConfig", model_state: ModelState) -> dict:
     """
     Get the PEFT config in the format expected by Hugging Face.
     """
@@ -341,7 +340,7 @@ def _get_hf_peft_config(peft_config: PeftConfig, model_state: ModelState) -> dic
     }
 
 
-def _get_automodel_peft_metadata(peft_config: PeftConfig) -> dict:
+def _get_automodel_peft_metadata(peft_config: "PeftConfig") -> dict:
     """
     Get the PEFT metadata in the format expected by Automodel.
     """
