@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from fsspec.core import url_to_fs
 from torch.distributed.checkpoint._extension import StreamTransformExtension
 
-from nemo_automodel.checkpoint._backports.filesystem import (
+from nemo_automodel.components.checkpoint._backports.filesystem import (
     FileSystemBase,
     FileSystemReader,
     FileSystemWriter,

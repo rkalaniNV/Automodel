@@ -22,7 +22,7 @@ from torch.distributed.tensor.parallel import (
     RowwiseParallel,
 )
 
-from nemo_automodel.distributed.parallelizer import (
+from nemo_automodel.components.distributed.parallelizer import (
     get_hf_tp_shard_plan,
     nvfsdp_strategy_parallelize,
 )

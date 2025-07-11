@@ -16,7 +16,7 @@ import logging
 
 import torch.nn as nn
 
-from nemo_automodel.utils.dist_utils import get_rank_safe
+from nemo_automodel.components.utils.dist_utils import get_rank_safe
 
 logger = logging.getLogger(__name__)
 

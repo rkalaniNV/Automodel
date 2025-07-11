@@ -14,7 +14,7 @@
 
 import sys
 
-from nemo_automodel.config.loader import load_yaml_config, translate_value
+from nemo_automodel.components.config.loader import load_yaml_config, translate_value
 
 
 def parse_cli_argv(cfg_path=None):

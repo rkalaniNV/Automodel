@@ -20,7 +20,7 @@ import torch
 import torch.nn as nn
 from torch.optim import Optimizer
 
-from nemo_automodel.checkpoint.checkpointing import (
+from nemo_automodel.components.checkpoint.checkpointing import (
     load_model,
     load_optimizer,
     save_model,

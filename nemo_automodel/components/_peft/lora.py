@@ -20,12 +20,12 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo_automodel._peft.lora_kernel import (
+from nemo_automodel.components._peft.lora_kernel import (
     lora_da_dx_update_wrapper,
     lora_db_update_wrapper,
     lora_forward_wrapper,
 )
-from nemo_automodel._peft.module_matcher import ModuleMatcher
+from nemo_automodel.components._peft.module_matcher import ModuleMatcher
 from nemo_automodel.shared.import_utils import safe_import
 from nemo_automodel.shared.utils import dtype_from_str
 

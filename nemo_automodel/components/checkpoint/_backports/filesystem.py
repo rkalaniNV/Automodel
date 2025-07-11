@@ -65,7 +65,7 @@ from torch.futures import Future
 # introduced as collections.abc.Buffer in Python 3.12
 from typing_extensions import Buffer
 
-from nemo_automodel.checkpoint._backports.hf_utils import (
+from nemo_automodel.components.checkpoint._backports.hf_utils import (
     CUSTOM_METADATA_KEY,
     DCP_VERSION_KEY,
     HF_DCP_VERSION,

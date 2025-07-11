@@ -63,8 +63,8 @@ from torch.distributed.checkpoint.planner_helpers import (
 from torch.distributed.checkpoint.utils import find_state_dict_object
 from torch.distributed.tensor import DTensor
 
-from nemo_automodel.checkpoint._backports import _version
-from nemo_automodel.checkpoint._backports.planner_helpers import _contains_usable_plan
+from nemo_automodel.components.checkpoint._backports import _version
+from nemo_automodel.components.checkpoint._backports.planner_helpers import _contains_usable_plan
 
 logger: logging.Logger = logging.getLogger(__name__)
 

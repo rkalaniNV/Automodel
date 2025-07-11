@@ -17,7 +17,7 @@ import random
 
 from datasets import load_dataset
 
-from nemo_automodel.datasets.vlm.utils import json2token
+from nemo_automodel.components.datasets.vlm.utils import json2token
 
 
 def make_rdr_dataset(path_or_dataset="quintend/rdr-items", split="train", **kwargs):

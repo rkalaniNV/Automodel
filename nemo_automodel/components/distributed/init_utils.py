@@ -20,7 +20,7 @@ from dataclasses import dataclass
 import torch
 import torch.distributed
 
-from nemo_automodel.utils.dist_utils import (
+from nemo_automodel.components.utils.dist_utils import (
     get_local_rank_preinit,
     get_rank_safe,
     get_world_size_safe,

@@ -25,7 +25,7 @@ import importlib.util
 # │   ├── __init__.py
 # │   ├── _cli
 # │   │   └── app.py
-# ├── recipes
+# ├── examples
 #     ├── llm
 #     │   ├── finetune.py
 #     │   ├── llama_3_2_1b_hellaswag.yaml
@@ -91,8 +91,8 @@ def launch_with_slurm(slurm_config, script_path, config_file, job_dir=None, cont
 
     Args:
         slurm_config (dict): the slurm config
-        script_path (str): the path to the recipe script (e.g., recipes/llm/finetune.py)
-        config_file (str): the path to the config yaml (e.g., recipes/llm/llama_3_2_1b_squad.yaml)
+        script_path (str): the path to the recipe script (e.g., examples/llm/finetune.py)
+        config_file (str): the path to the config yaml (e.g., examples/llm/llama_3_2_1b_squad.yaml)
         container_env (str, optional): The container env. Defaults to None.
     """
     assert isinstance(job_dir, str), "Expected job_dir to be a string"
@@ -134,15 +134,14 @@ def build_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
         prog="automodel",
-        description="CLI for NeMo AutoModel recipes"
+        description="CLI for NeMo AutoModel examples"
     )
 
     # Two required positionals (cannot start with "--")
-    domain_choices = list(map(lambda x: x.name, (Path(__file__).parents[2] / "recipes").iterdir()))
     parser.add_argument(
         "domain",
         metavar="<domain>",
-        choices=domain_choices,
+        choices=['llm', 'vlm'],
         help="Domain to operate on (e.g., LLM, VLM, etc)",
     )
     parser.add_argument(
@@ -191,7 +190,7 @@ def main():
     config_path = args.config.resolve()
     config = load_yaml(config_path)
     repo_root = Path(__file__).parents[2]
-    script_path = Path(__file__).parents[2] / "recipes" / args.domain / f'{args.command}.py'
+    script_path = Path(__file__).parents[1] / "recipes" / args.domain / f'{args.command}.py'
 
     if 'slurm' in config:
         # launch job on kubernetes.
@@ -221,7 +220,7 @@ def main():
             torchrun_args = torchrun_parser.parse_args()
             # overwrite the training script with the actual recipe path
             torchrun_args.training_script = str(script_path)
-            # training_script_args=['finetune', '--config', 'recipes/llm/llama_3_2_1b_squad.yaml']
+            # training_script_args=['finetune', '--config', 'examples/llm/llama_3_2_1b_squad.yaml']
             # remove the command (i.e., "finetune") part.
             torchrun_args.training_script_args.pop(0)
             tmp = str(args.config)

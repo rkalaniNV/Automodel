@@ -27,7 +27,7 @@ import fsspec
 import torch
 from fsspec.core import url_to_fs
 
-from nemo_automodel.checkpoint._backports.hf_utils import (
+from nemo_automodel.components.checkpoint._backports.hf_utils import (
     DATA_OFFSETS_KEY,
     DEFAULT_EXTRA_METADATA_KEY,
     DTYPE_KEY,

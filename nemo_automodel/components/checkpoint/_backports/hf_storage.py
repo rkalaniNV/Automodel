@@ -42,10 +42,10 @@ from torch.distributed.checkpoint.planner import (
 from torch.distributed.checkpoint.storage import WriteResult
 from torch.futures import Future
 
-from nemo_automodel.checkpoint._backports._fsspec_filesystem import FsspecReader, FsspecWriter
-from nemo_automodel.checkpoint._backports.consolidate_hf_safetensors import consolidate_safetensors_files
-from nemo_automodel.checkpoint._backports.filesystem import SerializationFormat
-from nemo_automodel.checkpoint._backports.hf_utils import (
+from nemo_automodel.components.checkpoint._backports._fsspec_filesystem import FsspecReader, FsspecWriter
+from nemo_automodel.components.checkpoint._backports.consolidate_hf_safetensors import consolidate_safetensors_files
+from nemo_automodel.components.checkpoint._backports.filesystem import SerializationFormat
+from nemo_automodel.components.checkpoint._backports.hf_utils import (
     CUSTOM_METADATA_KEY,
     DATA_KEY,
     DATA_OFFSETS_KEY,

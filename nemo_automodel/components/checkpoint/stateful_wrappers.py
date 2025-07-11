@@ -24,7 +24,7 @@ from torch.distributed.checkpoint.state_dict import (
 )
 from torch.distributed.checkpoint.stateful import Stateful
 
-from nemo_automodel.checkpoint._backports.filesystem import SerializationFormat
+from nemo_automodel.components.checkpoint._backports.filesystem import SerializationFormat
 
 _PREFIX = "model."
 

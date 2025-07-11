@@ -28,13 +28,13 @@ import torch.nn as nn
 from safetensors import safe_open
 from safetensors.torch import save_file
 
-from nemo_automodel.checkpoint._backports.filesystem import SerializationFormat
-from nemo_automodel.checkpoint._backports.hf_storage import (
+from nemo_automodel.components.checkpoint._backports.filesystem import SerializationFormat
+from nemo_automodel.components.checkpoint._backports.hf_storage import (
     _HuggingFaceStorageReader,
     _HuggingFaceStorageWriter,
     get_fqn_to_file_index_mapping,
 )
-from nemo_automodel.checkpoint.stateful_wrappers import ModelState, OptimizerState
+from nemo_automodel.components.checkpoint.stateful_wrappers import ModelState, OptimizerState
 
 
 @dataclass

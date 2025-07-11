@@ -41,6 +41,7 @@ from nemo_automodel.components.training.base_recipe import BaseRecipe
 from nemo_automodel.components.training.rng import StatefulRNG
 from nemo_automodel.components.training.step_scheduler import StepScheduler
 from nemo_automodel.components.training.utils import count_tail_padding
+from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
 from nemo_automodel.components.utils.dist_utils import (
     clip_gradients,
     get_sync_ctx,
