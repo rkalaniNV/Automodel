@@ -25,8 +25,8 @@ build-backend = "setuptools.build_meta"
 "nemo_automodel" = "nemo_automodel"
 
 [tool.setuptools.data-files]
-"examples/llm" = ["examples/llm/*.yaml"]
-"examples/vlm" = ["examples/vlm/*.yaml"]
+"nemo_automodel/examples/llm" = ["examples/llm/*.yaml"]
+"nemo_automodel/examples/vlm" = ["examples/vlm/*.yaml"]
 
 [tool.setuptools.dynamic]
 version = { attr = "nemo_automodel.package_info.__version__" } # any module attribute compatible with ast.literal_eval
