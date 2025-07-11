@@ -19,7 +19,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 import torch.distributed
@@ -35,6 +35,9 @@ from nemo_automodel.components.checkpoint._backports.hf_storage import (
     get_fqn_to_file_index_mapping,
 )
 from nemo_automodel.components.checkpoint.stateful_wrappers import ModelState, OptimizerState
+
+if TYPE_CHECKING:
+    from peft import PeftConfig
 
 
 @dataclass

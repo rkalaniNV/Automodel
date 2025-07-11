@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-from pathlib import Path
-import yaml
+import importlib.util
+import logging
 import os
 from pathlib import Path
-import importlib.util
 
-import logging
+import yaml
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -212,7 +212,8 @@ def main():
         # launch job on kubernetes.
         raise NotImplementedError("WIP")
     else:
-        from torch.distributed.run import determine_local_world_size, get_args_parser, run as thrun
+        from torch.distributed.run import determine_local_world_size, get_args_parser
+        from torch.distributed.run import run as thrun
         # launch job on this node
         num_devices = determine_local_world_size(nproc_per_node="gpu")
         assert num_devices > 0, "Expected num-devices to be > 0"

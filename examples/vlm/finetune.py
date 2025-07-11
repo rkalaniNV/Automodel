@@ -14,9 +14,11 @@
 
 from __future__ import annotations
 
-from nemo_automodel.components.recipes.vlm.finetune import FinetuneRecipeForVLM
-from pathlib import Path
+import pathlib
+
 from nemo_automodel.components.components.config._arg_parser import parse_args_and_load_config
+from nemo_automodel.components.recipes.vlm.finetune import FinetuneRecipeForVLM
+
 
 def main():
     """Main entry point for the fine-tuning recipe.

@@ -11,29 +11,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
-import tempfile
 import shutil
-import yaml
-from pathlib import Path
-from unittest import mock
-import builtins
-
-from types import SimpleNamespace
-from importlib.util import spec_from_file_location, module_from_spec
 
 # Patch the script module
 import sys
+import tempfile
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+import pytest
+import yaml
+
 sys.modules["nemo_run"] = mock.MagicMock()
 
 # Simulate torch distributed imports
 sys.modules["torch.distributed.run"] = mock.MagicMock()
-from torch.distributed.run import determine_local_world_size, run as thrun
 
 # Import the script under test
-import importlib.util
 import argparse
+
 import nemo_automodel._cli.app as module
+
 
 @pytest.fixture
 def tmp_yaml_file():
