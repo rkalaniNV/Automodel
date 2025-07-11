@@ -5,6 +5,9 @@ on:
     workflows: [Child Dependency]
     types:
       - completed
+    branches:
+      - main
+      - "pull-request/[0-9]+"
 
 jobs:
   test:
