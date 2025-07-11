@@ -19,6 +19,10 @@ import os
 from pathlib import Path
 import importlib.util
 
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 # Here we assume the following directory structure and expect it to remain unchanged.
 #
 # ├── nemo_automodel
@@ -79,10 +83,10 @@ def load_yaml(file_path):
         with open(file_path, 'r') as file:
             return yaml.safe_load(file)
     except FileNotFoundError as e:
-        print(f"Error: The file '{file_path}' was not found.")
+        logger.error(f"File '{file_path}' was not found.")
         raise e
     except yaml.YAMLError as e:
-        print(f"Error parsing YAML file: {e}")
+        logger.error(f"parsing YAML file {e} failed.")
         raise e
 
 def launch_with_slurm(slurm_config, script_path, config_file, job_dir=None, container_env={}):
@@ -184,15 +188,16 @@ def main():
         int: Job's status code
     """
     args = build_parser().parse_args()
-    print(f"Domain:  {args.domain}")
-    print(f"Command: {args.command}")
-    print(f"Config:  {args.config.resolve()}")
+    logger.info(f"Domain:  {args.domain}")
+    logger.info(f"Command: {args.command}")
+    logger.info(f"Config:  {args.config.resolve()}")
     config_path = args.config.resolve()
     config = load_yaml(config_path)
     repo_root = Path(__file__).parents[2]
     script_path = Path(__file__).parents[1] / "recipes" / args.domain / f'{args.command}.py'
 
     if 'slurm' in config:
+        logger.info("Launching job via SLURM")
         # launch job on kubernetes.
         # if there's no `job_dir` in the slurm section, use cwd/slurm_job
         job_dir = config['slurm'].pop('job_dir', os.path.join(os.getcwd(), 'slurm_job'))
@@ -203,6 +208,7 @@ def main():
         config['container_mounts'].append(f'{repo_root}:{repo_root}')
         launch_with_slurm(config['slurm'], str(script_path), str(config_path), job_dir)
     elif 'k8s' in config or 'kubernetes' in config:
+        logger.info("Launching job via kubernetes")
         # launch job on kubernetes.
         raise NotImplementedError("WIP")
     else:
@@ -211,10 +217,12 @@ def main():
         num_devices = determine_local_world_size(nproc_per_node="gpu")
         assert num_devices > 0, "Expected num-devices to be > 0"
         if args.nproc_per_node == 1 or num_devices == 1:
+            logger.info("Launching job locally on a single device")
             # run the job with a single rank on this process.
             recipe_main = load_function(script_path, "main")
             return recipe_main(config_path)
         else:
+            logger.info(f"Launching job locally on {num_devices} devices")
             # run the job on multiple ranks on this node.
             torchrun_parser = get_args_parser()
             torchrun_args = torchrun_parser.parse_args()
