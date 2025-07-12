@@ -26,7 +26,7 @@ from nemo_automodel.recipes.llm.finetune import FinetuneRecipeForNextTokenPredic
 
 from nemo_automodel.components.checkpoint._backports.hf_storage import _HuggingFaceStorageReader
 from nemo_automodel.components.checkpoint.stateful_wrappers import ModelState, OptimizerState
-from nemo_automodel.components.config.cli import parse_args_and_load_config
+from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
 
 
 def load_dcp(ckpt_dir: Path | str) -> dict[str, torch.Tensor]:
