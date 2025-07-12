@@ -21,7 +21,7 @@ import torch
 import transformers
 from transformers import AutoConfig
 
-from nemo_automodel._transformers.auto_model import (
+from nemo_automodel.components._transformers.auto_model import (
     NeMoAutoModelForCausalLM,
     NeMoAutoModelForImageTextToText,
     patch_attention,

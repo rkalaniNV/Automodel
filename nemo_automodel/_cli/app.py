@@ -51,13 +51,13 @@ def load_function(file_path: str | Path, func_name: str):
     if not file_path.is_file():
         raise FileNotFoundError(file_path)
 
-    module_name = file_path.stem # arbitrary, unique per load is fine
+    module_name = file_path.stem  # arbitrary, unique per load is fine
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load {file_path}")
 
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module) # executes the file, populating `module`
+    spec.loader.exec_module(module)  # executes the file, populating `module`
 
     try:
         return getattr(module, func_name)
@@ -80,7 +80,7 @@ def load_yaml(file_path):
         yaml.YAMLError: if the file is incorrectly formatted.
     """
     try:
-        with open(file_path, 'r') as file:
+        with open(file_path, "r") as file:
             return yaml.safe_load(file)
     except FileNotFoundError as e:
         logger.error(f"File '{file_path}' was not found.")
@@ -88,6 +88,7 @@ def load_yaml(file_path):
     except yaml.YAMLError as e:
         logger.error(f"parsing YAML file {e} failed.")
         raise e
+
 
 def launch_with_slurm(slurm_config, script_path, config_file, job_dir=None, container_env={}):
     """
@@ -101,18 +102,20 @@ def launch_with_slurm(slurm_config, script_path, config_file, job_dir=None, cont
     """
     assert isinstance(job_dir, str), "Expected job_dir to be a string"
     import nemo_run as run
-    if not 'mem' in slurm_config:
-        slurm_config['mem'] = '0'
-    if not 'exclusive' in slurm_config:
-        slurm_config['exclusive'] = True
+
+    if not "mem" in slurm_config:
+        slurm_config["mem"] = "0"
+    if not "exclusive" in slurm_config:
+        slurm_config["exclusive"] = True
 
     from nemo_run.config import set_nemorun_home
+
     set_nemorun_home(job_dir)
-    executor = run.SlurmExecutor(**slurm_config, tunnel=run.LocalTunnel(job_dir=''))
+    executor = run.SlurmExecutor(**slurm_config, tunnel=run.LocalTunnel(job_dir=""))
     # @akoumparouli: uncomment once nemo-run updates its package.
     # with run.Experiment('exp_ts_', enable_goodbye_message=False) as exp:
-    with run.Experiment('exp_ts_') as exp:
-        run_name = ''
+    with run.Experiment("exp_ts_") as exp:
+        run_name = ""
         exp.add(
             run.Script(
                 path=script_path,
@@ -129,6 +132,7 @@ def launch_with_slurm(slurm_config, script_path, config_file, job_dir=None, cont
         )
         exp.run(sequential=True, detach=True, tail_logs=False)
 
+
 def build_parser() -> argparse.ArgumentParser:
     """
     Builds a parser with automodel's app options
@@ -136,22 +140,19 @@ def build_parser() -> argparse.ArgumentParser:
     Returns:
         argparse.ArgumentParser: the parser.
     """
-    parser = argparse.ArgumentParser(
-        prog="automodel",
-        description="CLI for NeMo AutoModel examples"
-    )
+    parser = argparse.ArgumentParser(prog="automodel", description="CLI for NeMo AutoModel examples")
 
     # Two required positionals (cannot start with "--")
     parser.add_argument(
         "domain",
         metavar="<domain>",
-        choices=['llm', 'vlm'],
+        choices=["llm", "vlm"],
         help="Domain to operate on (e.g., LLM, VLM, etc)",
     )
     parser.add_argument(
         "command",
         metavar="<command>",
-        choices=['finetune'],
+        choices=["finetune"],
         help="Command within the domain (e.g., finetune, generate, etc)",
     )
 
@@ -194,26 +195,27 @@ def main():
     config_path = args.config.resolve()
     config = load_yaml(config_path)
     repo_root = Path(__file__).parents[2]
-    script_path = Path(__file__).parents[1] / "recipes" / args.domain / f'{args.command}.py'
+    script_path = Path(__file__).parents[1] / "recipes" / args.domain / f"{args.command}.py"
 
-    if 'slurm' in config:
+    if "slurm" in config:
         logger.info("Launching job via SLURM")
         # launch job on kubernetes.
         # if there's no `job_dir` in the slurm section, use cwd/slurm_job
-        job_dir = config['slurm'].pop('job_dir', os.path.join(os.getcwd(), 'slurm_job'))
-        if not 'container_mounts:' in config:
-            config['container_mounts'] = []
+        job_dir = config["slurm"].pop("job_dir", os.path.join(os.getcwd(), "slurm_job"))
+        if not "container_mounts:" in config:
+            config["container_mounts"] = []
         # we need to mount the repo_root since we use the absolute path to the recipe
         # TODO(@akoumparouli): this wouldn't work if you pip-install the package on the head-node?
-        config['container_mounts'].append(f'{repo_root}:{repo_root}')
-        launch_with_slurm(config['slurm'], str(script_path), str(config_path), job_dir)
-    elif 'k8s' in config or 'kubernetes' in config:
+        config["container_mounts"].append(f"{repo_root}:{repo_root}")
+        launch_with_slurm(config["slurm"], str(script_path), str(config_path), job_dir)
+    elif "k8s" in config or "kubernetes" in config:
         logger.info("Launching job via kubernetes")
         # launch job on kubernetes.
         raise NotImplementedError("WIP")
     else:
         from torch.distributed.run import determine_local_world_size, get_args_parser
         from torch.distributed.run import run as thrun
+
         # launch job on this node
         num_devices = determine_local_world_size(nproc_per_node="gpu")
         assert num_devices > 0, "Expected num-devices to be > 0"
@@ -240,6 +242,7 @@ def main():
             if args.nproc_per_node is None:
                 torchrun_args.nproc_per_node = num_devices
             return thrun(torchrun_args)
+
 
 if __name__ == "__main__":
     main()

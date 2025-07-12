@@ -36,9 +36,7 @@ import nemo_automodel._cli.app as module
 
 @pytest.fixture
 def tmp_yaml_file():
-    config_data = {
-        "dummy_key": "dummy_value"
-    }
+    config_data = {"dummy_key": "dummy_value"}
     tmp_dir = tempfile.mkdtemp()
     tmp_file = Path(tmp_dir) / "config.yaml"
     with open(tmp_file, "w") as f:
@@ -87,7 +85,7 @@ def test_load_function_missing_func(tmp_path):
 
 
 def test_build_parser(monkeypatch):
-    recipes_path = Path(__file__).parents[3] # / "recipes"
+    recipes_path = Path(__file__).parents[3]  # / "recipes"
     # Simulate recipes path structure
     monkeypatch.setattr(module.Path, "parents", [None, None, recipes_path])
     parser = module.build_parser()
@@ -103,12 +101,16 @@ def test_launch_with_slurm(monkeypatch):
     fake_exp = mock.MagicMock()
 
     monkeypatch.setattr(module, "load_yaml", lambda x: {"slurm": mock_slurm_config})
-    monkeypatch.setitem(sys.modules, "nemo_run", mock.MagicMock(
-        SlurmExecutor=lambda **kwargs: fake_executor,
-        LocalTunnel=lambda: "tunnel",
-        Experiment=mock.MagicMock(return_value=fake_exp),
-        Script=mock.MagicMock()
-    ))
+    monkeypatch.setitem(
+        sys.modules,
+        "nemo_run",
+        mock.MagicMock(
+            SlurmExecutor=lambda **kwargs: fake_executor,
+            LocalTunnel=lambda: "tunnel",
+            Experiment=mock.MagicMock(return_value=fake_exp),
+            Script=mock.MagicMock(),
+        ),
+    )
 
     module.launch_with_slurm(mock_slurm_config, mock_script, mock_config)
 
@@ -129,6 +131,7 @@ def test_main_single_node(monkeypatch, tmp_yaml_file):
 
     result = module.main()
     assert result == 0
+
 
 def test_main_multi_node(monkeypatch, tmp_yaml_file):
     config_path = tmp_yaml_file
@@ -165,11 +168,7 @@ def test_main_k8s_not_implemented(monkeypatch, tmp_yaml_file):
 
     def custom_parser():
         parser = original_build_parser()
-        parser.set_defaults(
-            config=str(config_path),
-            domain="llm",
-            command="finetune"
-        )
+        parser.set_defaults(config=str(config_path), domain="llm", command="finetune")
         return parser
 
     monkeypatch.setattr("sys.argv", ["automodel", "llm", "finetune", "-c", str(config_path)])
@@ -179,6 +178,7 @@ def test_main_k8s_not_implemented(monkeypatch, tmp_yaml_file):
 
     with pytest.raises(NotImplementedError):
         module.main()
+
 
 def argparse_mock(args_list):
     parser = module.build_parser()
@@ -191,7 +191,7 @@ def argparse_mock_parser():
             return SimpleNamespace(
                 training_script="dummy.py",
                 training_script_args=["finetune", "--config", "dummy.yaml"],
-                nproc_per_node=None
+                nproc_per_node=None,
             )
-    return DummyParser()
 
+    return DummyParser()

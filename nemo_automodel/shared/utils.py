@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-
 def dtype_from_str(val):
     """
     Translate a str val of a dtype into the corresponding torch.dtype
@@ -24,6 +23,7 @@ def dtype_from_str(val):
         torch.dtype: the actual dtype (e.g., torch.bfloat16)
     """
     import torch
+
     if isinstance(val, torch.dtype):
         return val
     lut = {
