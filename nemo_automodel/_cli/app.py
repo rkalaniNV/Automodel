@@ -111,7 +111,7 @@ def launch_with_slurm(slurm_config, script_path, config_file, job_dir=None, cont
     from nemo_run.config import set_nemorun_home
 
     set_nemorun_home(job_dir)
-    executor = run.SlurmExecutor(**slurm_config, tunnel=run.LocalTunnel(job_dir=""))
+    executor = run.SlurmExecutor(**slurm_config, tunnel=run.LocalTunnel())
     # @akoumparouli: uncomment once nemo-run updates its package.
     # with run.Experiment('exp_ts_', enable_goodbye_message=False) as exp:
     with run.Experiment("exp_ts_") as exp:
@@ -195,7 +195,7 @@ def main():
     config_path = args.config.resolve()
     config = load_yaml(config_path)
     repo_root = Path(__file__).parents[2]
-    script_path = Path(__file__).parents[1] / "recipes" / args.domain / f"{args.command}.py"
+    script_path = Path(__file__).parent / "recipes" / args.domain / f"{args.command}.py"
 
     if "slurm" in config:
         logger.info("Launching job via SLURM")

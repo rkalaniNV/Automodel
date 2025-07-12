@@ -14,7 +14,7 @@
 import shutil
 
 # Patch the script module
-import sys
+import sys, importlib
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -111,8 +111,16 @@ def test_launch_with_slurm(monkeypatch):
             Script=mock.MagicMock(),
         ),
     )
+    monkeypatch.setitem(
+        sys.modules,
+        "nemo_run.config",
+        mock.MagicMock(
+            job_dir='',
+        )
+    )
+    # def launch_with_slurm(slurm_config, script_path, config_file, job_dir=None, container_env={}):
 
-    module.launch_with_slurm(mock_slurm_config, mock_script, mock_config)
+    module.launch_with_slurm(mock_slurm_config, mock_script, mock_config, '')
 
 
 def test_main_single_node(monkeypatch, tmp_yaml_file):
@@ -120,7 +128,8 @@ def test_main_single_node(monkeypatch, tmp_yaml_file):
 
     monkeypatch.setattr("sys.argv", ["prog", "llm", "finetune", "-c", str(config_path)])
     monkeypatch.setattr(module, "load_yaml", lambda x: {})
-    monkeypatch.setattr(module, "determine_local_world_size", lambda **kwargs: 1)
+    import torch.distributed.run as thrun
+    monkeypatch.setattr(thrun, "determine_local_world_size", lambda **kwargs: 1)
 
     def dummy_main(config_path_arg):
         assert config_path_arg == config_path
@@ -140,7 +149,11 @@ def test_main_multi_node(monkeypatch, tmp_yaml_file):
     monkeypatch.setattr("sys.argv", ["prog", "llm", "finetune", "-c", str(config_path)])
 
     monkeypatch.setattr(module, "load_yaml", lambda x: {})
-    monkeypatch.setattr(module, "determine_local_world_size", lambda **kwargs: 4)
+    run_mod = importlib.import_module("torch.distributed.run")
+    monkeypatch.setattr(run_mod, "run", lambda *a, **kw: 0)
+    import torch.distributed.run as trn
+    monkeypatch.setattr(trn, "get_args_parser", lambda: argparse.Namespace(parse_args=lambda: DummyArgs()))
+    monkeypatch.setattr(trn, "determine_local_world_size", lambda **kwargs: 4)
 
     # Simulate torchrun parser and arguments
     class DummyArgs:
@@ -148,9 +161,6 @@ def test_main_multi_node(monkeypatch, tmp_yaml_file):
             self.training_script = None
             self.training_script_args = ["finetune", "--config", str(config_path)]
             self.nproc_per_node = None
-
-    monkeypatch.setattr(module, "get_args_parser", lambda: argparse.Namespace(parse_args=lambda: DummyArgs()))
-    monkeypatch.setattr(module, "thrun", lambda args: 0)
 
     # Dummy load_function and Path.parents
     monkeypatch.setattr(module, "load_function", lambda f, n: None)
