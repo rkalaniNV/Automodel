@@ -36,9 +36,9 @@ rng:
   ranked: true
 
 model:
-  _target_: nemo_automodel.components.NeMoAutoModelForImageTextToText.from_pretrained
+  _target_: nemo_automodel.NeMoAutoModelForImageTextToText.from_pretrained
   pretrained_model_name_or_path: Qwen/Qwen2.5-VL-3B-Instruct
-  
+
 processor:
   _target_: transformers.AutoProcessor.from_pretrained
   pretrained_model_name_or_path: Qwen/Qwen2.5-VL-3B-Instruct
@@ -71,7 +71,6 @@ dataloader:
   collate_fn:
     _target_: nemo_automodel.components.datasets.vlm.collate_fns.qwen2_5_collate_fn
 
-    
 optimizer:
   _target_: torch.optim.AdamW
   lr: 1e-5
