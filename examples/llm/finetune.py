@@ -13,24 +13,21 @@
 # limitations under the License.
 
 from __future__ import annotations
-
-from pathlib import Path
-
+import logging
+logger = logging.getLogger(__name__)
 from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
-from nemo_automodel.components.recipes.llm.finetune import FinetuneRecipeForNextTokenPrediction
+from nemo_automodel.recipes.llm.finetune import FinetuneRecipeForNextTokenPrediction
 
 
-def main(config_path=None):
+def main(default_config_path="examples/llm/llama_3_2_1b_hellaswag.yaml"):
     """Main entry point for the fine-tuning recipe.
 
-    Loads the configuration, sets up the trainer, and initiates the training loop.
+    Loads the configuration, sets up the recipe, and initiates the training loop.
     """
-    if config_path is None:
-        config_path = Path(__file__).parent.resolve() / "llama_3_2_1b_hellaswag.yaml"
-    cfg = parse_args_and_load_config(config_path)
-    trainer = FinetuneRecipeForNextTokenPrediction(cfg)
-    trainer.setup()
-    trainer.run_train_validation_loop()
+    cfg = parse_args_and_load_config(default_config_path)
+    recipe = FinetuneRecipeForNextTokenPrediction(cfg)
+    recipe.setup()
+    recipe.run_train_validation_loop()
 
 
 if __name__ == "__main__":

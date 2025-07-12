@@ -16,20 +16,19 @@ from __future__ import annotations
 
 import pathlib
 
-from nemo_automodel.components.components.config._arg_parser import parse_args_and_load_config
-from nemo_automodel.components.recipes.vlm.finetune import FinetuneRecipeForVLM
+from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
+from nemo_automodel.components.vlm.finetune import FinetuneRecipeForVLM
 
 
-def main():
+def main(config="examples/vlm/gemma_3_vl_4b_cord_v2.yaml"):
     """Main entry point for the fine-tuning recipe.
 
-    Loads the configuration, sets up the trainer, and initiates the training loop.
+    Loads the configuration, sets up the recipe, and initiates the training loop.
     """
-    script_path = pathlib.Path(__file__).parent.resolve()
-    cfg = parse_args_and_load_config(script_path / "gemma_3_vl_4b_cord_v2.yaml")
-    trainer = FinetuneRecipeForVLM(cfg)
-    trainer.setup()
-    trainer.run_train_validation_loop()
+    config_path, cfg = parse_args_and_load_config(config)
+    recipe = FinetuneRecipeForVLM(cfg)
+    recipe.setup()
+    recipe.run_train_validation_loop()
 
 
 if __name__ == "__main__":
