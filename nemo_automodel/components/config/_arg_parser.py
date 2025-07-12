@@ -17,12 +17,12 @@ import sys
 from nemo_automodel.components.config.loader import load_yaml_config, translate_value
 
 
-def parse_cli_argv(cfg_path=None):
+def parse_cli_argv(default_cfg_path=None):
     """
     Parses CLI args, pulls out --config and collects other --dotted.path options.
 
     Args:
-        cfg_path (str, optional): Default config (yaml) path. Defaults to None.
+        default_cfg_path (str, optional): Default config (yaml) path. Defaults to None.
 
     Raises:
         ValueError: if there's no --config and cfg_path = None
@@ -34,6 +34,7 @@ def parse_cli_argv(cfg_path=None):
     argv = sys.argv[1:]
     overrides = []
     i = 0
+    cfg_path = default_cfg_path
     while i < len(argv):
         tok = argv[i]
 
@@ -73,11 +74,12 @@ def parse_cli_argv(cfg_path=None):
     return cfg_path, overrides
 
 
-def parse_args_and_load_config(cfg_path=None):
+def parse_args_and_load_config(default_cfg_path=None):
     """
     Loads YAML, applies overrides via ConfigNode.set_by_dotted.
     """
-    cfg_path, overrides = parse_cli_argv(cfg_path)
+    cfg_path, overrides = parse_cli_argv(default_cfg_path)
+    print(f'cfg-path: {cfg_path}')
     # load the base YAML
     cfg = load_yaml_config(cfg_path)
 
