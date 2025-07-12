@@ -27,7 +27,7 @@ __all__ = [
 # to enable: `from nemo_automodel import NeMoAutoModelForCausalLM`
 try:
     # adjust this import path if your class lives somewhere else
-    from .components._transformers.auto_model import NeMoAutoModelForCausalLM, NeMoAutoModelForImageTextToText
+    from nemo_automodel.components._transformers.auto_model import NeMoAutoModelForCausalLM, NeMoAutoModelForImageTextToText
 
     globals()["NeMoAutoModelForCausalLM"] = NeMoAutoModelForCausalLM
     globals()["NeMoAutoModelForImageTextToText"] = NeMoAutoModelForImageTextToText
