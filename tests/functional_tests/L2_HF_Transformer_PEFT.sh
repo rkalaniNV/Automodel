@@ -22,7 +22,7 @@ recipes/llm/finetune.py \
   --validation_dataset.tokenizer.pretrained_model_name_or_path /home/TestData/akoumparouli/hf_mixtral_2l/ \
   --dataset.dataset_name /home/TestData/lite/hf_cache/squad/ \
   --dataset.limit_dataset_samples 10 \
-  --peft._target_ nemo_automodel._peft.lora.PeftConfig \
+  --peft._target_ nemo_automodel.components._peft.lora.PeftConfig \
   --peft.target_modules '*_proj' \
   --peft.dim 16 \
   --peft.alpha 32

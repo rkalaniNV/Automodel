@@ -14,7 +14,7 @@
 
 import pytest
 
-cli = __import__("nemo_automodel.config.cli", fromlist=["dummy"])
+cli = __import__("nemo_automodel.components.config.cli", fromlist=["dummy"])
 
 
 class DummyConfig:
