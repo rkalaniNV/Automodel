@@ -22,7 +22,7 @@ from pathlib import Path
 import torch
 import torch.distributed.checkpoint as dcp
 import torch.distributed.tensor
-from recipes.llm.finetune import FinetuneRecipeForNextTokenPrediction
+from nemo_automodel.recipes.llm.finetune import FinetuneRecipeForNextTokenPrediction
 from safetensors import safe_open
 
 from nemo_automodel.components.checkpoint._backports.hf_storage import _HuggingFaceStorageReader
