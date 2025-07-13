@@ -79,7 +79,7 @@ def parse_args_and_load_config(default_cfg_path=None):
     Loads YAML, applies overrides via ConfigNode.set_by_dotted.
     """
     cfg_path, overrides = parse_cli_argv(default_cfg_path)
-    print(f'cfg-path: {cfg_path}')
+    print(f"cfg-path: {cfg_path}")
     # load the base YAML
     cfg = load_yaml_config(cfg_path)
 
