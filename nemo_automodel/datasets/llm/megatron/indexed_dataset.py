@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# taken and modified from https://github.com/NVIDIA/Megatron-LM/blob/5e798111e60f45e82c336ef7b89d8d793c93208f/megatron/core/datasets/indexed_dataset.py
+
 """A self-contained port of Megatron-Core's indexed dataset loader.
 
 Supports the original mmap and file-pointer readers for local *.bin / *.idx
@@ -120,45 +122,6 @@ class DType(Enum):
             return numpy.uint16
         return numpy.int32
 
-def get_blend_from_list(
-    blend: Optional[List[str]],
-) -> Optional[Tuple[List[str], Optional[List[float]]]]:
-    """Get the megatron.core.datasets.blended_megatron_dataset_config.BlendedMegatronDatasetConfig blend from the blend list
-
-    Args:
-        blend (Optional[List[str]]): The blend list, which can be either (1) a list of prefixes, e.g. ["path/to/dataset_1_prefix", "path/to/dataset_2_prefix"], or (2) a flattened, zipped list of weights and prefixes, e.g. ["30", "path/to/dataset_1_prefix", "70", "path/to/dataset_2_prefix"]
-
-    Returns:
-        Optional[Tuple[List[str], Optional[List[float]]]]: The blend, consisting of a list of dataset prefixes and optionally a list of dataset weights, e.g. [["path/to/dataset_1_prefix", "path/to/dataset_2_prefix"], [30.0, 70.0]].
-    """
-    if blend is None:
-        return None
-
-    if len(blend) % 2 == 1:
-        weight_per_dataset = None
-        raw_prefix_per_dataset = blend
-    else:
-        raw_weight_per_dataset, raw_prefix_per_dataset = zip(
-            *[(blend[i], blend[i + 1]) for i in range(0, len(blend), 2)]
-        )
-
-        weight_per_dataset = []
-        for rwpd in raw_weight_per_dataset:
-            try:
-                weight = float(rwpd)
-            except ValueError:
-                weight = None
-            weight_per_dataset.append(weight)
-
-        is_none = map(lambda _: _ is None, weight_per_dataset)
-        if any(is_none):
-            assert all(is_none)
-            weight_per_dataset = None
-            raw_prefix_per_dataset = blend
-
-    prefix_per_dataset = [rppd.strip() for rppd in raw_prefix_per_dataset]
-
-    return prefix_per_dataset, weight_per_dataset
 
 class _IndexReader:
     """Object class to read the index (.idx) file
@@ -218,11 +181,10 @@ class _IndexReader:
                 self._buffer,
                 dtype=numpy.int8,
                 count=self.sequence_count,
-                offset=
-                    payload_offset
-                    + self.sequence_lengths.nbytes
-                    + self.sequence_pointers.nbytes
-                    + self.document_indices.nbytes,
+                offset=payload_offset
+                + self.sequence_lengths.nbytes
+                + self.sequence_pointers.nbytes
+                + self.document_indices.nbytes,
             )
 
         assert self.sequence_lengths.shape[0] == len(self)
@@ -371,9 +333,7 @@ class IndexedDataset(torch.utils.data.Dataset):
 
     def initialize(self, path_prefix: str, multimodal: bool, mmap: bool) -> None:
         idx_path, bin_path = get_idx_path(path_prefix), get_bin_path(path_prefix)
-        assert os.path.exists(idx_path) and os.path.exists(
-            bin_path
-        ), f"Missing .idx or .bin at prefix {path_prefix}"
+        assert os.path.exists(idx_path) and os.path.exists(bin_path), f"Missing .idx or .bin at prefix {path_prefix}"
 
         self.path_prefix = path_prefix
         self.multimodal = multimodal
@@ -435,9 +395,7 @@ class IndexedDataset(torch.utils.data.Dataset):
 
     @staticmethod
     def exists(path_prefix: str) -> bool:
-        return os.path.exists(get_idx_path(path_prefix)) and os.path.exists(
-            get_bin_path(path_prefix)
-        )
+        return os.path.exists(get_idx_path(path_prefix)) and os.path.exists(get_bin_path(path_prefix))
 
 
 def get_idx_path(path_prefix: str) -> str:
@@ -445,9 +403,10 @@ def get_idx_path(path_prefix: str) -> str:
 
 
 def get_bin_path(path_prefix: str) -> str:
-    return path_prefix + ".bin" 
+    return path_prefix + ".bin"
+
 
 def _normalize_prefix(path_prefix: str) -> str:
-    if path_prefix.endswith('.bin') or path_prefix.endswith('.idx'):
+    if path_prefix.endswith(".bin") or path_prefix.endswith(".idx"):
         return path_prefix[:-4]
     return path_prefix
