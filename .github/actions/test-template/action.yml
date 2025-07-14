@@ -153,7 +153,7 @@ runs:
           --shm-size=64g \
           --env TRANSFORMERS_OFFLINE=0 \
           --env HYDRA_FULL_ERROR=1 \
-          --env HF_HOME=/home/TestData/HF_HOME:ro \
+          --env HF_HOME=/home/TestData/HF_HOME \
           --env RUN_ID=${{ github.run_id }} \
           --volume $(pwd)/NeMo-Automodel:/workspace \
           --workdir /workspace \
