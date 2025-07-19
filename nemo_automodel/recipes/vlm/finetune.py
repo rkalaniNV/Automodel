@@ -51,6 +51,7 @@ from nemo_automodel.components.utils.dist_utils import (
     rescale_gradients,
 )
 from nemo_automodel.components.utils.model_utils import apply_parameter_freezing, print_trainable_parameters
+from nemo_automodel.recipes.base_recipe import BaseRecipe
 
 logger = logging.getLogger(__name__)
 

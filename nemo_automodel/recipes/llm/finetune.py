@@ -51,6 +51,7 @@ from nemo_automodel.components.utils.dist_utils import (
     reduce_loss,
     rescale_gradients,
 )
+from nemo_automodel.recipes.base_recipe import BaseRecipe
 
 logger = logging.getLogger(__name__)
 
