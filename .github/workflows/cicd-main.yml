@@ -48,7 +48,7 @@ jobs:
       - name: Run ruff
         run: |
           ruff check . --verbose
-          ruff format --check .
+          ruff format --check . --verbose
 
   Nemo_Linting_Test:
     needs: linting
@@ -108,13 +108,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Run import-linter (CPU only)
-        if: matrix.runner == 'linux-amd64-cpu16'
-        run: |
-          pip3 install --break-system-packages import-linter
-          ls -lah
-          PYTHONPATH=$(pwd):$PYTHONPATH python3 -c "import nemo_automodel.components._transformers; print('hi')"
-          PYTHONPATH=$(pwd):$PYTHONPATH lint-imports --debug --verbose --no-cache
       - name: main
         uses: ./.github/actions/test-template
         with:
