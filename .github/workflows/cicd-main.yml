@@ -114,7 +114,7 @@ jobs:
           python-version: "3.10"
       - name: Run import-linter
         run: |
-          pip install import-linter
+          pip3 install --break-system-packages import-linter
           ls -lah
           PYTHONPATH=$(pwd):$PYTHONPATH python3 -c "import nemo_automodel.components._transformers; print('hi')"
           PYTHONPATH=$(pwd):$PYTHONPATH lint-imports --debug --verbose --no-cache
