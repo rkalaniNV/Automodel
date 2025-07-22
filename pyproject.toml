@@ -107,6 +107,8 @@ linting = [
 ]
 test = ["coverage", "pytest", "peft"]
 nvfsdp = ["nvfsdp"]
+dev = ["cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git@87a86ab"]
+
 
 [tool.uv]
 default-groups = ["build", "docs", "test", "nvfsdp"]

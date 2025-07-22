@@ -86,7 +86,6 @@ main() {
     bash docker/common/install_conflicting_deps.sh
 
     # Install the package
-    uv pip install "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git@87a86ab"
     uv pip install --no-deps -e .
 
     # Write environment variables to a file for later sourcing
