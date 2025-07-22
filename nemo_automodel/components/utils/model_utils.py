@@ -16,10 +16,7 @@ import logging
 
 import torch.nn as nn
 
-from nemo_automodel.components.utils.dist_utils import get_rank_safe
-
 logger = logging.getLogger(__name__)
-
 
 def print_trainable_parameters(model):
     """Print the number of trainable parameters in the model.
@@ -35,12 +32,11 @@ def print_trainable_parameters(model):
         if param.requires_grad:
             trainable_params += param.numel()
 
-    if get_rank_safe() == 0:
-        print("--------------------------------")
-        print(f"Trainable parameters: {trainable_params:,}")
-        print(f"Total parameters: {all_param:,}")
-        print(f"Trainable parameters percentage: {100 * trainable_params / all_param:.2f}%")
-        print("--------------------------------")
+    logging.info("--------------------------------")
+    logging.info(f"Trainable parameters: {trainable_params:,}")
+    logging.info(f"Total parameters: {all_param:,}")
+    logging.info(f"Trainable parameters percentage: {100 * trainable_params / all_param:.2f}%")
+    logging.info("--------------------------------")
 
     return trainable_params, all_param
 
