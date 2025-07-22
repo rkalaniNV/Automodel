@@ -20,7 +20,7 @@ def test_import_linter():
     # Install import-linter if not available
     try:
         import importlinter  # noqa
-    except ImportError:
+    except ImportError, ModuleNotFoundError:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "--break-system-packages", "import-linter"])
 
     # Run the lint-imports command
@@ -30,6 +30,7 @@ def test_import_linter():
         capture_output=True,
         text=True
     )
+    print(result.stdout)
 
     assert result.returncode == 0, (
         f"Import linting failed (exit code {result.returncode}):\n"
