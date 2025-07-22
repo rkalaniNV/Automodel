@@ -149,7 +149,10 @@ select = [
     "E266", # too many leading '#' for block comment
     "I",    # isort
     "D101", # docstring
-    "D103",
+    "D103", # missing docstring in public function
+    "D417", # undocumented params in function
+    "ANN201", # missing return annotation in public function
+    "ANN001", # missing public function argument type annotation
 ]
 
 ignore = [

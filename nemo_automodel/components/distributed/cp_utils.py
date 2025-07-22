@@ -38,6 +38,7 @@ def get_train_context(enable_loss_parallel: bool, enable_compiled_autograd: bool
     Args:
         enable_loss_parallel (bool): Whether to enable loss parallelism.
         enable_compiled_autograd (bool): Whether to enable compiled autograd.
+        cp_context (ContextManager): The context manager for context parallel.
     """
 
     @contextlib.contextmanager
@@ -101,8 +102,10 @@ def make_cp_batch_and_ctx(device_mesh, batch, labels, loss_mask):
     of the context_parallel submesh is 1, this function is effectively a no-op.
 
     Args:
-        cp_mesh (DeviceMesh): The device mesh for context parallel.
+        device_mesh (DeviceMesh): The device mesh for distributed training.
         batch (Dict[str, torch.Tensor]): The input batch containing (string, torch.Tensor)
+        labels (torch.Tensor): The labels for the batch.
+        loss_mask (torch.Tensor): The loss mask for the batch.
 
     Returns:
         tuple (contextmanager, dict[str, torch.Tensor]): Returns a tuple with a context manager

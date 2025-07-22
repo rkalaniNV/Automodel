@@ -165,6 +165,7 @@ def nvfsdp_strategy_parallelize(
         model: The model to be parallelized.
         device_mesh (DeviceMesh): The device mesh describing the physical devices
             used for distributed training.
+        optimizer: The optimizer to be used for training.
         nvfsdp_unit_modules (Optional[List[str]]): Names of sub-modules that should
             become individual nvFSDP units. If None, the full model is wrapped as
             a single unit.

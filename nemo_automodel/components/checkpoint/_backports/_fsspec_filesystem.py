@@ -140,6 +140,8 @@ class FsspecWriter(FileSystemWriter):
             per_thread_copy_ahead: How many bytes to copy from the GPU ahead of saving then. Default 10Mb.
             overwrite: Whether to allow overwriting existing checkpoints. Defaults to True.
             _extensions: Extensions to apply to output streams (EXPERIMENTAL)
+            serialization_format: The format to use for serializing the checkpoint. Default to SerializationFormat.TORCH_SAVE.
+            kwargs: Additional keyword arguments to pass to the filesystem.
 
         N. B. If sync_files is disabled, there's no guarantee that the checkpoint will be consistent in the
         case of a failure.

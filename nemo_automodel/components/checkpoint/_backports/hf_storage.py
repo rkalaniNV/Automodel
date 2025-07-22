@@ -94,6 +94,7 @@ class _HuggingFaceStorageWriter(FsspecWriter):
                               Indices are from 1 to N, where N is the number of files. If not provided,
                               the tensors will be written to a single file. If none, then all the tensors on the
                               same rank will be written to the same file.
+            thread_count: Number of IO threads to use to consolidate the checkpoint. Default to 1.
             token: The token to use to authenticate with huggingface hub.
             save_sharded: If True, save the checkpoint as a sharded checkpoint where every rank saves its own shard.
                         Default is False which assumes full tensors are being saved.
@@ -392,14 +393,14 @@ def _extract_file_index(filename: str) -> int:
     return 1
 
 
-def get_fqn_to_file_index_mapping(
-    reference_model_path: str, key_mapping: Optional[dict[str, str]] = None
-) -> dict[str, int]:
+def get_fqn_to_file_index_mapping(reference_model_path: str, key_mapping: dict[str, str]) -> dict[str, int]:
     """
     Get the FQN to file index mapping from the metadata.
 
     Args:
         reference_model_path: Path to reference model to copy file structure from.
+        key_mapping: A mapping from tensor FQN to the index of the file that the tensor should be written to.
+                    Indices are from 1 to N, where N is the number of files.
 
     Returns:
         A mapping from tensor FQN to the index of the file that the tensor should be written to.
