@@ -1050,7 +1050,6 @@ name = "nemo-automodel"
 source = { editable = "." }
 dependencies = [
     { name = "bitsandbytes", marker = "platform_machine == 'x86_64' and sys_platform != 'darwin'" },
-    { name = "cut-cross-entropy" },
     { name = "datasets" },
     { name = "liger-kernel", marker = "platform_machine == 'x86_64' and sys_platform != 'darwin'" },
     { name = "pyyaml" },
@@ -1061,7 +1060,8 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-fa = [
+extra = [
+    { name = "cut-cross-entropy" },
     { name = "flash-attn" },
 ]
 vlm = [
@@ -1101,9 +1101,9 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "bitsandbytes", marker = "platform_machine == 'x86_64' and sys_platform != 'darwin'", specifier = "==0.45.5" },
-    { name = "cut-cross-entropy", git = "https://github.com/apple/ml-cross-entropy.git?rev=87a86ab" },
+    { name = "cut-cross-entropy", marker = "extra == 'extra'", git = "https://github.com/apple/ml-cross-entropy.git?rev=87a86ab" },
     { name = "datasets", specifier = "<4.0.0" },
-    { name = "flash-attn", marker = "extra == 'fa'" },
+    { name = "flash-attn", marker = "extra == 'extra'" },
     { name = "liger-kernel", marker = "platform_machine == 'x86_64' and sys_platform != 'darwin'", specifier = "==0.5.8" },
     { name = "pillow", marker = "extra == 'vlm'" },
     { name = "pyyaml" },
@@ -1115,7 +1115,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'vlm'", specifier = "==4.53.0" },
     { name = "wandb" },
 ]
-provides-extras = ["vlm", "fa"]
+provides-extras = ["vlm", "extra"]
 
 [package.metadata.requires-dev]
 build = [
