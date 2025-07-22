@@ -50,14 +50,6 @@ jobs:
           ruff check . --verbose
           ruff format --check .
 
-      - name: Import‑graph contract
-        run: |
-          pip install import-linter
-          ls -lah
-          PYTHONPATH=$(pwd):$PYTHONPATH python3 -c "import nemo_automodel.components._transformers; print('hi')"
-          PYTHONPATH=$(pwd):$PYTHONPATH lint-imports --debug --verbose --no-cache
-
-
   Nemo_Linting_Test:
     needs: linting
     runs-on: ubuntu-latest
@@ -116,6 +108,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Run import-linter
+        run: |
+          pip install import-linter
+          ls -lah
+          PYTHONPATH=$(pwd):$PYTHONPATH python3 -c "import nemo_automodel.components._transformers; print('hi')"
+          PYTHONPATH=$(pwd):$PYTHONPATH lint-imports --debug --verbose --no-cache
       - name: main
         uses: ./.github/actions/test-template
         with:
