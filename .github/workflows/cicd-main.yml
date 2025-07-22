@@ -54,7 +54,8 @@ jobs:
         run: |
           pip install import-linter
           ls -lah
-          PYTHONPATH=$(pwd) lint-imports --debug --verbose --no-cache
+          PYTHONPATH=$(pwd):$PYTHONPATH python3 -c "import nemo_automodel.components._transformers; print('hi')"
+          PYTHONPATH=$(pwd):$PYTHONPATH lint-imports --debug --verbose --no-cache
 
 
   Nemo_Linting_Test:
