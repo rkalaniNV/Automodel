@@ -31,7 +31,7 @@ from typing import Dict, Optional, Tuple
 import numpy
 import torch
 
-from nemo_automodel.datasets.llm.megatron.indexed_dataset import IndexedDataset
+from nemo_automodel.components.datasets.llm.megatron.indexed_dataset import IndexedDataset
 
 import json
 import hashlib

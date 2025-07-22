@@ -1,8 +1,13 @@
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional, Type, Union
 from pathlib import Path
-from nemo_automodel.datasets.llm.megatron.gpt_dataset import GPTDataset
+from nemo_automodel.components.datasets.llm.megatron.gpt_dataset import GPTDataset
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from megatron.core.datasets.utils import get_blend_from_list
+from megatron.core.datasets.megatron_dataset import MegatronDataset
+from nemo_automodel.components.datasets.llm.megatron.sampler import MegatronDataSampler
+from torch.utils import data
+
+from nemo.lightning.data import WrappedDataLoader
 
 class MegatronPretraining:
 
@@ -113,4 +118,122 @@ class MegatronPretraining:
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
             rampup_batch_size=rampup_batch_size,
+        )
+    
+
+    def build(
+        self,
+        trainer_max_steps: int,
+        trainer_val_check_interval: int,
+        trainer_limit_val_batches: Union[int, float],
+        trainer_limit_test_batches: Union[int, float],
+    ):
+        """
+        Build the datasets.
+        """
+        from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
+
+        train_iters = trainer_max_steps
+        assert train_iters > 0, f"max_steps {train_iters} should be greater than 0"
+        num_train_samples = int(train_iters * self.data_sampler.global_batch_size)
+
+        if self.num_train_samples is not None:
+            assert (
+                self.num_train_samples >= num_train_samples
+            ), f"num_train_samples must be greater than or equal to {num_train_samples}."
+            num_train_samples = self.num_train_samples
+            train_iters = int(num_train_samples / self.data_sampler.global_batch_size)
+
+        eval_iters = (train_iters // trainer_val_check_interval + 1) * trainer_limit_val_batches
+        num_val_samples = int(eval_iters * self.data_sampler.global_batch_size)
+
+        test_iters = trainer_limit_test_batches
+        num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
+
+        if self.num_val_samples is not None:
+            assert self.num_val_samples > num_val_samples, f"num_val_samples must be greater than {num_val_samples}."
+            num_val_samples = self.num_val_samples
+        if self.num_test_samples is not None:
+            assert (
+                self.num_test_samples > num_test_samples
+            ), f"num_test_samples must be greater than {num_test_samples}."
+            num_test_samples = self.num_test_samples
+
+        if (
+            trainer_limit_val_batches > 0.0
+            and trainer_limit_val_batches <= 1.0
+            and isinstance(trainer_limit_val_batches, float)
+        ):
+            assert "blend" not in self.build_kwargs, (
+                "When using a single data distribution, limit_val_batches <= 1.0 is not supported. If you'd "
+                "like to run with a fractional value of limit_val_batches, please pass in separate datasets for "
+                "the train, validation, and test datasets by providing a dictionary of paths, e.g.: \n"
+                "    paths={ \n "
+                "        'train': [PATHS FOR TRAIN], \n "
+                "        'validation': [PATHS FOR VALIDATION], \n "
+                "        'test' :[PATHS FOR TEST],  \n"
+                "    }"
+            )
+
+            # This is to make sure we only have one epoch on every validation iteration
+            num_val_samples = None
+
+        train_valid_test_num_samples = [num_train_samples, num_val_samples, num_test_samples]
+        self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
+            self.dataset_cls,
+            train_valid_test_num_samples,
+            is_built_on_rank=lambda: True,
+            config=self.gpt_dataset_config,
+        ).build()
+
+    def _create_dataloader(self, dataset, mode, **kwargs) -> WrappedDataLoader:
+        self.init_global_step = self.trainer.global_step
+        self.data_sampler.init_global_step = self.init_global_step
+        dataloader = WrappedDataLoader(
+            mode=mode,
+            dataset=dataset,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+            persistent_workers=self.persistent_workers,
+            collate_fn=getattr(dataset, "collate_fn", data.dataloader.default_collate),
+            **kwargs,
+        )
+        return dataloader
+        
+    def train_dataloader(self):
+        """
+        Get the train dataloader.
+        """
+        return self._create_dataloader(self._train_ds, mode="train")
+
+    def val_dataloader(self):
+        """
+        Get the validation dataloader.
+        """
+        return self._create_dataloader(self._validation_ds, mode="validation")
+
+    def test_dataloader(self):
+        """
+        Get the test dataloader.
+        """
+        return self._create_dataloader(self._test_ds, mode="test")
+    
+    @property
+    def gpt_dataset_config(self) -> "GPTDatasetConfig":
+        """
+        Get the GPT dataset configuration.
+        """
+        from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
+
+        return GPTDatasetConfig(
+            random_seed=self.seed,
+            sequence_length=self.seq_length,
+            tokenizer=self.tokenizer,
+            path_to_cache=self.index_mapping_dir,
+            reset_position_ids=self.reset_position_ids,
+            create_attention_mask=self.create_attention_mask,
+            reset_attention_mask=self.reset_attention_mask,
+            eod_mask_loss=self.eod_mask_loss,
+            num_dataset_builder_threads=self.num_dataset_builder_threads,
+            **self.build_kwargs,
         )
