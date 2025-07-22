@@ -74,6 +74,7 @@ main() {
     uv venv ${UV_PROJECT_ENVIRONMENT} $([[ "$BASE_IMAGE" == "pytorch" ]] && echo "--system-site-packages")
 
     # Install dependencies
+    uv add "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git@87a86ab"
     uv sync --locked --only-group build ${UV_ARGS[@]}
     uv sync \
         --link-mode copy \
