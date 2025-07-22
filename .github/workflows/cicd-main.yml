@@ -108,6 +108,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install lint-imports
+        run: |
+          pip3 install --break-system-packages import-linter
       - name: main
         uses: ./.github/actions/test-template
         with:

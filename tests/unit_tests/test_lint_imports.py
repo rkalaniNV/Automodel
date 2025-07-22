@@ -17,12 +17,6 @@ import sys
 
 def test_import_linter():
     """Test that import graph contracts are satisfied"""
-    # Install import-linter if not available
-    try:
-        import importlinter  # noqa
-    except (ImportError, ModuleNotFoundError):
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--break-system-packages", "import-linter"])
-
     # Run the lint-imports command
     result = subprocess.run(
         ["lint-imports", "--debug", "--verbose", "--no-cache"],
