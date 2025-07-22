@@ -18,6 +18,7 @@ import torch.nn as nn
 
 logger = logging.getLogger(__name__)
 
+
 def print_trainable_parameters(model):
     """Print the number of trainable parameters in the model.
 
