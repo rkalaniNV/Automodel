@@ -108,9 +108,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install lint-imports
-        run: |
-          pip3 install --break-system-packages import-linter
       - name: main
         uses: ./.github/actions/test-template
         with:
@@ -123,6 +120,9 @@ jobs:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           PAT: ${{ secrets.PAT }}
+          script: |
+            pip3 install --break-system-packages import-linter
+            PYTHONPATH=$(pwd) lint-imports --debug --verbose --no-cache
 
   cicd-e2e-tests:
     strategy:
