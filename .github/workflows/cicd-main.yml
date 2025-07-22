@@ -111,7 +111,10 @@ jobs:
       - name: main
         uses: ./.github/actions/test-template
         with:
-          script: ${{ matrix.script }}
+          script: |
+            ${{ matrix.script }}
+            pip3 install --break-system-packages import-linter
+            PYTHONPATH=$(pwd) lint-imports --debug --verbose --no-cache
           timeout: ${{ matrix.timeout || 10 }}
           is_unit_test: "true"
           cpu-only: ${{ matrix.cpu-only || false }}
@@ -120,9 +123,6 @@ jobs:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           PAT: ${{ secrets.PAT }}
-          script: |
-            pip3 install --break-system-packages import-linter
-            PYTHONPATH=$(pwd) lint-imports --debug --verbose --no-cache
 
   cicd-e2e-tests:
     strategy:
