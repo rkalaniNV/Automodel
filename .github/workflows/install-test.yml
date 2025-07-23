@@ -172,6 +172,8 @@ jobs:
         run: |
           . ./venv/bin/activate
           pip install import-linter
+          pip list
+
           lint-imports --debug --verbose --no-cache
 
   uv-test:
