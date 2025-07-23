@@ -219,8 +219,8 @@ jobs:
 
       - name: Run import-linter
         run: |
-          ./venv/bin/python pip install import-linter
-          ./venv/bin/python lint-imports --debug --verbose --no-cache
+          ./venv/bin/python -m pip install import-linter
+          ./venv/bin/python -m lint-imports --debug --verbose --no-cache
 
   install-test-summary:
     needs: [pip-test, uv-test, ngc-cuda-test-uv, ngc-cuda-test-pip]
