@@ -219,7 +219,7 @@ jobs:
 
       - name: Run import-linter
         run: |
-          pip3 install import-linter
+          uv pip install import-linter
           lint-imports --debug --verbose --no-cache
 
   install-test-summary:
