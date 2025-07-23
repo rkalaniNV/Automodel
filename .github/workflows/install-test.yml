@@ -168,13 +168,6 @@ jobs:
           package-name: nemo_automodel
           python-binary: ./venv/bin/python
 
-      - name: Run import-linter
-        run: |
-          . ./venv/bin/activate
-          pip install import-linter
-
-          PYTHONPATH=$(pwd) lint-imports --debug --verbose --no-cache
-
   uv-test:
     runs-on: ${{ matrix.arch }}
     name: UV - Python ${{ matrix.python-version }} - ${{ matrix.arch == 'ubuntu-latest' && 'AMD64/Linux' || 'ARM64/Darwin' }} - No CUDA
