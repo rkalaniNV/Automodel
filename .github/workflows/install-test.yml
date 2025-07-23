@@ -219,6 +219,10 @@ jobs:
 
       - name: Run import-linter
         run: |
+          export PATH="${UV_PROJECT_ENVIRONMENT}/bin/:$PATH"
+
+          uv venv ${UV_PROJECT_ENVIRONMENT} --system-site-packages
+
           uv pip install import-linter
           lint-imports --debug --verbose --no-cache
 
