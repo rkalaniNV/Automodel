@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 from pathlib import Path
 from nemo_automodel.components.datasets.llm.megatron.gpt_dataset import GPTDataset
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -254,8 +254,7 @@ class MegatronPretraining:
             state_dict: the datamodule state returned by ``state_dict``.
 
         """
-        try:
-            from megatron.core.num_microbatches_calculator import update_num_microbatches
+        from megatron.core.num_microbatches_calculator import update_num_microbatches
 
         consumed_samples = state_dict["consumed_samples"]
         self.data_sampler.init_consumed_samples = consumed_samples
