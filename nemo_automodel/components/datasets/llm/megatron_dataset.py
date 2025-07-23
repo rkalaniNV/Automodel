@@ -2,8 +2,7 @@ from typing import Dict, List, Optional, Type, Union
 from pathlib import Path
 from nemo_automodel.components.datasets.llm.megatron.gpt_dataset import GPTDataset
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from megatron.core.datasets.utils import get_blend_from_list
-from megatron.core.datasets.megatron_dataset import MegatronDataset
+from nemo_automodel.components.datasets.llm.megatron.megatron_utils import get_blend_from_list
 from nemo_automodel.components.datasets.llm.megatron.sampler import MegatronDataSampler
 from torch.utils import data
 
@@ -33,7 +32,7 @@ class MegatronPretraining:
         num_train_samples: Optional[int] = None,
         num_val_samples: Optional[int] = None,
         num_test_samples: Optional[int] = None,
-        dataset_cls: Type[MegatronDataset] = GPTDataset,
+        dataset_cls = GPTDataset,
     ) -> None:
         """Pretraining dataset class for Megatron-LM datasets.
         Args:
@@ -237,3 +236,33 @@ class MegatronPretraining:
             num_dataset_builder_threads=self.num_dataset_builder_threads,
             **self.build_kwargs,
         )
+    
+    def state_dict(self) -> Dict[str, Any]:
+        """Called when saving a checkpoint, implement to generate and save datamodule state.
+
+        Returns:
+            A dictionary containing datamodule state.
+
+        """
+        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
+        return {"consumed_samples": consumed_samples}
+
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
+
+        Args:
+            state_dict: the datamodule state returned by ``state_dict``.
+
+        """
+        try:
+            from megatron.core.num_microbatches_calculator import update_num_microbatches
+
+        consumed_samples = state_dict["consumed_samples"]
+        self.data_sampler.init_consumed_samples = consumed_samples
+        self.data_sampler.prev_consumed_samples = consumed_samples
+
+        update_num_microbatches(
+            consumed_samples=consumed_samples,
+            consistency_check=False,
+        )
+        self.data_sampler.if_first_step = 1
