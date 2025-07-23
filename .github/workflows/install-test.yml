@@ -217,6 +217,11 @@ jobs:
           package-name: nemo_automodel
           python-binary: ./venv/bin/python
 
+      - name: Run import-linter
+        run: |
+          pip3 install import-linter
+          lint-imports --debug --verbose --no-cache
+
   install-test-summary:
     needs: [pip-test, uv-test, ngc-cuda-test-uv, ngc-cuda-test-pip]
     runs-on: ubuntu-latest
