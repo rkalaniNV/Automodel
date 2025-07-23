@@ -219,12 +219,8 @@ jobs:
 
       - name: Run import-linter
         run: |
-          export PATH="${UV_PROJECT_ENVIRONMENT}/bin/:$PATH"
-
-          uv venv ${UV_PROJECT_ENVIRONMENT} --system-site-packages
-
-          uv pip install import-linter
-          lint-imports --debug --verbose --no-cache
+          ./venv/bin/python pip install import-linter
+          ./venv/bin/python lint-imports --debug --verbose --no-cache
 
   install-test-summary:
     needs: [pip-test, uv-test, ngc-cuda-test-uv, ngc-cuda-test-pip]
