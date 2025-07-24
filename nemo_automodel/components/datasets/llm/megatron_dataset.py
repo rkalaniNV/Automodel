@@ -112,12 +112,12 @@ class MegatronPretraining:
         self.num_test_samples = num_test_samples
 
         # self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
-        self.data_sampler = MegatronDataSampler(
-            seq_len=self.seq_length,
-            micro_batch_size=self.micro_batch_size,
-            global_batch_size=self.global_batch_size,
-            rampup_batch_size=rampup_batch_size,
-        )
+        # self.data_sampler = MegatronDataSampler(
+        #     seq_len=self.seq_length,
+        #     micro_batch_size=self.micro_batch_size,
+        #     global_batch_size=self.global_batch_size,
+        #     rampup_batch_size=rampup_batch_size,
+        # )
     
 
     def build(
@@ -130,24 +130,25 @@ class MegatronPretraining:
         """
         Build the datasets.
         """
-        from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
+        breakpoint()
+        from nemo_automodel.components.datasets.llm.megatron.builder import BlendedMegatronDatasetBuilder
 
         train_iters = trainer_max_steps
         assert train_iters > 0, f"max_steps {train_iters} should be greater than 0"
-        num_train_samples = int(train_iters * self.data_sampler.global_batch_size)
+        num_train_samples = int(train_iters * self.global_batch_size)
 
         if self.num_train_samples is not None:
             assert (
                 self.num_train_samples >= num_train_samples
             ), f"num_train_samples must be greater than or equal to {num_train_samples}."
             num_train_samples = self.num_train_samples
-            train_iters = int(num_train_samples / self.data_sampler.global_batch_size)
+            train_iters = int(num_train_samples / self.global_batch_size)
 
         eval_iters = (train_iters // trainer_val_check_interval + 1) * trainer_limit_val_batches
-        num_val_samples = int(eval_iters * self.data_sampler.global_batch_size)
+        num_val_samples = int(eval_iters * self.global_batch_size)
 
         test_iters = trainer_limit_test_batches
-        num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
+        num_test_samples = int(test_iters * self.global_batch_size)
 
         if self.num_val_samples is not None:
             assert self.num_val_samples > num_val_samples, f"num_val_samples must be greater than {num_val_samples}."
@@ -187,7 +188,7 @@ class MegatronPretraining:
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> WrappedDataLoader:
         self.init_global_step = self.trainer.global_step
-        self.data_sampler.init_global_step = self.init_global_step
+        # self.data_sampler.init_global_step = self.init_global_step
         dataloader = WrappedDataLoader(
             mode=mode,
             dataset=dataset,
@@ -236,32 +237,32 @@ class MegatronPretraining:
             num_dataset_builder_threads=self.num_dataset_builder_threads,
             **self.build_kwargs,
         )
-    
-    def state_dict(self) -> Dict[str, Any]:
-        """Called when saving a checkpoint, implement to generate and save datamodule state.
 
-        Returns:
-            A dictionary containing datamodule state.
+    # def state_dict(self) -> Dict[str, Any]:
+    #     """Called when saving a checkpoint, implement to generate and save datamodule state.
 
-        """
-        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
-        return {"consumed_samples": consumed_samples}
+    #     Returns:
+    #         A dictionary containing datamodule state.
 
-    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-        """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
+    #     """
+    #     consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
+    #     return {"consumed_samples": consumed_samples}
 
-        Args:
-            state_dict: the datamodule state returned by ``state_dict``.
+    # def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+    #     """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
 
-        """
-        from megatron.core.num_microbatches_calculator import update_num_microbatches
+    #     Args:
+    #         state_dict: the datamodule state returned by ``state_dict``.
 
-        consumed_samples = state_dict["consumed_samples"]
-        self.data_sampler.init_consumed_samples = consumed_samples
-        self.data_sampler.prev_consumed_samples = consumed_samples
+    #     """
+    #     from megatron.core.num_microbatches_calculator import update_num_microbatches
 
-        update_num_microbatches(
-            consumed_samples=consumed_samples,
-            consistency_check=False,
-        )
-        self.data_sampler.if_first_step = 1
+    #     consumed_samples = state_dict["consumed_samples"]
+    #     self.data_sampler.init_consumed_samples = consumed_samples
+    #     self.data_sampler.prev_consumed_samples = consumed_samples
+
+    #     update_num_microbatches(
+    #         consumed_samples=consumed_samples,
+    #         consistency_check=False,
+    #     )
+    #     self.data_sampler.if_first_step = 1
