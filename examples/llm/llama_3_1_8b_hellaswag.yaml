@@ -14,14 +14,14 @@
 
 
 # To run this recipe, please use the following command:
-# torchrun --nproc-per-node=8 recipes/llm/finetune.py --config recipes/llm/llama_3_2_1b_hellaswag.yaml
+# torchrun --nproc-per-node=8 recipes/llm/finetune.py --config recipes/llm/llama_3_2_1b_hellaswag_nvfsdp.yaml
 # Adjust --nproc-per-node to the number of GPUs available on your host machine.
 
 
 step_scheduler:
   grad_acc_steps: 4
-  ckpt_every_steps: 200
-  val_every_steps: 100  # will run every x number of gradient steps
+  ckpt_every_steps: 20
+  val_every_steps: 10  # will run every x number of gradient steps
   num_epochs: 1
 
 dist_env:
@@ -35,7 +35,7 @@ rng:
 
 model:
   _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
-  pretrained_model_name_or_path: meta-llama/Llama-3.2-1B
+  pretrained_model_name_or_path: meta-llama/Llama-3.1-8B-Instruct
 
 checkpoint:
   enabled: false
@@ -48,7 +48,6 @@ distributed:
   dp_size: none
   tp_size: 1
   cp_size: 1
-  sequence_parallel: false
 
 loss_fn:
   _target_: nemo_automodel.components.loss.masked_ce.MaskedCrossEntropy
@@ -89,8 +88,8 @@ optimizer:
   # min_lr: 1.0e-5
 
 # Uncomment and configure for W&B logging
-# wandb:
-#   project: <your_wandb_project>
-#   entity: <your_wandb_entity>
-#   name: <your_wandb_exp_name>
-#   dir: <your_wandb_dir>
+wandb:
+  project: automodel-benchmark-boxiangw
+  entity: nvidia
+  name: nemo-automodel-llama31-8b-hellaswag-fsdp2
+  dir: /lustre/fsw/portfolios/coreai/users/boxiangw/logs/
