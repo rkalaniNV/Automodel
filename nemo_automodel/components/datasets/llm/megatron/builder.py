@@ -1,229 +1,20 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 import logging
-import math
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Iterable, List, Optional, Type, Union, Dict, Tuple
+from typing import Any, Callable, Iterable, List, Optional, Type, Union
+from enum import Enum
 
 import numpy
 import torch
 
-from megatron.core.datasets.blended_megatron_dataset_config import BlendedMegatronDatasetConfig
-from megatron.core.datasets.megatron_dataset import LowLevelDataset, MegatronDataset
-from megatron.core.datasets.utils import Split
-from nemo_automodel.components.datasets.llm.megatron.gpt_dataset import _normalize
-from megatron.core.utils import log_single_rank
-from megatron.core.datasets import helpers
+from nemo_automodel.components.datasets.llm.megatron.gpt_dataset import _normalize, GPTDataset, GPTDatasetConfig
 
 logger = logging.getLogger(__name__)
 
-
-import hashlib
-import json
-import logging
-import os
-import time
-from collections import OrderedDict
-
-
-_VERBOSE = False
-
-
-class BlendedDataset(torch.utils.data.Dataset):
-    """Conjugating class for a set of MegatronDataset instances
-
-    Args:
-        datasets (List[MegatronDataset]): The MegatronDataset instances to blend
-
-        weights (List[Union[int, float]]): The weights that determine the dataset blend ratios
-
-        size (Optional[int]): The number of samples to draw from the blend. If None, for each
-            dataset index idx draw exactly weights[idx] samples from datasets[idx].
-
-        config (BlendedMegatronDatasetConfig): The config
-
-    Raises:
-        RuntimeError: When the dataset has fewer or more samples than 'size' post-initialization
-    """
-
-    def __init__(
-        self,
-        datasets: List[MegatronDataset],
-        weights: List[Union[int, float]],
-        size: Optional[int],
-        config: BlendedMegatronDatasetConfig,
-    ) -> None:
-        assert len(datasets) == len(weights)
-        assert len(datasets) < 32767
-        assert all(map(lambda _: type(_) == type(datasets[0]), datasets))
-        assert all(map(lambda _: _.index_split == datasets[0].index_split, datasets))
-        assert all(map(lambda _: _ > 0, weights))
-        assert all(map(lambda _: type(_) == type(weights[0]), weights))
-        if size is None and isinstance(weights[0], float):
-            assert all(map(lambda _: _ == int(_), weights))
-
-        # Alert user to unnecessary blending
-        if len(datasets) == 1:
-            log_single_rank(
-                logger, logging.WARNING, f"Building a BlendedDataset for a single MegatronDataset"
-            )
-
-        if size is not None:
-            weights = _normalize(weights)
-
-        self.datasets = datasets
-        self.split = self.datasets[0].index_split
-        self.weights = weights
-        self.size = size
-        self.config = config
-
-        unique_identifiers = OrderedDict()
-        unique_identifiers["class"] = type(self).__name__
-        unique_identifiers["datasets"] = [dataset.unique_identifiers for dataset in self.datasets]
-        unique_identifiers["split"] = self.split.name
-        unique_identifiers["weights"] = self.weights
-        unique_identifiers["size"] = self.size
-
-        self.unique_description = json.dumps(
-            unique_identifiers, indent=4, default=lambda obj: obj.unique_identifiers
-        )
-        self.unique_description_hash = hashlib.md5(
-            self.unique_description.encode("utf-8")
-        ).hexdigest()
-
-        self.dataset_index, self.dataset_sample_index = self._build_indices()
-
-    def __len__(self) -> int:
-        return self.dataset_index.shape[0]
-
-    def __getitem__(self, idx: int) -> Dict[str, Union[int, numpy.ndarray]]:
-        dataset_id = self.dataset_index[idx]
-        dataset_sample_id = self.dataset_sample_index[idx]
-        return {"dataset_id": dataset_id, **self.datasets[dataset_id][dataset_sample_id]}
-
-    def _build_indices(self) -> Tuple[numpy.ndarray, numpy.ndarray]:
-        """Build and optionally cache the dataset index and the dataset sample index
-
-        The dataset index is a 1-D mapping which determines the dataset to query. The dataset
-        sample index is a 1-D mapping which determines the sample to request from the queried
-        dataset.
-
-        Returns:
-            Tuple[numpy.ndarray, numpy.ndarray]: The dataset index and the dataset sample index
-        """
-        path_to_cache = self.config.path_to_cache
-
-        if path_to_cache:
-            get_path_to = lambda suffix: os.path.join(
-                path_to_cache,
-                f"{self.unique_description_hash}-{type(self).__name__}-{self.split.name}-{suffix}",
-            )
-            path_to_description = get_path_to("description.txt")
-            path_to_dataset_index = get_path_to("dataset_index.npy")
-            path_to_dataset_sample_index = get_path_to("dataset_sample_index.npy")
-            cache_hit = all(
-                map(
-                    os.path.isfile,
-                    [path_to_description, path_to_dataset_index, path_to_dataset_sample_index],
-                )
-            )
-        else:
-            cache_hit = False
-
-        if not path_to_cache or (not cache_hit and torch.distributed.get_rank() == 0):
-            log_single_rank(
-                logger, logging.INFO, f"Build and save the {type(self).__name__} indices"
-            )
-
-            # Build the dataset and dataset sample indexes
-            log_single_rank(
-                logger, logging.INFO, f"\tBuild and save the dataset and dataset sample indexes"
-            )
-            t_beg = time.time()
-
-            if self.size is not None:
-                dataset_index = numpy.zeros(self.size, dtype=numpy.int16)
-                dataset_sample_index = numpy.zeros(self.size, dtype=numpy.int64)
-                helpers.build_blending_indices(
-                    dataset_index,
-                    dataset_sample_index,
-                    self.weights,
-                    len(self.datasets),
-                    self.size,
-                    _VERBOSE,
-                )
-            else:
-                size = sum(self.weights)
-                dataset_index = numpy.zeros(size, dtype=numpy.int16)
-                dataset_sample_index = numpy.zeros(size, dtype=numpy.int64)
-                helpers.build_exhaustive_blending_indices(
-                    dataset_index, dataset_sample_index, self.weights, len(self.datasets)
-                )
-
-            dataset_indices, dataset_sizes = numpy.unique(dataset_index, return_counts=True)
-            for i, (_index, _size) in enumerate(zip(dataset_indices, dataset_sizes)):
-                if len(self.datasets[_index]) < _size:
-                    raise IndexError(
-                        f"The {self.split.name} blend oversamples the contributing datasets and, "
-                        f"for example, requests {_size} samples from "
-                        f"{type(self.datasets[_index]).__name__} number {i} in excess of its size "
-                        f"{len(self.datasets[_index])}. The current value of the config attribute "
-                        f"mid_level_dataset_surplus may be increased, e.g. two- or ten-fold, from "
-                        f"its current value ({self.config.mid_level_dataset_surplus}) to ensure a "
-                        f"sufficient mid-level dataset sample margin from which to draw."
-                    )
-
-            if path_to_cache:
-                os.makedirs(path_to_cache, exist_ok=True)
-                # Write the description
-                with open(path_to_description, "wt") as writer:
-                    writer.write(self.unique_description)
-                # Save the indexes
-                numpy.save(path_to_dataset_index, dataset_index, allow_pickle=True)
-                numpy.save(path_to_dataset_sample_index, dataset_sample_index, allow_pickle=True)
-            else:
-                log_single_rank(
-                    logger,
-                    logging.WARNING,
-                    f"Cannot save the {type(self).__name__} indexes because path_to_cache is None",
-                )
-
-            t_end = time.time()
-            log_single_rank(logger, logging.DEBUG, f"\t> time elapsed: {t_end - t_beg:4f} seconds")
-
-            return dataset_index, dataset_sample_index
-
-        log_single_rank(logger, logging.INFO, f"Load the {type(self).__name__} indices")
-
-        log_single_rank(
-            logger, logging.INFO, f"\tLoad the dataset index from {path_to_dataset_index}"
-        )
-        t_beg = time.time()
-        dataset_index = numpy.load(path_to_dataset_index, allow_pickle=True, mmap_mode='r')
-        t_end = time.time()
-        log_single_rank(logger, logging.DEBUG, f"\t> time elapsed: {t_end - t_beg:4f} seconds")
-
-        log_single_rank(
-            logger,
-            logging.INFO,
-            f"\tLoad the dataset sample index from {path_to_dataset_sample_index}",
-        )
-        t_beg = time.time()
-        dataset_sample_index = numpy.load(
-            path_to_dataset_sample_index, allow_pickle=True, mmap_mode='r'
-        )
-        t_end = time.time()
-        log_single_rank(logger, logging.DEBUG, f"\t> time elapsed: {t_end - t_beg:4f} seconds")
-
-        return dataset_index, dataset_sample_index
-
-MidLevelDataset = MegatronDataset
-
-TopLevelDataset = Union[BlendedDataset, MidLevelDataset]
-
-DistributedDataset = Union[
-    TopLevelDataset, MidLevelDataset, LowLevelDataset, torch.utils.data.Dataset
-]
+class Split(Enum):
+    train = 0
+    valid = 1
+    test = 2
 
 class BlendedMegatronDatasetBuilder:
     """Builder class for the BlendedDataset and MegatronDataset classes
@@ -242,35 +33,19 @@ class BlendedMegatronDatasetBuilder:
 
     def __init__(
         self,
-        cls: Type[MidLevelDataset],
-        sizes: List[int],
+        cls: GPTDataset,
+        sizes: list[int],
         is_built_on_rank: Callable,
-        config: BlendedMegatronDatasetConfig,
+        config: GPTDatasetConfig,
     ):
         self.cls = cls
         self.sizes = sizes
         self.is_built_on_rank = is_built_on_rank
         self.config = config
 
-        log_single_rank(
-            logger,
-            logging.INFO,
+        logger.info(
             f"Building {cls.__name__} splits with sizes={self.sizes} and config={self.config}",
         )
-
-        # if not self.config.mock:
-        #     for split in Split:
-        #         size_is_none = self.sizes[split.value] is None
-        #         if self.config.blend_per_split is None:
-        #             weights_are_none = self.config.blend[1] is None
-        #         else:
-        #             if self.config.blend_per_split[split.value] is None:
-        #                 continue
-        #             weights_are_none = self.config.blend_per_split[split.value][1] is None
-        #         if size_is_none:
-        #             assert (
-        #                 weights_are_none
-        #             ), f"size_is_none => weights_are_none fails for {split.name} split"
 
         if torch.distributed.is_initialized():
             gb_rank = torch.distributed.get_rank()
@@ -279,7 +54,7 @@ class BlendedMegatronDatasetBuilder:
                     self.is_built_on_rank()
                 ), "is_built_on_rank must return True when global rank = 0"
 
-    def build(self) -> List[Optional[TopLevelDataset]]:
+    def build(self) -> List[Optional[GPTDataset]]:
         """Build all dataset splits according to the provided blend(s)
 
         This method is distributed-aware and must be called on all ranks.
@@ -324,47 +99,23 @@ class BlendedMegatronDatasetBuilder:
                 - Build a top-level dataset with no excess mid-level dataset sampling
 
         Returns:
-            List[Optional[TopLevelDataset]]: A list containing a dataset instance (or None) per
+            List[Optional[GPTDataset]]: A list containing a dataset instance (or None) per
                 split
         """
-        datasets = self._build_blended_dataset_splits()
+        return self._build_blended_dataset_splits()
 
-        for dataset in datasets:
-            if dataset is not None and len(dataset) > 0:
-                if isinstance(dataset, BlendedDataset):
-                    assert dataset.size is None or dataset.size == len(dataset)
-                else:
-                    raise ValueError(f"Unknown dataset type: {type(dataset)}")
-
-        return datasets
-
-    def _build_blended_dataset_splits(self) -> List[Optional[TopLevelDataset]]:
+    def _build_blended_dataset_splits(self) -> List[Optional[GPTDataset]]:
         """Build all dataset splits according to the provided blend(s)
 
         See the BlendedMegatronDatasetBuilder.build alias for more information.
 
         Returns:
-            List[Optional[TopLevelDataset]]: A list containing a dataset instance (or None) per
+            List[Optional[GPTDataset]]: A list containing a dataset instance (or None) per
                 split
         """
-        ##
-        # Return fake "mock" datasets
-        ##
-        breakpoint()
-        if self.config.mock:
-            split = self.config.split_matrix
-            try:
-                return self._build_megatron_dataset_splits(None, split, self.sizes)
-            except Exception as error:
-                raise Exception(
-                    f"{self.cls.__name__} failed to build as a mock data generator"
-                ) from error
-
-        ##
-        # All splits come from the same distribution
-        ##
-        elif self.config.blend:
+        if self.config.blend:
             prefixes, weights = self.config.blend
+            assert len(prefixes) == 1, "Dataset blending not supported yet"
             if weights is not None:
                 weights = _normalize(weights)
 
@@ -373,220 +124,9 @@ class BlendedMegatronDatasetBuilder:
             # Blend consists of a single prefix
             if len(prefixes) == 1 and weights is None:
                 return self._build_megatron_dataset_splits(prefixes[0], split, self.sizes)
-
-            # Build the mid-level datasets
-            if weights is None:
-                # Build only one "epoch"
-                sizes_per_dataset_buffer = [[None for split in Split] for prefix in prefixes]
-            else:
-                # The number of samples we plan to use per dataset
-                sizes_per_dataset_target = _get_size_per_split_per_dataset(weights, self.sizes)
-                # The number of samples we plan to build per dataset
-                sizes_per_dataset_buffer = _get_size_per_split_per_dataset(
-                    weights, self.sizes, surplus=self.config.mid_level_dataset_surplus
-                )
-
-            # Build each dataset in parallel
-            megatron_datasets = self._build_megatron_datasets_parallel(
-                prefixes, split, sizes_per_dataset_buffer
-            )
-
-            # Build the top-level datasets
-            blended_datasets = [None] * len(Split)
-            for i in range(len(Split)):
-                if split[i] is not None:
-                    weights_i = weights
-                    if weights_i is not None and self.sizes[i] is not None:
-                        # Blend according to client-specified weights and client-specified size
-                        size_per_dataset = list(zip(*sizes_per_dataset_target))[i]
-                        size_i = sum(size_per_dataset)
-                    elif weights_i is None:
-                        # Blend according to dataset sizes as-is and (maybe) client-specified size
-                        try:
-                            weights_i = [
-                                len(megatron_dataset) for megatron_dataset in megatron_datasets[i]
-                            ]
-                        except TypeError:
-                            weights_i = [0 for _ in prefixes]
-                        if self.sizes[i] is not None:
-                            size_i = min(self.sizes[i], sum(weights_i))
-                        else:
-                            # Build exhaustive indices
-                            size_i = None
-                    else:
-                        raise ValueError(
-                            "Using client-specified weights requires client-specified size"
-                        )
-                    blended_datasets[i] = self.build_generic_dataset(
-                        BlendedDataset,
-                        self.is_built_on_rank,
-                        True,  # synchronize_ranks, default behavior to build on rank-0 first
-                        megatron_datasets[i],
-                        weights_i,
-                        size_i,
-                        self.config,
-                    )
-
-            return blended_datasets
-
-        ##
-        # Each split comes from a separate distribution
-        ##
         else:
-            blended_datasets = [None] * len(Split)
-            for i in range(len(Split)):
-                split_spoof = [None] * len(Split)
-                split_spoof[i] = (0.0, 1.0)
-                sizes_spoof = [0] * len(Split)
-                sizes_spoof[i] = self.sizes[i]
-
-                # Blend is provided for the split
-                blend = self.config.blend_per_split[i]
-                if blend is not None:
-                    prefixes, weights = blend
-                    if weights is not None:
-                        weights = _normalize(weights)
-
-                    # Blend consists of a sigle prefix
-                    if len(prefixes) == 1:
-                        blended_datasets[i] = self._build_megatron_dataset_splits(
-                            prefixes[0], split_spoof, sizes_spoof
-                        )[i]
-                        continue
-
-                    # Build mid-level datasets
-                    if weights is None:
-                        sizes_per_dataset_buffer = [
-                            [None for split in Split] for prefix in prefixes
-                        ]
-                    else:
-                        # The number of samples we plan to use per dataset
-                        sizes_per_dataset_target = _get_size_per_split_per_dataset(
-                            weights, sizes_spoof
-                        )
-                        # The number of samples we plan to build per dataset
-                        sizes_per_dataset_buffer = _get_size_per_split_per_dataset(
-                            weights, sizes_spoof, surplus=self.config.mid_level_dataset_surplus
-                        )
-
-                    # Build each dataset in parallel
-                    megatron_datasets = self._build_megatron_datasets_parallel(
-                        prefixes, split_spoof, sizes_per_dataset_buffer
-                    )[i]
-
-                    # Build top-level dataset
-                    if weights is not None and self.sizes[i] is not None:
-                        # Blend according to client-specified weights and client-specified size
-                        size_per_dataset = list(zip(*sizes_per_dataset_target))[i]
-                        size = sum(size_per_dataset)
-                    elif weights is None:
-                        # Blend according to dataset sizes as-is and (maybe) client-specified size
-                        try:
-                            weights = [
-                                len(megatron_dataset) for megatron_dataset in megatron_datasets
-                            ]
-                        except TypeError:
-                            weights = [0 for _ in prefixes]
-                        if self.sizes[i] is not None:
-                            size = min(self.sizes[i], sum(weights))
-                        else:
-                            # Build exhaustive indices
-                            size = None
-                    else:
-                        raise RuntimeError
-                    blended_datasets[i] = self.build_generic_dataset(
-                        BlendedDataset,
-                        self.is_built_on_rank,
-                        True,  # synchronize_ranks, default behavior to build on rank-0 first
-                        megatron_datasets,
-                        weights,
-                        size,
-                        self.config,
-                    )
-
-            return blended_datasets
-
-    def _build_megatron_datasets_parallel(
-        self, prefixes: List[str], split: List[float], sizes_per_dataset: List[List[int]]
-    ) -> List[List[Optional[MegatronDataset]]]:
-        """Build the megatron datasets for a list of prefixes in parallel
-
-        Args:
-            prefixes (List[str]): The list of prefix strings
-
-            split (List[float]): The dataset split ratios (must sum to 1.00)
-
-            sizes_per_dataset (List[List[int]]): The number of samples to request
-            per MegatronDataset per spilt
-
-        Returns:
-            List[List[Optional[MegatronDataset]]]: For each split, have a list of
-            MegatronDataset per prefix
-        """
-
-        # Helper function to wrap the threading logic
-        def _threading_helper(
-            megatron_datasets: List[List[Optional[MegatronDataset]]],
-            num_workers: int,
-            prefixes: List[str],
-            split: List[float],
-            sizes_per_dataset: List[List[int]],
-        ) -> None:
-            with ThreadPoolExecutor(max_workers=num_workers) as executor:
-                all_futures = []
-                for i in range(len(prefixes)):
-                    all_futures.append(
-                        executor.submit(
-                            self._build_megatron_dataset_splits,
-                            prefixes[i],
-                            split,
-                            sizes_per_dataset[i],
-                            False,  # synchronize_ranks, barrier is called in this function
-                        )
-                    )
-                for future in all_futures:
-                    try:
-                        megatron_datasets_split = future.result()
-                        for j in range(len(megatron_datasets_split)):
-                            megatron_datasets[j].append(megatron_datasets_split[j])
-                    except Exception as err:
-                        raise err
-
-        megatron_datasets = [[] for _ in range(len(Split))]
-        num_dataset_builder_threads = self.config.num_dataset_builder_threads
-
-        if torch.distributed.is_initialized():
-            rank = torch.distributed.get_rank()
-            # First, build on rank 0
-            if rank == 0:
-                num_workers = num_dataset_builder_threads
-                if num_workers > 1:
-                    # since only rank 0 is running, scale up the thread count
-                    # but not too much to avoid overloading storage on miss path.
-                    # if user set num_dataset_builder_threads to 1,
-                    # i.e. meant for serial build, do not scale up.
-                    num_workers *= min(2, max(1, torch.cuda.device_count()))
-                _threading_helper(
-                    megatron_datasets, num_workers, prefixes, split, sizes_per_dataset
-                )
-
-            torch.distributed.barrier()
-
-            # Then, build on other ranks; guaranteed to be data_cache hit
-            if rank != 0:
-                _threading_helper(
-                    megatron_datasets,
-                    num_dataset_builder_threads,
-                    prefixes,
-                    split,
-                    sizes_per_dataset,
-                )
-        else:
-            _threading_helper(
-                megatron_datasets, num_dataset_builder_threads, prefixes, split, sizes_per_dataset
-            )
-
-        return megatron_datasets
+            # missing blend error
+            raise ValueError("Missing blend in config")
 
     def _build_megatron_dataset_splits(
         self,
@@ -594,7 +134,7 @@ class BlendedMegatronDatasetBuilder:
         split: List[float],
         sizes: List[int],
         synchronize_ranks: bool = True,
-    ) -> List[Optional[MidLevelDataset]]:
+    ) -> List[Optional["MidLevelDataset"]]:
         """Build each MidLevelDataset split from a single LowLevelDataset
 
         Args:
@@ -656,11 +196,11 @@ class BlendedMegatronDatasetBuilder:
 
     @staticmethod
     def build_generic_dataset(
-        cls: Union[Type[DistributedDataset], Callable],
+        cls: Union[Type["DistributedDataset"], Callable],
         is_built_on_rank: Callable,
         synchronize_ranks: bool,
         *args: Any,
-    ) -> Optional[Union[DistributedDataset, Iterable]]:
+    ) -> Optional[Union["DistributedDataset", Iterable]]:
         """Build the DistributedDataset
 
         Return None if and only if the underlying dataset class is not built on the current rank
@@ -713,32 +253,3 @@ class BlendedMegatronDatasetBuilder:
 
         return cls(*args)
 
-
-def _get_size_per_split_per_dataset(
-    _normalized_weights: List[float], target_size_per_split: List[int], surplus: float = 0.0
-) -> List[List[int]]:
-    """Determine the contribution of the MegatronDataset splits to the BlendedDataset splits
-
-    Args:
-        _normalized_weights (List[float]): e.g. [0.3, 0.7]
-
-        target_size_per_split (List[int]): The number of samples to target for each BlendedDataset
-            split
-
-        surplus (float): The sample surplus to build per split per dataset
-
-    Returns:
-        List[List[int]]: The number of samples to request per MegatronDataset per split
-    """
-    assert numpy.isclose(sum(_normalized_weights), 1.0)
-
-    # Use margin as buffer to ensure we satiate the request
-    sizes_per_dataset = [
-        [
-            int(math.ceil(math.ceil(target_size * weight) * (1 + surplus)))
-            for target_size in target_size_per_split
-        ]
-        for weight in _normalized_weights
-    ]
-
-    return sizes_per_dataset

@@ -18,10 +18,6 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Optional, Tuple
-
-# need to remove
-from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer
-
 import logging
 import os
 import time
@@ -36,6 +32,7 @@ from nemo_automodel.components.datasets.llm.megatron.indexed_dataset import Inde
 import json
 import hashlib
 from collections import OrderedDict
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 # taken and modified from https://github.com/NVIDIA/Megatron-LM/blob/5e798111e60f45e82c336ef7b89d8d793c93208f/megatron/core/datasets/gpt_dataset.py
 logger = logging.getLogger(__name__)
@@ -97,8 +94,8 @@ class BlendedMegatronDatasetConfig:
        constructor.
     """
 
-    tokenizer: Optional[MegatronTokenizer] = None
-    """The MegatronTokenizer instance. Required for datasets that do online tokenization."""
+    tokenizer: Optional[PreTrainedTokenizerBase] = None
+    """The PreTrainedTokenizerBase instance. Required for datasets that do online tokenization."""
 
     mid_level_dataset_surplus: float = 0.005
     """The sample surplus to build for the mid-level datasets(s). Defaults arbitrarily to 0.005.
@@ -138,6 +135,44 @@ class BlendedMegatronDatasetConfig:
             self.split_matrix = convert_split_vector_to_split_matrix(split_vector)
             logger.info(f"Let split_matrix = {self.split_matrix}")
 
+@dataclass
+class GPTDatasetConfig(BlendedMegatronDatasetConfig):
+    """Configuration object for Megatron Core GPT datasets"""
+
+    reset_position_ids: Optional[bool] = None
+    """Option to reset the position IDs in the dataset at an interval"""
+
+    reset_attention_mask: Optional[bool] = None
+    """Option to reset the attention mask from the dataset"""
+
+    eod_mask_loss: Optional[bool] = None
+    """Option to enable the EOD mask loss"""
+
+    create_attention_mask: bool = True
+    """Option to enable the attention masks generation. Can be disabled if attention kernel
+       generates masks by itself.
+    """
+
+    drop_last_partial_validation_sequence: bool = True
+    """Option to drop the last partial validation sequence"""
+
+    add_extra_token_to_sequence: bool = True
+    """Option to draw sequences with one extra token to ensure the sample input tokens and sample
+       output tokens are both of the desired sequence length
+    """
+
+    object_storage_cache_path: Optional[str] = None
+    """Path for caching indices for s3 or msc dataloading."""
+
+    def __post_init__(self) -> None:
+        """Do asserts and set fields post init"""
+        super().__post_init__()
+
+        assert self.tokenizer is not None
+
+        assert self.reset_position_ids is not None
+        assert self.reset_attention_mask is not None
+        assert self.eod_mask_loss is not None
 
 def parse_and_normalize_split(split: str) -> List[float]:
     """Parse the dataset split ratios from a string
@@ -205,46 +240,6 @@ def convert_split_vector_to_split_matrix(
     return matrix
 
 
-@dataclass
-class GPTDatasetConfig(BlendedMegatronDatasetConfig):
-    """Configuration object for Megatron Core GPT datasets"""
-
-    reset_position_ids: Optional[bool] = None
-    """Option to reset the position IDs in the dataset at an interval"""
-
-    reset_attention_mask: Optional[bool] = None
-    """Option to reset the attention mask from the dataset"""
-
-    eod_mask_loss: Optional[bool] = None
-    """Option to enable the EOD mask loss"""
-
-    create_attention_mask: bool = True
-    """Option to enable the attention masks generation. Can be disabled if attention kernel
-       generates masks by itself.
-    """
-
-    drop_last_partial_validation_sequence: bool = True
-    """Option to drop the last partial validation sequence"""
-
-    add_extra_token_to_sequence: bool = True
-    """Option to draw sequences with one extra token to ensure the sample input tokens and sample
-       output tokens are both of the desired sequence length
-    """
-
-    object_storage_cache_path: Optional[str] = None
-    """Path for caching indices for s3 or msc dataloading."""
-
-    def __post_init__(self) -> None:
-        """Do asserts and set fields post init"""
-        super().__post_init__()
-
-        assert self.tokenizer is not None
-
-        assert self.reset_position_ids is not None
-        assert self.reset_attention_mask is not None
-        assert self.eod_mask_loss is not None
-
-
 class GPTDataset(torch.utils.data.Dataset):
     """The base GPT dataset
 
@@ -285,6 +280,7 @@ class GPTDataset(torch.utils.data.Dataset):
         self.unique_identifiers["dataset_path"] = self.dataset_path
         self.unique_identifiers["num_samples"] = self.num_samples
         self.unique_identifiers["index_split"] = self.index_split.name
+        self.unique_identifiers["tokenizer"] = self.config.tokenizer.name_or_path
         for attr in self._key_config_attributes():
             self.unique_identifiers[attr] = getattr(self.config, attr)
 
@@ -305,7 +301,7 @@ class GPTDataset(torch.utils.data.Dataset):
         self.cached_position_ids = None
 
         try:
-            self._pad_token_id = self.config.tokenizer.pad
+            self._pad_token_id = self.config.tokenizer.pad_token_id
         except Exception:
             self._pad_token_id = _PAD_TOKEN_ID
 
@@ -321,7 +317,7 @@ class GPTDataset(torch.utils.data.Dataset):
         Returns:
             List[str]: The key config attributes
         """
-        return ["random_seed", "sequence_length", "split", "split_matrix", "tokenizer"]
+        return ["random_seed", "sequence_length", "split", "split_matrix"]
 
     @staticmethod
     def numel_low_level_dataset(low_level_dataset: IndexedDataset) -> int:
@@ -387,7 +383,8 @@ class GPTDataset(torch.utils.data.Dataset):
         if not self.masks_and_position_ids_are_cacheable or not self.masks_and_position_ids_are_cached:
             attention_mask, loss_mask, position_ids = _get_ltor_masks_and_position_ids(
                 tokens,
-                self.config.tokenizer.eod,
+                # eod loss mask is not supported for now
+                -10000,
                 self.config.reset_position_ids,
                 self.config.reset_attention_mask,
                 self.config.eod_mask_loss,
@@ -416,7 +413,7 @@ class GPTDataset(torch.utils.data.Dataset):
 
         if self.config.create_attention_mask:
             return {
-                "tokens": tokens,
+                "input_ids": tokens,
                 "labels": labels,
                 "attention_mask": attention_mask,
                 "loss_mask": loss_mask,
@@ -424,7 +421,7 @@ class GPTDataset(torch.utils.data.Dataset):
             }
         else:
             return {
-                "tokens": tokens,
+                "input_ids": tokens,
                 "labels": labels,
                 "loss_mask": loss_mask,
                 "position_ids": position_ids,
@@ -666,6 +663,7 @@ class GPTDataset(torch.utils.data.Dataset):
         logger.info(f"> total number of samples: {sample_index.shape[0] - 1}")
 
         return document_index, sample_index, shuffle_index
+
 
     def _get_num_tokens_per_epoch(self) -> int:
         """Calculate the number of tokens in a single epoch
