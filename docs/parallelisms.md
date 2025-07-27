@@ -6,8 +6,9 @@ NeMo AutoModel supports various data-parallel and model-parallel deep learning w
 
 | Technique           | Scope               | Memory Savings | Communication Cost | Best For                          |
 |---------------------|---------------------|----------------|--------------------|-----------------------------------|
-| **DDP**            | Entire model        | Low            | Moderate           | Small to medium models            |
+| **DDP**            | Entire model        | None            | Moderate           | Small to medium models            |
 | **FSDP2**          | Entire model        | High           | High               | Large memory-constrained models   |
+| **NVFSDP**         | Entire model        | Highest        | Moderate           | Large memory-constrained models   |
 | **Tensor**         | Layer parameters    | High           | Moderate           | Memory-intensive layers           |
 | **Sequence**       | Activations         | High           | Moderate           | Long sequence lengths             |
 | **Context**        | All activations     | Highest        | High               | Extreme sequence length scenarios |
@@ -58,6 +59,38 @@ distributed:
     cp_size: 4  # uses context-parallel = 2
     sequence_parallel: true  # enables sequence parallelism
 ```
+
+## NVIDIA Fully Sharded Data Parallel (nvFSDP)
+
+`nvFSDP` is an NVIDIA-optimized evolution of the standard FSDP algorithm.
+It keeps the familiar *full sharding* semantics (parameters **and** optimizer
+state are partitioned) while leveraging asynchronous collectives and optional double-buffering to achieve higher throughput on
+modern NVIDIA GPUs.
+
+Key characteristics:
+
+* **Maximum memory savings** - identical to FSDP2 but with better overlap
+* Fused NCCL collectives, optional *nccl-ub* user-buffer path
+* Optional double-buffering (`fsdp_double_buffer`) to overlap communication & compute
+* Works seamlessly with **Tensor** and **Context** parallel meshes
+* **Sequence Parallelism is currently *not* supported** - keep `sequence_parallel: false`
+
+### Complete example
+```yaml
+distributed:
+    _target_: nemo_automodel.components.distributed.nvfsdp.NVFSDPManager   # uses nvFSDP
+    dp_size: 8
+    tp_size: 4
+    cp_size: 1
+
+    # nvFSDP-specific knobs
+    data_parallel_sharding_strategy: optim_grads_params   # shard params, grads & optim
+    overlap_grad_reduce: true
+    fsdp_double_buffer: true
+```
+
+> ℹ️  `NVFSDPManager` expects `torch.distributed` to be **already** initialised
+> &nbsp;&nbsp;(e.g. via `torchrun --nproc_per_node=$NUM_GPUS script.py`).
 
 <!-- 
 ### Distributed Data Parallelism
@@ -184,10 +217,10 @@ The optimal configuration depends on your specific model architecture, hardware 
 ## Implementation Guidance
 ### Recommended Approach
 1. Start with DDP for models <7B parameters
-2. Use FSDP2 when encountering memory limits
-3. Add tensor parallelism for memory-intensive layers
-4. Enable sequence parallelism for long sequences
-<!-- 4. Implement pipeline parallelism for very deep models -->
+2. Switch to **FSDP2** for 7-30B models or when you first hit memory limits
+3. Move to **nvFSDP** for >30B models or when maximising throughput on NVIDIA GPUs
+4. Add **Tensor Parallelism** to scale compute or further reduce memory
+5. Enable **Sequence** or **Context Parallelism** for extremely long sequences
 
 ### Troubleshooting Tips
 | Issue                     | Likely Fix                                     |
