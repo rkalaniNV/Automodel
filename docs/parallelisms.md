@@ -89,9 +89,6 @@ distributed:
     fsdp_double_buffer: true
 ```
 
-> ℹ️  `NVFSDPManager` expects `torch.distributed` to be **already** initialised
-> &nbsp;&nbsp;(e.g. via `torchrun --nproc_per_node=$NUM_GPUS script.py`).
-
 <!-- 
 ### Distributed Data Parallelism
 
