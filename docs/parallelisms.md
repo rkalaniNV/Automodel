@@ -217,10 +217,9 @@ The optimal configuration depends on your specific model architecture, hardware 
 ## Implementation Guidance
 ### Recommended Approach
 1. Start with DDP for models <7B parameters
-2. Switch to **FSDP2** for 7-30B models or when you first hit memory limits
-3. Move to **nvFSDP** for >30B models or when maximising throughput on NVIDIA GPUs
-4. Add **Tensor Parallelism** to scale compute or further reduce memory
-5. Enable **Sequence** or **Context Parallelism** for extremely long sequences
+2. Switch to **FSDP2**/**nvFSDP** for 7-30B models or when you first hit memory limits
+3. Add **Tensor Parallelism** to scale compute or further reduce memory
+4. Enable **Sequence** or **Context Parallelism** for extremely long sequences
 
 ### Troubleshooting Tips
 | Issue                     | Likely Fix                                     |
