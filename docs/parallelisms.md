@@ -206,20 +206,14 @@ Adjust `N` to the needed context parallel size, default: 1 (no context parallel 
 
 When configuring parallel strategies in NeMo AutoModel:
 
-1. Start with data parallelism (DDP or FSDP2) for basic scaling
-2. Add tensor parallelism for memory-intensive models
-3. Consider activation partitioning techniques for large sequences
+1. Start with data parallelism (DDP, FSDP2, nvFSDP) for basic scaling
+2. Add **Tensor Parallelism** to scale compute or further reduce memory
+3. Enable **Sequence** or **Context Parallelism** for extremely long sequences
+4. Consider activation partitioning techniques for large sequences
 <!-- 4. Use pipeline parallelism for models with many layers -->
 <!-- 5. For MoE models, configure expert parallelism appropriately -->
 
 The optimal configuration depends on your specific model architecture, hardware setup, and performance requirements. NeMo AutoModel provides flexible configuration options to tune these parameters for your use case.
-
-## Implementation Guidance
-### Recommended Approach
-1. Start with DDP for models <7B parameters
-2. Switch to **FSDP2**/**nvFSDP** for 7-30B models or when you first hit memory limits
-3. Add **Tensor Parallelism** to scale compute or further reduce memory
-4. Enable **Sequence** or **Context Parallelism** for extremely long sequences
 
 ### Troubleshooting Tips
 | Issue                     | Likely Fix                                     |
