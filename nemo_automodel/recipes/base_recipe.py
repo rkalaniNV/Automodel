@@ -142,16 +142,12 @@ class BaseRecipe:
 
             if isinstance(obj, nn.Module):
                 model = obj
-                continue
-            if isinstance(obj, Optimizer):
+            elif isinstance(obj, Optimizer):
                 optimizer = obj
-                continue
-            if is_lr_scheduler(obj):
+            elif is_lr_scheduler(obj):
                 scheduler = obj
-                continue
-            if is_tokenizer(obj):
+            elif is_tokenizer(obj):
                 tokenizer = obj
-                continue
 
             # ---- General stateful components (incl. DataLoaders) ----
             rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
