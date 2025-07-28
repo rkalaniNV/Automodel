@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Optional
 
 import torch.distributed as dist
 from torch.distributed.device_mesh import init_device_mesh
@@ -194,10 +194,7 @@ class NVFSDPManager:
         """
         if self.zero_dp_strategy != 3:
             if self.device_mesh.get_rank() == 0:
-                print(
-                    "Warning: nvFSDP zero_dp_strategy != 3. "
-                    "Parameters will not be sharded."
-                )
+                print("Warning: nvFSDP zero_dp_strategy != 3. Parameters will not be sharded.")
 
         if self.device_mesh["tensor_parallel"].size() > 1:
             if use_hf_tp_plan:
