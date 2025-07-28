@@ -41,9 +41,9 @@ from nemo_automodel.components.checkpoint.stateful_wrappers import (
 
 if TYPE_CHECKING:
     from peft import PeftConfig
+    from torch.utils.data import IterableDataset
     from torchdata.stateful_dataloader import StatefulDataLoader
     from transformers.tokenization_utils import PreTrainedTokenizerBase
-    from torch.utils.data import IterableDataset
 
 
 @dataclass
@@ -262,7 +262,11 @@ def load_optimizer(
     optimizer_state.load_state_dict(reinstated_state_dict)
 
 
-def save_dataloader(dataloader: "StatefulDataLoader | IterableDataset", path: str, device_mesh: Optional[torch.distributed.DeviceMesh] = None):
+def save_dataloader(
+    dataloader: "StatefulDataLoader | IterableDataset",
+    path: str,
+    device_mesh: Optional[torch.distributed.DeviceMesh] = None,
+):
     """
     Save the dataloader state.
 
@@ -278,7 +282,11 @@ def save_dataloader(dataloader: "StatefulDataLoader | IterableDataset", path: st
         torch.save(dataloader.state_dict(), os.path.join(dataloader_dir, f"dataloader_dp_rank_{dp_rank}.pt"))
 
 
-def load_dataloader(dataloader: "StatefulDataLoader | IterableDataset", path: str, device_mesh: Optional[torch.distributed.DeviceMesh] = None):
+def load_dataloader(
+    dataloader: "StatefulDataLoader | IterableDataset",
+    path: str,
+    device_mesh: Optional[torch.distributed.DeviceMesh] = None,
+):
     """
     Load the dataloader state.
 

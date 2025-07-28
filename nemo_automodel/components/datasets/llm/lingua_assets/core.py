@@ -122,6 +122,7 @@ class TokenizerState(TypedDict):
         add_bos: bool Whether to add the beginning of sentence token
         add_eos: bool Whether to add the end of sentence token
     """
+
     it_state: Any
     add_bos: bool
     add_eos: bool
