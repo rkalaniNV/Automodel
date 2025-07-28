@@ -1,3 +1,17 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # taken and modified from https://github.com/facebookresearch/lingua/blob/437d680e521873bb5971067148a69587790da853/lingua/data.py
 
 import contextlib
@@ -70,10 +84,9 @@ class JSONLState(TypedDict):
     """Represents the current state of a JSON line reader.
 
     Attributes:
-        content (Dict): The JSON content of the line.
         file_path (str): The path to the JSONL file.
         position (int): The file position after reading the line (in bytes).
-        window (int): The window size used for iteration.
+        block_size (int): The number of lines to skip between yields
         offset (int): The offset used for iteration.
         current_iter (Optional[int]): Number of iterations over the jsonl file (for infinite iteration).
     """
@@ -102,6 +115,13 @@ class MultiChoiceState(TypedDict):
 
 
 class TokenizerState(TypedDict):
+    """Represents the current state of a tokenizer iterator.
+
+    Attributes:
+        it_state: Any State of the iterator currently.
+        add_bos: bool Whether to add the beginning of sentence token
+        add_eos: bool Whether to add the end of sentence token
+    """
     it_state: Any
     add_bos: bool
     add_eos: bool
@@ -112,8 +132,10 @@ class PackTokensState(TypedDict):
 
     Attributes:
         start_token: int index to start reading from in the current sequence
+        it_state: Any State of the iterator currently.
         output_seq_len: int Length of sequences to output
-        n_views: dict int Number of views to output. Each view is the same sequence but shifted by 1 from the previous
+        n_views: int Number of views to output. Each view is the same sequence but shifted by 1 from the previous
+        seq_len: int Length of the current sequence (number of tokens in the current sample)
     """
 
     start_token: int
@@ -127,9 +149,11 @@ class PrefetchState(TypedDict):
     """Represents the current state of a prefetching iterator.
 
     Attributes:
-        prefetch_buffer: numpy array to store prefetched data
+        it_state: Any State of the iterator currently.
         seq_idx: int index of the current sequence to resume from
         rng_state: dict numpy bit generator state used to resume rng
+        prefetch_size: int Number of batches to prefetch in advance
+        batch_size: int Batch size
     """
 
     it_state: Any
@@ -140,6 +164,21 @@ class PrefetchState(TypedDict):
 
 
 def encode(text: str, add_bos: bool, add_eos: bool, tokenizer: "PreTrainedTokenizerBase"):
+    """
+    Encodes a text string into a list of token IDs using a tokenizer.
+
+    This function tokenizes the input text and adds special tokens (beginning and end of sentence)
+    based on the `add_bos` and `add_eos` flags.
+
+    Args:
+        text (str): The text to encode.
+        add_bos (bool): Whether to add the beginning of sentence token.
+        add_eos (bool): Whether to add the end of sentence token.
+        tokenizer (PreTrainedTokenizerBase): The tokenizer to use for encoding.
+
+    Returns:
+        List[int]: A list of token IDs.
+    """
     return (
         [tokenizer.bos_token_id] * add_bos
         + tokenizer.encode(text, add_special_tokens=False)
@@ -163,7 +202,7 @@ def read_jsonl(
         file_path (str): Path to the JSONL file.
         position (int): The file position (in bytes) from which to start reading.
         block_size (int): The number of lines to skip between yields
-        offset (int): The initial number of lines skiped
+        offset (int): The initial number of lines skipped
 
     Yields:
         JSONLState: Represents the state of each line read according to window and offset.
@@ -205,7 +244,18 @@ def loop_on_jsonl(
     offset: int,
     current_iter: int,
 ):
-    """Makes the block jsonl iterator infinite and updates n_iter counter"""
+    """Makes the block jsonl iterator infinite and updates n_iter counter.
+
+    Args:
+        file_path (str): Path to the JSONL file.
+        position (int): The file position (in bytes) from which to start reading.
+        block_size (int): The number of lines to skip between yields
+        offset (int): The initial number of lines skipped
+        current_iter (int): The current iteration counter
+
+    Yields:
+        Tuple[Dict, JSONLState]: A tuple containing the JSON content and the state of the iterator.
+    """
     try:
         while True:
             it = read_jsonl(file_path, position, block_size, offset, current_iter)
@@ -226,14 +276,14 @@ def tokenize(
     """
     Tokenizes text from an iterator of content-state pairs using a specified tokenizer.
 
-    Parameters:
-    - iterator: An iterable of (content, state) pairs where content is a dict with a 'text' or 'content' key.
-    - tokenizer: Tokenizer object with an `encode` method to convert text to tokens, supporting `add_bos` and `add_eos`.
-    - add_bos (bool): Flag to add a beginning-of-sequence token.
-    - add_eos (bool): Flag to add an end-of-sequence token.
+    Args:
+        iterator: An iterable of (content, state) pairs where content is a dict with a 'text' or 'content' key.
+        tokenizer: Tokenizer object with an `encode` method to convert text to tokens, supporting `add_bos` and `add_eos`.
+        add_bos (bool): Flag to add a beginning-of-sequence token.
+        add_eos (bool): Flag to add an end-of-sequence token.
 
     Yields:
-    - (tokens, state) pairs, where `tokens` is a list of tokenized text, and `state` is the original state from the iterator.
+        Tuple[List[int], TokenizerState]: A tuple containing the tokenized text and the state of the iterator.
     """
     for content, state in iterator:
         assert "text" in content or "content" in content, "JSON line must contain either text or content key"
@@ -260,16 +310,15 @@ def choose_source(
     """
     Iterates over multiple data sources, selecting sequences based on weighted random choice.
 
-    Parameters:
-    - source_to_iterator (Dict[str, Iterator]): Dict from source paths to their iterators.
-    - source_to_state (Dict[str, State]): Initial state for each source, allowing state tracking.
-    - root_dir str: Root dir of data sources
-    - sources Dict[str, float]: Dict from subdirectory to the weight used for sampling
-    - rng_state (dict): State of the random number generator for reproducibility.
+    Args:
+        source_to_iterator (Dict[str, Iterator]): Dict from source paths to their iterators.
+        source_to_state (Dict[str, State]): Initial state for each source, allowing state tracking.
+        root_dir (str): Root dir of data sources
+        sources (Dict[str, float]): Dict from subdirectory to the weight used for sampling
+        rng_state (dict): State of the random number generator for reproducibility.
 
     Yields:
-    - Tuple of (seq, multi_choice_state) where `seq` is the next sequence from the chosen source,
-    and `multi_choice_state` includes the current state of all sources and the RNG.
+        Tuple[Any, MultiChoiceState]: A tuple containing the next sequence from the chosen source and the state of the iterator.
 
     This function ensures that sequences are chosen from the provided sources based on the specified weights,
     maintaining state information for each source and the RNG to allow for reproducible iteration.
@@ -335,16 +384,12 @@ def pack_tokens(
     where each column represents shifted sequences of tokens. It ensures continuity in token sequences across chunks,
     preventing boundary effects and maintaining consistency regardless of `n_views`.
 
-    Parameters:
-    - iterator: An iterator that yields pairs of (tokens, state), where tokens is a 1D sequence of tokens and state contains all necessary information to resume iterator from current position.
-    - it_state: State of the iterator currently.
-    - start_token (int): The index of the first token to start reading from for the first sequence.
-    - output_seq_len (int): The length of the output sequences to be generated.
-    - n_views (int): The number of shifted views to include in each output chunk.
+    Args:
+        iterator: An iterator that yields pairs of (tokens, state), where tokens is a 1D sequence of tokens and state contains all necessary information to resume iterator from current position.
+        empty_buffer_state: State of the iterator currently.
 
     Yields:
-    - numpy.ndarray: An array of shape `(output_seq_len, n_views)` containing the packed tokens.
-    - PackTokensState: The state required to resume packing tokens from where the last returned chunk.
+        Tuple[numpy.ndarray, PackTokensState]: A tuple containing the packed tokens and the state required to resume packing tokens from where the last returned chunk.
 
     The function handles the complexity of determining the correct state for resuming iteration after the buffer is cleared, ensuring seamless continuation of token sequences.
     """
@@ -412,16 +457,15 @@ def batch_and_shuffle_prefetched_sequences(
     It uses a prefetch buffer to store batches in advance and shuffles them, the prefetch buffer is similar to `reservoir sampling`,
     but by block to preserve a smooth, easy and deterministic reloading. To ensure more uniform sequence sampling -> prefetch_size * batch_size * seq_len >> max_document_seqlength.
 
-    Parameters:
-    - iterator: An iterator that yields pairs of (sequence, state), where is a random sequence sampled from a corpus (as done by pack_tokens for example).
-    - batch_size: The desired batch size.
-    - prefetch_size: The number of batches to prefetch in advance.
-    - seq_len (int): The length of the output sequences to be generated.
-    - n_views (int): The number of shifted views to include in each output chunk.
+    Args:
+        data_loader (Iterator): An iterator that yields pairs of (sequence, state), where is a random sequence sampled from a corpus (as done by pack_tokens for example).
+        batch_size (int): The desired batch size.
+        prefetch_size (int): The number of batches to prefetch in advance.
+        seq_len (int): The length of the output sequences to be generated.
+        n_views (int): The number of shifted views to include in each output chunk.
 
     Yields:
-    - numpy.ndarray: An array of shape `(batch_size, seq_len, n_views)` containing the packed tokens.
-    - PrefetchState: The state required to resume prefetched batch. Contains also the internal of iterator.
+        Tuple[numpy.ndarray, PrefetchState]: A tuple containing the packed tokens and the state required to resume prefetched batch.
     """
     prefetch_buffer = -1 * np.ones((prefetch_size * batch_size, seq_len, n_views), dtype=int)
     rng = np.random.default_rng()
@@ -467,6 +511,20 @@ def batch_and_shuffle_prefetched_sequences(
 
 
 def find_and_sanitize_chunks(dataset_path: str, world_size: int, file_pattern: str = TRAIN_DATA_FILE_PATTERN):
+    """
+    Finds and sanitizes chunk files in a dataset path.
+
+    This function searches for chunk files matching the specified file pattern in the dataset path,
+    ensuring that the number of chunks is compatible with the world size.
+
+    Args:
+        dataset_path (str): The path to the dataset.
+        world_size (int): The number of workers.
+        file_pattern (str): The pattern to match the chunk files.
+
+    Returns:
+        List[str]: A list of chunk files.
+    """
     dataset_chunks = [str(p) for p in Path(dataset_path).glob(file_pattern)]
     n_chunks = len(dataset_chunks)
 
@@ -486,6 +544,15 @@ def distribute_data_to_rank(dataset_path: str, rank: int, world_size: int, file_
     If world_size is smaller than the number of chunks, the extra chunks are discarded.
     Otherwise, world_size is assumed to be a multiple of number of chunks.
     In that case there are world_size//nb_chunks workers on each chunk file, reading with different offsets.
+
+    Args:
+        dataset_path (str): The path to the dataset.
+        rank (int): The rank of the worker.
+        world_size (int): The number of workers.
+        file_pattern (str): The pattern to match the chunk files.
+
+    Returns:
+        JSONLState: The state of the JSONL iterator.
     """
     dataset_chunks = find_and_sanitize_chunks(dataset_path, world_size, file_pattern)
     n_ranks_per_chunk = world_size // len(dataset_chunks)
@@ -513,6 +580,20 @@ def init_choice_state(
     world_size: int,
     file_pattern: str,
 ):
+    """
+    Initializes the state of the choice iterator.
+
+    Args:
+        root_dir (str): The path to the dataset.
+        sources (Dict[str, float]): The sources to distribute the data to.
+        seed (int): The seed for the random number generator.
+        rank (int): The rank of the worker.
+        world_size (int): The number of workers.
+        file_pattern (str): The pattern to match the chunk files.
+
+    Returns:
+        MultiChoiceState: The state of the choice iterator.
+    """
     data_path_to_jsonl_state = dict()
     for dataset_path in sources:
         jsonl_state = distribute_data_to_rank(os.path.join(root_dir, dataset_path), rank, world_size, file_pattern)
@@ -545,6 +626,26 @@ def init_state(
     add_eos: bool,
     file_pattern: str,
 ):
+    """
+    Initializes the state of the prefetch iterator.
+
+    Args:
+        root_dir (str): The path to the dataset.
+        sources (Dict[str, float]): The sources to distribute the data to.
+        batch_size (int): The batch size.
+        prefetch_size (int): The number of batches to prefetch in advance.
+        seq_len (int): The length of the output sequences to be generated.
+        n_views (int): The number of shifted views to include in each output chunk.
+        seed (int): The seed for the random number generator.
+        rank (int): The rank of the worker.
+        world_size (int): The number of workers.
+        add_bos (bool): Whether to add the beginning of sentence token.
+        add_eos (bool): Whether to add the end of sentence token.
+        file_pattern (str): The pattern to match the chunk files.
+
+    Returns:
+        PrefetchState: The state of the prefetch iterator.
+    """
     multi_choice_state = init_choice_state(
         root_dir=root_dir, sources=sources, seed=seed, rank=rank, world_size=world_size, file_pattern=file_pattern
     )
@@ -575,6 +676,15 @@ def init_state(
 
 
 def setup_sources(multi_state):
+    """
+    Sets up the sources for the prefetch iterator.
+
+    Args:
+        multi_state (MultiChoiceState): The state of the choice iterator.
+
+    Returns:
+        Dict[str, Iterator]: A dictionary of iterators for each source.
+    """
     path_to_iter = dict()
     for source in multi_state["sources"]:
         jsonl_state = multi_state["source_to_state"][source]
@@ -594,6 +704,16 @@ def build_dataloader(
     state: PrefetchState,
     tokenizer: "PreTrainedTokenizerBase",
 ):
+    """
+    Builds the dataloader.
+
+    Args:
+        state (PrefetchState): The state of the prefetch iterator.
+        tokenizer (PreTrainedTokenizerBase): The tokenizer to use for encoding.
+
+    Yields:
+        Tuple[numpy.ndarray, PrefetchState]: A tuple containing the packed tokens and the state required to resume prefetched batch.
+    """
     pack_state = state["it_state"]
     tokenizer_state = pack_state["it_state"]
     multi_state = tokenizer_state["it_state"]
@@ -636,6 +756,14 @@ def feed_buffer(queue: Queue, stop_event: EventClass, iterator_builder):
     """
     Producer function to fetch data from an iterable dataset and put it into a queue.
     Incorporates timeout management to avoid hanging on queue.put() when the queue is full.
+
+    Args:
+        queue (Queue): The queue to put the data into.
+        stop_event (EventClass): The event to stop the iterator.
+        iterator_builder (Callable): The iterator builder function.
+
+    Yields:
+        Any: The data from the iterator.
     """
     with iterator_builder() as iterator:
         for item in iterator:
@@ -653,6 +781,13 @@ def consume_buffer(producer: Process, queue: Queue):
     """
     Consumer function to process items from the queue.
     Handles cases where the queue might be empty by implementing timeouts on queue.get().
+
+    Args:
+        producer (Process): The producer process.
+        queue (Queue): The queue to get the data from.
+
+    Yields:
+        Any: The data from the queue.
     """
     while producer.exitcode is None:
         try:
@@ -668,6 +803,13 @@ def consume_buffer(producer: Process, queue: Queue):
 def async_iterator(buffer_size: int, iterator_builder):
     """
     Context manager to setup and manage asynchronous iteration with producer-consumer model.
+
+    Args:
+        buffer_size (int): The size of the buffer.
+        iterator_builder (Callable): The iterator builder function.
+
+    Yields:
+        Any: The data from the iterator.
     """
     queue = Queue(maxsize=buffer_size)
     stop_event = Event()
@@ -704,6 +846,24 @@ def init_dataloader_state_from_args(
     n_views: int,
     split: str,
 ):
+    """
+    Initializes the state of the prefetch iterator.
+
+    Args:
+        root_dir (str): The path to the dataset.
+        sources (Dict[str, float]): The sources to distribute the data to.
+        batch_size (int): The batch size.
+        packed_seq_len (int): The length of the output sequences to be generated.
+        seed (int): The seed for the random number generator.
+        add_bos (bool): Whether to add the beginning of sentence token.
+        add_eos (bool): Whether to add the end of sentence token.
+        prefetch_size (int): The number of batches to prefetch in advance.
+        n_views (int): The number of shifted views to include in each output chunk.
+        split (str): The split of the dataset.
+
+    Returns:
+        PrefetchState: The state of the prefetch iterator.
+    """
     return init_state(
         root_dir=root_dir,
         sources=sources,
@@ -723,6 +883,18 @@ def init_dataloader_state_from_args(
 def build_dataloader_from_args(
     tokenizer: "PreTrainedTokenizerBase", load_async: bool, prefetch_size: int, state: Optional[PrefetchState] = None
 ):
+    """
+    Builds the dataloader from the arguments.
+
+    Args:
+        tokenizer (PreTrainedTokenizerBase): The tokenizer to use for encoding.
+        load_async (bool): Whether to load the data asynchronously.
+        prefetch_size (int): The number of batches to prefetch in advance.
+        state (Optional[PrefetchState]): The state of the prefetch iterator.
+
+    Returns:
+        Any: The data from the iterator.
+    """
     data_builder = partial(build_dataloader, state, tokenizer)
     if load_async:
         return async_iterator(prefetch_size, data_builder)

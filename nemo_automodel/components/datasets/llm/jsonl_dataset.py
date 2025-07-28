@@ -1,3 +1,17 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from contextlib import ExitStack
 from typing import TYPE_CHECKING
 
@@ -31,6 +45,24 @@ class JSONLDataset(IterableDataset):
         prefetch_size: int = 64,
         n_views: int = 2,
     ):
+        """
+        Args:
+            root_dir: Root directory of the dataset
+            rank: Rank of the process
+            world_size: World size (number of processes)
+            tokenizer: Tokenizer to be used for tokenization
+            sources: Dictionary of sources to be used for the dataset. For example, {"fineweb_edu_10bt_shuffled": 50.0, "other_dataset": 50.0}
+            batch_size: Batch size
+            packed_sequence_size: Size of the packed sequence
+            seed: Seed for the random number generator
+            split: Split to be used for the dataset. Must be either "train" or "validation"
+            add_bos: Whether to add the beginning of sentence token
+            add_eos: Whether to add the end of sentence token
+            load_async: Whether to load the dataset asynchronously
+            prefetch_size: Size of the prefetch buffer
+            n_views: Number of views to be used for the dataset. Each view is offset by 1 from the previous one.
+                We use 2 views for the dataset. The first view is the input sequence and the second view is the target sequence.
+        """
         assert split in ["train", "validation"], "Split must be either train or validation"
         # Persist constructor args so we can rebuild the dataloader after a checkpoint restore
         self._root_dir = root_dir
@@ -68,6 +100,9 @@ class JSONLDataset(IterableDataset):
         self._build_dataloader()
 
     def __iter__(self):
+        """
+        Yields batches of data from the dataset.
+        """
         for batch, state in self.data_loader:
             self.data_loader_state = state
 
@@ -87,6 +122,9 @@ class JSONLDataset(IterableDataset):
             self.context_stack.close()
 
     def state_dict(self):
+        """
+        Returns the state of the dataloader.
+        """
         return self.data_loader_state
 
     def load_state_dict(self, state_dict):
@@ -103,11 +141,11 @@ class JSONLDataset(IterableDataset):
         self.data_loader_state = state_dict
         self._build_dataloader()
 
-    # ---------------------------------------------------------------------
-    # Internal helpers
-    # ---------------------------------------------------------------------
     def _build_dataloader(self):
-        """Helper to (re)build the internal dataloader using the current state."""
+        """Helper to (re)build the internal dataloader using the current state.
+
+        This is called when the state is restored from a checkpoint.
+        """
         # Always create a fresh context stack so resources are correctly managed
         self.context_stack = ExitStack()
         self.data_loader = self.context_stack.enter_context(
