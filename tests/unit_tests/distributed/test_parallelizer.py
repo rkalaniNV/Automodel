@@ -863,7 +863,7 @@ class TestNvFSDPStrategyParallelize:
             model=model,
             device_mesh=mesh,
             optimizer=optimizer,
-            data_parallel_sharding_strategy="optim_grads_params",
+            zero_dp_strategy=3,
             grad_reduce_in_fp32=True,
         )
 
