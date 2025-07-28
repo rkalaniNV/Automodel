@@ -47,6 +47,11 @@ _OVERRIDES = [
     "dataset.path_or_dataset",
     "validation_dataset.path_or_dataset",
     "validation_dataset.limit_dataset_samples",
+    "dataset.root_dir",
+    "dataset.sources",
+    "dataset.split",
+    "dataset.batch_size",
+    "dataset.packed_sequence_size",
 ]
 
 

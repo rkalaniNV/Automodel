@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import shutil
 
@@ -24,12 +25,26 @@ def test_jsonl_dataset_checkpointing():
     for i, batch in enumerate(dataset):
         if i == 2:
             # save checkpoint
-            save_dataloader(dataset, "checkpoints/", device_mesh)
+            save_dataloader(dataset, cfg.checkpoint.checkpoint_dir, device_mesh)
         elif i == 3:
             expected_batch = batch
             break
 
     del dataset
+    torch.distributed.barrier()
+
+    # assert the correct paths exist
+    output_files = [
+        "dataloader/dataloader_dp_rank_0.pt",
+        "dataloader/dataloader_dp_rank_1.pt",
+    ]
+
+    for file in output_files:
+        path = Path(cfg.checkpoint.checkpoint_dir) / file
+        assert path.exists(), f"Expected {path} to exist"
+        assert path.is_file(), f"Expected {path} to be a file"
+        assert os.access(path, os.R_OK), f"Expected {path} to be readable"
+        assert path.stat().st_size > 0, f"Expected {path} to be non-empty"
 
     dataset = build_dataloader(cfg.dataset, None, cfg.model, None, device_mesh, 42)[0]
 
@@ -38,7 +53,7 @@ def test_jsonl_dataset_checkpointing():
         assert torch.any(initial_batch[k] != expected_batch[k]), f"Initial batch key {k, initial_batch[k]} should not be equal to expected batch key {k, expected_batch[k]}"
 
     # load checkpoint
-    load_dataloader(dataset, "checkpoints/", device_mesh)
+    load_dataloader(dataset, cfg.checkpoint.checkpoint_dir, device_mesh)
 
     for i, batch in enumerate(dataset):
         for k in batch.keys():
