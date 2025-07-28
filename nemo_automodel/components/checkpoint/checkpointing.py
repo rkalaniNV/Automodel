@@ -260,6 +260,29 @@ def load_optimizer(
     optimizer_state.load_state_dict(reinstated_state_dict)
 
 
+def save_dataloader(dataloader, path, device_mesh: Optional[torch.distributed.DeviceMesh] = None):
+    """
+    Save the dataloader state.
+
+    Args:
+        dataloader: Dataloader to save
+        path: Path to save dataloader
+    """
+    dp_rank, tp_rank = _get_dp_tp_mesh(device_mesh)
+    dataloader_dir = os.path.join(path, f"dataloader")
+    os.makedirs(dataloader_dir, exist_ok=True)
+    if tp_rank == 0:
+        torch.save(dataloader.state_dict(), os.path.join(dataloader_dir, f"dataloader_dp_rank_{dp_rank}.pt"))
+
+
+def load_dataloader(dataloader, path, device_mesh: Optional[torch.distributed.DeviceMesh] = None):
+    """
+    Load the dataloader state.
+    """
+    dp_rank, _ = _get_dp_tp_mesh(device_mesh)
+    dataloader_dir = os.path.join(path, f"dataloader")
+    dataloader.load_state_dict(torch.load(os.path.join(dataloader_dir, f"dataloader_dp_rank_{dp_rank}.pt")))
+
 def _get_safetensors_index_path(cache_dir: str, repo_id: str) -> str:
     """
     Return the directory containing the first `model.safetensors.index.json` found for given model.
@@ -383,3 +406,13 @@ def _extract_target_modules(model: nn.Module) -> list[str]:
         if "lora" in name.lower():
             final_target_modules.add(name.rsplit(".", 1)[0])
     return sorted(list(final_target_modules))
+
+def _get_dp_tp_mesh(device_mesh: Optional[torch.distributed.DeviceMesh] = None) -> tuple[int, int]:
+        dp_rank = 0
+        tp_rank = 0
+        if device_mesh is not None:
+            if "data_parallel" in device_mesh.mesh_dim_names:
+                dp_rank = device_mesh.get_local_rank("data_parallel")
+            if "tensor_parallel" in device_mesh.mesh_dim_names:
+                tp_rank = device_mesh.get_local_rank("tensor_parallel")
+        return dp_rank, tp_rank

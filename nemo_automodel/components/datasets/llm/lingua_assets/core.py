@@ -4,7 +4,6 @@ import contextlib
 from copy import deepcopy
 from functools import partial
 import json
-from dataclasses import dataclass, field
 from multiprocessing import Process, Queue, Event
 from queue import Full, Empty
 from multiprocessing.synchronize import Event as EventClass
@@ -59,6 +58,9 @@ Both can be called with a resume_state to resume from any given position determi
 """
 
 TRAIN_DATA_FILE_PATTERN = "*.chunk.*.jsonl"
+
+# expects a single validation file
+VALIDATION_DATA_FILE_PATTERN = "*.val.jsonl"
 
 class JSONLState(TypedDict):
     """Represents the current state of a JSON line reader.
@@ -519,7 +521,7 @@ def init_choice_state(
         data_path_to_jsonl_state[dataset_path] = jsonl_state
 
     multi_rng_state = np.random.default_rng(
-        (seed, rank, world_size)
+        (seed, rank)  # Removed world_size from seed tuple
     ).bit_generator.state
 
     multi_choice_state = MultiChoiceState(
@@ -543,7 +545,7 @@ def init_state(
     world_size: int,
     add_bos: bool,
     add_eos: bool,
-    file_pattern: str = TRAIN_DATA_FILE_PATTERN
+    file_pattern: str
 ):
     multi_choice_state = init_choice_state(
         root_dir=root_dir, sources=sources, seed=seed, rank=rank, world_size=world_size, file_pattern=file_pattern
@@ -562,7 +564,7 @@ def init_state(
     )
 
     prefetch_rng_state = np.random.default_rng(
-        (seed + 1, rank, world_size)
+        (seed + 1, rank)  # Removed world_size from seed tuple
     ).bit_generator.state
 
     return PrefetchState(
@@ -699,7 +701,7 @@ def async_iterator(buffer_size: int, iterator_builder):
 
 
 def init_dataloader_state_from_args(
-    root_dir: str, rank: int, world_size: int, sources: dict[str, float], batch_size: int, packed_seq_len: int, seed: int, add_bos: bool, add_eos: bool, prefetch_size: int, n_views: int
+    root_dir: str, rank: int, world_size: int, sources: dict[str, float], batch_size: int, packed_seq_len: int, seed: int, add_bos: bool, add_eos: bool, prefetch_size: int, n_views: int, split: str
 ):
     return init_state(
         root_dir=root_dir,
@@ -713,6 +715,7 @@ def init_dataloader_state_from_args(
         world_size=world_size,
         add_bos=add_bos,
         add_eos=add_eos,
+        file_pattern=TRAIN_DATA_FILE_PATTERN if split == "train" else VALIDATION_DATA_FILE_PATTERN,
     )
 
 
