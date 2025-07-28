@@ -6,7 +6,7 @@ from contextlib import ExitStack
 if TYPE_CHECKING:
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
-class LinguaDataset(IterableDataset):
+class JSONLDataset(IterableDataset):
     def __init__(self, root_dir: str, rank: int, world_size: int, tokenizer: "PreTrainedTokenizerBase", sources: dict[str, float], batch_size: int, packed_seq_len: int, seed: int, add_bos: bool = True, add_eos: bool = True, load_async: bool = False, prefetch_size: int = 64, n_views: int = 2):       
         # Initialize dataloader state
         self.data_loader_state = init_dataloader_state_from_args(

@@ -698,21 +698,6 @@ def async_iterator(buffer_size: int, iterator_builder):
         logger.info("Async dataloader cleaned up")
 
 
-@dataclass
-class DataArgs:
-    root_dir: Optional[str] = None
-    sources: Dict[str, float] = field(default_factory=dict)
-    batch_size: int = 2
-    seq_len: int = 2048
-    n_views: int = 2
-    seed: int = 42
-    add_bos: bool = True
-    add_eos: bool = True
-    load_async: bool = True
-    prefetch_size: int = 64
-    tokenizer: "PreTrainedTokenizerBase" = None
-
-
 def init_dataloader_state_from_args(
     root_dir: str, rank: int, world_size: int, sources: dict[str, float], batch_size: int, packed_seq_len: int, seed: int, add_bos: bool, add_eos: bool, prefetch_size: int, n_views: int
 ):
