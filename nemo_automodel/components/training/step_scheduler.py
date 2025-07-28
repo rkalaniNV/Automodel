@@ -114,7 +114,7 @@ class StepScheduler(Stateful):
         # For iterable datasets without epoch_len, only checkpoint based on steps
         if self.epoch_len is None:
             return (self.step % self.ckpt_every_steps) == 0 and self.step != 0
-        
+
         batch_idx = self.step % self.epoch_len
         last_batch = self.epoch_len is not None and batch_idx == self.epoch_len - 1
         return ((self.step % self.ckpt_every_steps) == 0 and self.step != 0) or last_batch

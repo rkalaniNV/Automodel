@@ -19,15 +19,15 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
+from torch.utils.data import Dataset, IterableDataset
+from torchdata.stateful_dataloader import StatefulDataLoader
 from transformers.processing_utils import ProcessorMixin
 from transformers.tokenization_utils import PreTrainedTokenizerBase
-from torchdata.stateful_dataloader import StatefulDataLoader
-from torch.utils.data import IterableDataset, Dataset
 
 from nemo_automodel.components.checkpoint.checkpointing import (
+    load_dataloader,
     load_model,
     load_optimizer,
-    load_dataloader,
     save_dataloader,
     save_model,
     save_optimizer,
@@ -214,6 +214,7 @@ class BaseRecipe:
         load_model(model, ckpt_dir, self.checkpoint_config)
         load_optimizer(optimizer, model, ckpt_dir, scheduler)
         load_dataloader(dataloader, ckpt_dir, device_mesh)
+
 
 def _find_latest_checkpoint(checkpoint_dir):
     """

@@ -1,14 +1,36 @@
-from typing import TYPE_CHECKING
-from torch.utils.data import IterableDataset
-from nemo_automodel.components.datasets.llm.lingua_assets.core import build_dataloader_from_args, init_dataloader_state_from_args
 from contextlib import ExitStack
+from typing import TYPE_CHECKING
+
 import torch
+from torch.utils.data import IterableDataset
+
+from nemo_automodel.components.datasets.llm.lingua_assets.core import (
+    build_dataloader_from_args,
+    init_dataloader_state_from_args,
+)
 
 if TYPE_CHECKING:
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
+
 class JSONLDataset(IterableDataset):
-    def __init__(self, root_dir: str, rank: int, world_size: int, tokenizer: "PreTrainedTokenizerBase", sources: dict[str, float], batch_size: int, packed_sequence_size: int, seed: int, split: str, add_bos: bool = True, add_eos: bool = True, load_async: bool = False, prefetch_size: int = 64, n_views: int = 2):
+    def __init__(
+        self,
+        root_dir: str,
+        rank: int,
+        world_size: int,
+        tokenizer: "PreTrainedTokenizerBase",
+        sources: dict[str, float],
+        batch_size: int,
+        packed_sequence_size: int,
+        seed: int,
+        split: str,
+        add_bos: bool = True,
+        add_eos: bool = True,
+        load_async: bool = False,
+        prefetch_size: int = 64,
+        n_views: int = 2,
+    ):
         assert split in ["train", "validation"], "Split must be either train or validation"
         # Persist constructor args so we can rebuild the dataloader after a checkpoint restore
         self._root_dir = root_dir
@@ -58,15 +80,15 @@ class JSONLDataset(IterableDataset):
                 "loss_mask": loss_mask,
             }
             yield return_batch
-    
+
     def __del__(self):
         # Ensure resources are closed even if build failed partially
         if hasattr(self, "context_stack"):
             self.context_stack.close()
-    
+
     def state_dict(self):
         return self.data_loader_state
-    
+
     def load_state_dict(self, state_dict):
         """Restore dataloader state from a checkpoint.
 

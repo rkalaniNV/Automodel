@@ -1,18 +1,21 @@
 # taken and modified from https://github.com/facebookresearch/lingua/blob/437d680e521873bb5971067148a69587790da853/lingua/data.py
 
 import contextlib
+import json
+import logging
+import os
 from copy import deepcopy
 from functools import partial
-import json
-from multiprocessing import Process, Queue, Event
-from queue import Full, Empty
+from multiprocessing import Event, Process, Queue
 from multiprocessing.synchronize import Event as EventClass
-import os
 from pathlib import Path
-from queue import Full
-from typing import Dict, Any, Iterator, Optional, TypedDict
+from queue import Empty, Full
+from typing import TYPE_CHECKING, Any, Dict, Iterator, Optional, TypedDict
+
 import numpy as np
-import logging
+
+if TYPE_CHECKING:
+    from transformers.tokenization_utils import PreTrainedTokenizerBase
 
 logger = logging.getLogger()
 
@@ -61,6 +64,7 @@ TRAIN_DATA_FILE_PATTERN = "*.chunk.*.jsonl"
 
 # expects a single validation file
 VALIDATION_DATA_FILE_PATTERN = "*.val.jsonl"
+
 
 class JSONLState(TypedDict):
     """Represents the current state of a JSON line reader.
@@ -134,8 +138,14 @@ class PrefetchState(TypedDict):
     prefetch_size: int
     batch_size: int
 
+
 def encode(text: str, add_bos: bool, add_eos: bool, tokenizer: "PreTrainedTokenizerBase"):
-    return [tokenizer.bos_token_id] * add_bos + tokenizer.encode(text, add_special_tokens=False) + [tokenizer.eos_token_id] * add_eos
+    return (
+        [tokenizer.bos_token_id] * add_bos
+        + tokenizer.encode(text, add_special_tokens=False)
+        + [tokenizer.eos_token_id] * add_eos
+    )
+
 
 def read_jsonl(
     file_path: str,
@@ -159,7 +169,7 @@ def read_jsonl(
         JSONLState: Represents the state of each line read according to window and offset.
     """
     if (offset < 0) or (offset >= block_size):
-        raise RuntimeError(f"JSONL iterator offset value is invalid")
+        raise RuntimeError("JSONL iterator offset value is invalid")
     # We assume the start position is either 0 or given by the last line yielded
     # Therefore the current line is right after the offset (modulo block_size)
     current_line = offset + 1 if position > 0 else 0
@@ -226,16 +236,17 @@ def tokenize(
     - (tokens, state) pairs, where `tokens` is a list of tokenized text, and `state` is the original state from the iterator.
     """
     for content, state in iterator:
-        assert (
-            "text" in content or "content" in content
-        ), "JSON line must contain either text or content key"
+        assert "text" in content or "content" in content, "JSON line must contain either text or content key"
         content_key = "text" if ("text" in content) else "content"
         text = content[content_key]
         tokens = encode(text, add_bos, add_eos, tokenizer)
-        yield tokens, TokenizerState(
-            it_state=state,
-            add_bos=add_bos,
-            add_eos=add_eos,
+        yield (
+            tokens,
+            TokenizerState(
+                it_state=state,
+                add_bos=add_bos,
+                add_eos=add_eos,
+            ),
         )
 
 
@@ -348,9 +359,7 @@ def pack_tokens(
         end_token = start_token
         sample_is_read = False
         while not sample_is_read:
-            assert start_token < len(
-                tokens
-            ), f"Start token index {start_token} bigger than sequence {len(tokens)}"
+            assert start_token < len(tokens), f"Start token index {start_token} bigger than sequence {len(tokens)}"
             free_space = buffer_size - len(buffer)
             seq_len = min(free_space, len(tokens) - start_token)
             end_token = start_token + seq_len
@@ -371,9 +380,7 @@ def pack_tokens(
             if len(buffer) == buffer_size:
                 out = np.array(buffer)
                 assert out.ndim == 1, "Iterator should return 1D sequences"
-                out = np.lib.stride_tricks.sliding_window_view(
-                    out, n_views, axis=0
-                )  # (output_seq_len, n_views)
+                out = np.lib.stride_tricks.sliding_window_view(out, n_views, axis=0)  # (output_seq_len, n_views)
 
                 # We rewind by n_views to account for the last tokens not having their targets
                 rewinded_idx = start_token - (n_views - 1)
@@ -416,17 +423,13 @@ def batch_and_shuffle_prefetched_sequences(
     - numpy.ndarray: An array of shape `(batch_size, seq_len, n_views)` containing the packed tokens.
     - PrefetchState: The state required to resume prefetched batch. Contains also the internal of iterator.
     """
-    prefetch_buffer = -1 * np.ones(
-        (prefetch_size * batch_size, seq_len, n_views), dtype=int
-    )
+    prefetch_buffer = -1 * np.ones((prefetch_size * batch_size, seq_len, n_views), dtype=int)
     rng = np.random.default_rng()
     rng.bit_generator.state = state["rng_state"]
 
     # Rewind the iterator to the correct position by skipping seq_idx sequences to roll the buffer accordingly
     seq_idx = state["seq_idx"]
-    assert (
-        seq_idx >= 0 and seq_idx < prefetch_size
-    ), "Prefetch state seq_idx should be in 0 <= seq_idx < prefetch_size."
+    assert seq_idx >= 0 and seq_idx < prefetch_size, "Prefetch state seq_idx should be in 0 <= seq_idx < prefetch_size."
 
     _rng_state = state["rng_state"]
     _it_state = state["it_state"]
@@ -468,12 +471,9 @@ def find_and_sanitize_chunks(dataset_path: str, world_size: int, file_pattern: s
     n_chunks = len(dataset_chunks)
 
     if n_chunks > world_size:
-        n_discard = n_chunks - world_size
         dataset_chunks = dataset_chunks[:world_size]
     else:
-        assert (
-            world_size % n_chunks == 0
-        ), "World size should be a multiple of number of chunks"
+        assert world_size % n_chunks == 0, "World size should be a multiple of number of chunks"
 
     assert n_chunks > 0, f"No valid chunks in {dataset_path}"
 
@@ -515,9 +515,7 @@ def init_choice_state(
 ):
     data_path_to_jsonl_state = dict()
     for dataset_path in sources:
-        jsonl_state = distribute_data_to_rank(
-            os.path.join(root_dir, dataset_path), rank, world_size, file_pattern
-        )
+        jsonl_state = distribute_data_to_rank(os.path.join(root_dir, dataset_path), rank, world_size, file_pattern)
         data_path_to_jsonl_state[dataset_path] = jsonl_state
 
     multi_rng_state = np.random.default_rng(
@@ -545,7 +543,7 @@ def init_state(
     world_size: int,
     add_bos: bool,
     add_eos: bool,
-    file_pattern: str
+    file_pattern: str,
 ):
     multi_choice_state = init_choice_state(
         root_dir=root_dir, sources=sources, seed=seed, rank=rank, world_size=world_size, file_pattern=file_pattern
@@ -643,9 +641,7 @@ def feed_buffer(queue: Queue, stop_event: EventClass, iterator_builder):
         for item in iterator:
             while not stop_event.is_set():
                 try:
-                    queue.put(
-                        item, timeout=0.1
-                    )  # Attempts to put item into the queue with a timeout
+                    queue.put(item, timeout=0.1)  # Attempts to put item into the queue with a timeout
                     break  # On successful put, breaks out of the while loop
                 except Full:
                     pass
@@ -660,16 +656,12 @@ def consume_buffer(producer: Process, queue: Queue):
     """
     while producer.exitcode is None:
         try:
-            item = queue.get(
-                timeout=0.1
-            )  # Tries to get an item from the queue with a timeout
+            item = queue.get(timeout=0.1)  # Tries to get an item from the queue with a timeout
             yield item
         except Empty:
             pass
 
-    raise RuntimeError(
-        "Data loader quit unexpectedly, real error has been raised previously"
-    )
+    raise RuntimeError("Data loader quit unexpectedly, real error has been raised previously")
 
 
 @contextlib.contextmanager
@@ -694,14 +686,23 @@ def async_iterator(buffer_size: int, iterator_builder):
             logger.info(f"Killing async data process {producer.pid} ...")
             producer.kill()
         else:
-            logger.info(
-                f"Async data process {producer.pid} exited with code {producer.exitcode}"
-            )
+            logger.info(f"Async data process {producer.pid} exited with code {producer.exitcode}")
         logger.info("Async dataloader cleaned up")
 
 
 def init_dataloader_state_from_args(
-    root_dir: str, rank: int, world_size: int, sources: dict[str, float], batch_size: int, packed_seq_len: int, seed: int, add_bos: bool, add_eos: bool, prefetch_size: int, n_views: int, split: str
+    root_dir: str,
+    rank: int,
+    world_size: int,
+    sources: dict[str, float],
+    batch_size: int,
+    packed_seq_len: int,
+    seed: int,
+    add_bos: bool,
+    add_eos: bool,
+    prefetch_size: int,
+    n_views: int,
+    split: str,
 ):
     return init_state(
         root_dir=root_dir,
