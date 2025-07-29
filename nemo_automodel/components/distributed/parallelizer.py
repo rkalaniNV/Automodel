@@ -277,7 +277,10 @@ def fsdp2_strategy_parallelize(
     else:
         layers = model.model.layers
         num_attention_heads = model.config.num_attention_heads
-        num_key_value_heads = model.config.num_key_value_heads
+        if hasattr(model.config, "num_key_value_heads"):
+            num_key_value_heads = model.config.num_key_value_heads
+        else:
+            num_key_value_heads = model.config.num_attention_heads
 
     # Set FSDP sharding mesh to context parallel mesh if CP > 1, else default to the data parallel mesh.
     dp_mesh = device_mesh[
