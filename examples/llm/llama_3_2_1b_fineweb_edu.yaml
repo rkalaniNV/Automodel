@@ -66,6 +66,7 @@ dataset:
   batch_size: 8
   packed_sequence_size: 1024
   split: train
+  infinite: true
 
 validation_dataset:
   _target_: nemo_automodel.components.datasets.llm.jsonl_dataset.JSONLDataset
@@ -75,6 +76,7 @@ validation_dataset:
   batch_size: 8
   packed_sequence_size: 1024
   split: validation
+  infinite: false
 
 optimizer:
   _target_: torch.optim.Adam

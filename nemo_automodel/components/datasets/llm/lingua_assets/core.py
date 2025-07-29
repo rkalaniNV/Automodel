@@ -89,6 +89,7 @@ class JSONLState(TypedDict):
         block_size (int): The number of lines to skip between yields
         offset (int): The offset used for iteration.
         current_iter (Optional[int]): Number of iterations over the jsonl file (for infinite iteration).
+        single_epoch (bool): If True, stop after one pass through the file instead of looping infinitely.
     """
 
     file_path: str
@@ -96,6 +97,7 @@ class JSONLState(TypedDict):
     block_size: int
     offset: int
     current_iter: int
+    single_epoch: bool
 
 
 class MultiChoiceState(TypedDict):
@@ -106,12 +108,16 @@ class MultiChoiceState(TypedDict):
         sources Dict[str, float]: Dict from subdirectory to the weight used for sampling
         source_states: Dict[str, Any] Dict from source to iterator state
         rng_state: dict numpy bit generator state used to resume rng
+        single_epoch: bool If True, stop when all sources are exhausted once
+        exhausted_sources: set Set of source names that have been exhausted
     """
 
     root_dir: str
     sources: Dict[str, float]
     source_to_state: Dict[str, Any]
     rng_state: Dict[str, Any]
+    single_epoch: bool
+    exhausted_sources: set
 
 
 class TokenizerState(TypedDict):
@@ -220,6 +226,7 @@ def read_jsonl(
         block_size=block_size,
         offset=offset,
         current_iter=current_iter,
+        single_epoch=False,
     )
     with open(file_path, "r") as file:
         file.seek(position)
@@ -234,6 +241,7 @@ def read_jsonl(
                     block_size=block_size,
                     offset=offset,
                     current_iter=current_iter,
+                    single_epoch=False,
                 )
                 yield json.loads(line), state
 
@@ -244,6 +252,7 @@ def loop_on_jsonl(
     block_size: int,
     offset: int,
     current_iter: int,
+    single_epoch: bool = False,
 ):
     """Makes the block jsonl iterator infinite and updates n_iter counter.
 
@@ -253,6 +262,7 @@ def loop_on_jsonl(
         block_size (int): The number of lines to skip between yields
         offset (int): The initial number of lines skipped
         current_iter (int): The current iteration counter
+        single_epoch (bool): If True, stop after one pass through the file
 
     Yields:
         Tuple[Dict, JSONLState]: A tuple containing the JSON content and the state of the iterator.
@@ -261,7 +271,13 @@ def loop_on_jsonl(
         while True:
             it = read_jsonl(file_path, position, block_size, offset, current_iter)
             for content, jsonl_state in it:
+                jsonl_state["single_epoch"] = single_epoch
                 yield content, jsonl_state
+
+            # If single_epoch is True, stop after one iteration
+            if single_epoch:
+                break
+
             current_iter += 1
             position = 0
     finally:
@@ -307,6 +323,8 @@ def choose_source(
     root_dir: str,
     sources: Dict[str, float],
     rng_state: Dict[str, Any],
+    single_epoch: bool = False,
+    exhausted_sources: set = None,
 ):
     """
     Iterates over multiple data sources, selecting sequences based on weighted random choice.
@@ -317,6 +335,8 @@ def choose_source(
         root_dir (str): Root dir of data sources
         sources (Dict[str, float]): Dict from subdirectory to the weight used for sampling
         rng_state (dict): State of the random number generator for reproducibility.
+        single_epoch (bool): If True, stop when all sources are exhausted once
+        exhausted_sources (set): Set of source names that have been exhausted
 
     Yields:
         Tuple[Any, MultiChoiceState]: A tuple containing the next sequence from the chosen source and the state of the iterator.
@@ -327,21 +347,50 @@ def choose_source(
     n_sources = len(sources)
     possible_sources = list(sources.keys())
     weights = list(sources.values())
+    if exhausted_sources is None:
+        exhausted_sources = set()
+
     # We create the rng and set its state
     rng = np.random.default_rng()
     rng.bit_generator.state = rng_state
+
     while True:
-        # We save the rng state before sampling to be able to yield the same sequence on reload
-        norm_weights = np.array(weights) / np.array(weights).sum()
-        source_choice = possible_sources[rng.choice(n_sources, p=norm_weights)]
-        seq, state = next(source_to_iterator[source_choice])
-        source_to_state = {**source_to_state, source_choice: state}
+        # If single_epoch mode and all sources are exhausted, stop
+        if single_epoch and len(exhausted_sources) >= n_sources:
+            return
+
+        # Filter out exhausted sources for sampling
+        active_sources = [s for s in possible_sources if s not in exhausted_sources]
+        if not active_sources:
+            if single_epoch:
+                return
+            else:
+                # Reset exhausted sources in infinite mode
+                exhausted_sources = set()
+                active_sources = possible_sources
+
+        # Get weights for active sources
+        active_weights = [weights[possible_sources.index(s)] for s in active_sources]
+        norm_weights = np.array(active_weights) / np.array(active_weights).sum()
+
+        source_choice = active_sources[rng.choice(len(active_sources), p=norm_weights)]
+
+        try:
+            seq, state = next(source_to_iterator[source_choice])
+            source_to_state = {**source_to_state, source_choice: state}
+        except StopIteration:
+            # Mark this source as exhausted
+            exhausted_sources.add(source_choice)
+            continue
+
         # We update the corresponding source state
         multi_choice_state = MultiChoiceState(
             root_dir=root_dir,
             sources=sources,
             source_to_state=source_to_state,
             rng_state=rng.bit_generator.state,
+            single_epoch=single_epoch,
+            exhausted_sources=exhausted_sources,
         )
         yield seq, multi_choice_state
 
@@ -401,45 +450,55 @@ def pack_tokens(
     start_token = empty_buffer_state["start_token"]
     previous_state = empty_buffer_state["it_state"]
     buffer_size = output_seq_len + n_views - 1
-    for i, (tokens, state) in enumerate(iterator):
-        end_token = start_token
-        sample_is_read = False
-        while not sample_is_read:
-            assert start_token < len(tokens), f"Start token index {start_token} bigger than sequence {len(tokens)}"
-            free_space = buffer_size - len(buffer)
-            seq_len = min(free_space, len(tokens) - start_token)
-            end_token = start_token + seq_len
-            buffer.extend(tokens[start_token:end_token])
-            start_token = end_token
 
-            states.append(
-                PackTokensState(
-                    start_token=start_token,
-                    seq_len=seq_len,
-                    it_state=previous_state,
-                    output_seq_len=output_seq_len,
-                    n_views=n_views,
+    try:
+        for i, (tokens, state) in enumerate(iterator):
+            end_token = start_token
+            sample_is_read = False
+            while not sample_is_read:
+                assert start_token < len(tokens), f"Start token index {start_token} bigger than sequence {len(tokens)}"
+                free_space = buffer_size - len(buffer)
+                seq_len = min(free_space, len(tokens) - start_token)
+                end_token = start_token + seq_len
+                buffer.extend(tokens[start_token:end_token])
+                start_token = end_token
+
+                states.append(
+                    PackTokensState(
+                        start_token=start_token,
+                        seq_len=seq_len,
+                        it_state=previous_state,
+                        output_seq_len=output_seq_len,
+                        n_views=n_views,
+                    )
                 )
-            )
-            assert len(buffer) <= buffer_size, "Buffer overflow"
+                assert len(buffer) <= buffer_size, "Buffer overflow"
 
-            if len(buffer) == buffer_size:
-                out = np.array(buffer)
-                assert out.ndim == 1, "Iterator should return 1D sequences"
-                out = np.lib.stride_tricks.sliding_window_view(out, n_views, axis=0)  # (output_seq_len, n_views)
+                if len(buffer) == buffer_size:
+                    out = np.array(buffer)
+                    assert out.ndim == 1, "Iterator should return 1D sequences"
+                    out = np.lib.stride_tricks.sliding_window_view(out, n_views, axis=0)  # (output_seq_len, n_views)
 
-                # We rewind by n_views to account for the last tokens not having their targets
-                rewinded_idx = start_token - (n_views - 1)
-                empty_buffer_state = get_empty_buffer_state(rewinded_idx, states)
-                buffer = buffer[output_seq_len:]
-                assert len(buffer) == (n_views - 1)
+                    # We rewind by n_views to account for the last tokens not having their targets
+                    rewinded_idx = start_token - (n_views - 1)
+                    empty_buffer_state = get_empty_buffer_state(rewinded_idx, states)
+                    buffer = buffer[output_seq_len:]
+                    assert len(buffer) == (n_views - 1)
 
-                yield out, empty_buffer_state
+                    yield out, empty_buffer_state
 
-            if start_token == len(tokens):
-                start_token = 0
-                sample_is_read = True
-                previous_state = state
+                if start_token == len(tokens):
+                    start_token = 0
+                    sample_is_read = True
+                    previous_state = state
+    except StopIteration:
+        # If we have any remaining data in the buffer, we can yield one more partial batch
+        if len(buffer) >= n_views:
+            # Truncate to the largest valid sequence we can make
+            valid_len = len(buffer) - n_views + 1
+            out = np.array(buffer[: valid_len + n_views - 1])
+            out = np.lib.stride_tricks.sliding_window_view(out, n_views, axis=0)
+            yield out, empty_buffer_state
 
 
 def batch_and_shuffle_prefetched_sequences(
@@ -479,36 +538,77 @@ def batch_and_shuffle_prefetched_sequences(
     _rng_state = state["rng_state"]
     _it_state = state["it_state"]
 
-    for i in range(prefetch_size * batch_size):
-        prefetch_buffer[i], next_it_state = next(data_loader)
-    rng.shuffle(prefetch_buffer, axis=0)
-    for i in range(seq_idx * batch_size):
-        prefetch_buffer[i], _ = next(data_loader)
+    try:
+        # Initial fill of the prefetch buffer
+        for i in range(prefetch_size * batch_size):
+            prefetch_buffer[i], next_it_state = next(data_loader)
+        rng.shuffle(prefetch_buffer, axis=0)
 
-    idx = seq_idx
-    while True:
-        if idx == prefetch_size - 1:
-            _it_state = next_it_state
-            _rng_state = rng.bit_generator.state
+        # Skip sequences to get to the correct position
+        for i in range(seq_idx * batch_size):
+            prefetch_buffer[i], _ = next(data_loader)
 
-        state = PrefetchState(
-            it_state=_it_state,
-            seq_idx=(idx + 1) % prefetch_size,
-            rng_state=_rng_state,
-            batch_size=batch_size,
-            prefetch_size=prefetch_size,
-        )
+        idx = seq_idx
+        while True:
+            if idx == prefetch_size - 1:
+                _it_state = next_it_state
+                _rng_state = rng.bit_generator.state
 
-        yield prefetch_buffer[idx * batch_size : (idx + 1) * batch_size].copy(), state
+            state = PrefetchState(
+                it_state=_it_state,
+                seq_idx=(idx + 1) % prefetch_size,
+                rng_state=_rng_state,
+                batch_size=batch_size,
+                prefetch_size=prefetch_size,
+            )
 
-        for i in range(batch_size):
-            prefetch_buffer[idx * batch_size + i], pack_state = next(data_loader)
+            yield prefetch_buffer[idx * batch_size : (idx + 1) * batch_size].copy(), state
 
-        if idx == prefetch_size - 1:
-            next_it_state = pack_state
-            rng.shuffle(prefetch_buffer, axis=0)
+            # Refill the batch we just yielded
+            for i in range(batch_size):
+                prefetch_buffer[idx * batch_size + i], pack_state = next(data_loader)
 
-        idx = (idx + 1) % prefetch_size
+            if idx == prefetch_size - 1:
+                next_it_state = pack_state
+                rng.shuffle(prefetch_buffer, axis=0)
+
+            idx = (idx + 1) % prefetch_size
+
+    except StopIteration:
+        # When the data_loader is exhausted, we need to yield any remaining valid batches
+        # that are already in the prefetch buffer
+
+        # The prefetch buffer contains prefetch_size * batch_size sequences
+        # We need to check which ones are valid (not -1)
+        remaining_batches = []
+        for batch_idx in range(prefetch_size):
+            batch_start = batch_idx * batch_size
+            batch_end = (batch_idx + 1) * batch_size
+            batch = prefetch_buffer[batch_start:batch_end]
+
+            # Check if this batch has valid data (not all -1s)
+            if not np.all(batch == -1):
+                # Count how many valid sequences are in this batch
+                valid_sequences = 0
+                for seq in batch:
+                    if not np.all(seq == -1):
+                        valid_sequences += 1
+
+                if valid_sequences == batch_size:
+                    # Full batch - can yield as normal
+                    remaining_batches.append((batch_idx, batch.copy()))
+                # Note: partial batches are dropped to maintain consistent batch size
+
+        # Yield remaining full batches in order
+        for batch_idx, batch in remaining_batches:
+            state = PrefetchState(
+                it_state=_it_state,
+                seq_idx=(batch_idx + 1) % prefetch_size,
+                rng_state=_rng_state,
+                batch_size=batch_size,
+                prefetch_size=prefetch_size,
+            )
+            yield batch, state
 
 
 def find_and_sanitize_chunks(dataset_path: str, world_size: int, file_pattern: str = TRAIN_DATA_FILE_PATTERN):
@@ -567,6 +667,7 @@ def distribute_data_to_rank(dataset_path: str, rank: int, world_size: int, file_
                     block_size=n_ranks_per_chunk,
                     offset=i,
                     current_iter=0,
+                    single_epoch=False,
                 )
             )
 
@@ -580,6 +681,7 @@ def init_choice_state(
     rank: int,
     world_size: int,
     file_pattern: str,
+    single_epoch: bool = False,
 ):
     """
     Initializes the state of the choice iterator.
@@ -591,6 +693,7 @@ def init_choice_state(
         rank (int): The rank of the worker.
         world_size (int): The number of workers.
         file_pattern (str): The pattern to match the chunk files.
+        single_epoch (bool): If True, iterator will stop after one pass through all data.
 
     Returns:
         MultiChoiceState: The state of the choice iterator.
@@ -598,6 +701,7 @@ def init_choice_state(
     data_path_to_jsonl_state = dict()
     for dataset_path in sources:
         jsonl_state = distribute_data_to_rank(os.path.join(root_dir, dataset_path), rank, world_size, file_pattern)
+        jsonl_state["single_epoch"] = single_epoch
         data_path_to_jsonl_state[dataset_path] = jsonl_state
 
     multi_rng_state = np.random.default_rng(
@@ -609,6 +713,8 @@ def init_choice_state(
         sources=sources,
         source_to_state=data_path_to_jsonl_state,
         rng_state=multi_rng_state,
+        single_epoch=single_epoch,
+        exhausted_sources=set(),
     )
     return multi_choice_state
 
@@ -626,6 +732,7 @@ def init_state(
     add_bos: bool,
     add_eos: bool,
     file_pattern: str,
+    single_epoch: bool = False,
 ):
     """
     Initializes the state of the prefetch iterator.
@@ -643,12 +750,19 @@ def init_state(
         add_bos (bool): Whether to add the beginning of sentence token.
         add_eos (bool): Whether to add the end of sentence token.
         file_pattern (str): The pattern to match the chunk files.
+        single_epoch (bool): If True, iterator will stop after one pass through all data.
 
     Returns:
         PrefetchState: The state of the prefetch iterator.
     """
     multi_choice_state = init_choice_state(
-        root_dir=root_dir, sources=sources, seed=seed, rank=rank, world_size=world_size, file_pattern=file_pattern
+        root_dir=root_dir,
+        sources=sources,
+        seed=seed,
+        rank=rank,
+        world_size=world_size,
+        file_pattern=file_pattern,
+        single_epoch=single_epoch,
     )
     tokenizer_state = TokenizerState(
         it_state=multi_choice_state,
@@ -695,6 +809,7 @@ def setup_sources(multi_state):
             jsonl_state["block_size"],
             jsonl_state["offset"],
             jsonl_state["current_iter"],
+            jsonl_state.get("single_epoch", False),
         )
 
     return path_to_iter
@@ -726,6 +841,8 @@ def build_dataloader(
         root_dir=multi_state["root_dir"],
         sources=multi_state["sources"],
         rng_state=multi_state["rng_state"],
+        single_epoch=multi_state["single_epoch"],
+        exhausted_sources=multi_state["exhausted_sources"],
     )
     data_it = tokenize(
         data_it,
@@ -846,6 +963,7 @@ def init_dataloader_state_from_args(
     prefetch_size: int,
     n_views: int,
     split: str,
+    single_epoch: bool = False,
 ):
     """
     Initializes the state of the prefetch iterator.
@@ -861,6 +979,7 @@ def init_dataloader_state_from_args(
         prefetch_size (int): The number of batches to prefetch in advance.
         n_views (int): The number of shifted views to include in each output chunk.
         split (str): The split of the dataset.
+        single_epoch (bool): If True, iterator will stop after one pass through all data.
 
     Returns:
         PrefetchState: The state of the prefetch iterator.
@@ -878,6 +997,7 @@ def init_dataloader_state_from_args(
         add_bos=add_bos,
         add_eos=add_eos,
         file_pattern=TRAIN_DATA_FILE_PATTERN if split == "train" else VALIDATION_DATA_FILE_PATTERN,
+        single_epoch=single_epoch,
     )
 
 

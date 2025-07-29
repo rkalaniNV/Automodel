@@ -27,6 +27,7 @@ TRANSFORMERS_OFFLINE=1 python -m torch.distributed.run --nproc_per_node=2 --nnod
     --dataset.sources "{'fineweb': 100.0}" \
     --dataset.batch_size 8 \
     --dataset.packed_sequence_size 1024 \
+    --dataset.infinite true \
     --dataset.split validation \
     --checkpoint.enabled true \
     --checkpoint.checkpoint_dir checkpoints/ \

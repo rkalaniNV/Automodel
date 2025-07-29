@@ -52,6 +52,7 @@ _OVERRIDES = [
     "dataset.split",
     "dataset.batch_size",
     "dataset.packed_sequence_size",
+    "dataset.infinite",
 ]
 
 

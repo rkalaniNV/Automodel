@@ -44,6 +44,7 @@ class JSONLDataset(IterableDataset):
         load_async: bool = False,
         prefetch_size: int = 64,
         n_views: int = 2,
+        infinite: bool = True,
     ):
         """
         Args:
@@ -62,6 +63,7 @@ class JSONLDataset(IterableDataset):
             prefetch_size: Size of the prefetch buffer
             n_views: Number of views to be used for the dataset. Each view is offset by 1 from the previous one.
                 We use 2 views for the dataset. The first view is the input sequence and the second view is the target sequence.
+            infinite: If True, the dataset will loop infinitely. If False, the dataset will stop after one pass through all data.
         """
         assert split in ["train", "validation"], "Split must be either train or validation"
         # Persist constructor args so we can rebuild the dataloader after a checkpoint restore
@@ -79,6 +81,7 @@ class JSONLDataset(IterableDataset):
         self._load_async = load_async
         self._prefetch_size = prefetch_size
         self._n_views = n_views
+        self._infinite = infinite
 
         # Initialize dataloader state
         self.data_loader_state = init_dataloader_state_from_args(
@@ -94,6 +97,7 @@ class JSONLDataset(IterableDataset):
             prefetch_size,
             n_views,
             split,
+            not infinite,
         )
 
         # Create the context stack to manage the dataloader lifecycle and build the dataloader
