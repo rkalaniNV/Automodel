@@ -41,7 +41,6 @@ from nemo_automodel.components.loggers.log_utils import setup_logging
 from nemo_automodel.components.loggers.wandb_utils import suppress_wandb_log_messages
 from nemo_automodel.components.loss.linear_ce import FusedLinearCrossEntropy
 from nemo_automodel.components.optim.scheduler import OptimizerParamScheduler
-from nemo_automodel.components.training.base_recipe import BaseRecipe
 from nemo_automodel.components.training.rng import StatefulRNG
 from nemo_automodel.components.training.step_scheduler import StepScheduler
 from nemo_automodel.components.training.utils import count_tail_padding
@@ -51,6 +50,7 @@ from nemo_automodel.components.utils.dist_utils import (
     reduce_loss,
     rescale_gradients,
 )
+from nemo_automodel.recipes.base_recipe import BaseRecipe
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +68,10 @@ def build_model_and_optimizer(
     model_wrapper,
     seed,
     tp_size=1,
+    freeze_embeddings=True,
 ) -> tuple[nn.Module, "Optimizer"]:  # noqa: F821
-    """Build and initialize a model.
+    """
+    Build and initialize a model and optimizer.
 
     Args:
         device: The target device.
@@ -81,9 +83,10 @@ def build_model_and_optimizer(
         model_wrapper: Optional parallelism wrapper.
         seed: Random seed.
         tp_size: Tensor parallel size.
+        freeze_embeddings: Whether to freeze embeddings.
 
     Returns:
-        The instantiated model on the specified device.
+        The instantiated model on the specified device and optimizer.
     """
     with StatefulRNG(seed=seed, ranked=True):
         kwargs = {}
@@ -94,9 +97,11 @@ def build_model_and_optimizer(
                 "Setting model's attn_implementation to flash_attention_2"
             )
         model = cfg_model.instantiate(**kwargs)
-        for m in model.modules():
-            if isinstance(m, nn.Embedding):
-                m.weight.requires_grad_(False)
+        if freeze_embeddings:
+            logging.info("Freezing embeddings")
+            for m in model.modules():
+                if isinstance(m, nn.Embedding):
+                    m.weight.requires_grad_(False)
         # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
         if cfg_peft is not None:
             apply_lora_to_linear_modules(model, cfg_peft)
