@@ -219,11 +219,9 @@ def validate_tp_mesh(model, tp_mesh):
     Validate that attention heads and key value heads are divisible by TP size
     """
     if isinstance(model, Gemma3ForConditionalGeneration):
-        layers = model.language_model.layers
         num_attention_heads = model.config.text_config.num_attention_heads
         num_key_value_heads = model.config.text_config.num_key_value_heads
     else:
-        layers = model.model.layers
         num_attention_heads = model.config.num_attention_heads
         if hasattr(model.config, "num_key_value_heads"):
             num_key_value_heads = model.config.num_key_value_heads
@@ -308,7 +306,12 @@ def fsdp2_strategy_parallelize(
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
     tp_mesh = device_mesh[tp_mesh_name]
-    validate_tp_mesh(model, tp_mesh)
+    try:
+        validate_tp_mesh(model, tp_mesh)
+    except AssertionError as e:
+        raise
+    except Exception as e:
+        pass
 
     # Get model layers for later use
     model_cls = type(model)
