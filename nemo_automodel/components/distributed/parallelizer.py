@@ -308,9 +308,9 @@ def fsdp2_strategy_parallelize(
     tp_mesh = device_mesh[tp_mesh_name]
     try:
         validate_tp_mesh(model, tp_mesh)
-    except AssertionError as e:
+    except AssertionError:
         raise
-    except Exception as e:
+    except Exception:
         pass
 
     # Get model layers for later use
