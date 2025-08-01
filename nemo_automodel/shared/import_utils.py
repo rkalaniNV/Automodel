@@ -41,6 +41,7 @@ MISSING_CUT_CROSS_ENTROPY_MSG = (
 MISSING_TE_PARALLEL_CE_MSG = (
     "transformer_engine is not installed. Please install it with `pip install transformer-engine`."
 )
+MISSING_TORCHAO_MSG = "torchao is not installed. Please install it with `pip install torchao`."
 
 
 class UnavailableError(Exception):
