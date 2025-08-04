@@ -64,29 +64,15 @@ class TEParallelCrossEntropy:
         if not HAVE_TE_PARALLEL_CE:
             raise ImportError(MISSING_TE_PARALLEL_CE_MSG)
 
-        # Handle ignore_index by replacing ignored labels with a valid index
-        # and then masking out those positions
-        if self.ignore_index != -100:
-            # Create mask for positions to ignore
-            ignore_mask = (labels == self.ignore_index)
-            # Replace ignore_index with 0 (valid index) for computation
-            labels = labels.clone()
-            labels[ignore_mask] = 0
-            # Update the loss mask to zero out ignored positions
-            if mask is not None:
-                mask = mask.clone()
-                mask[ignore_mask] = 0.0
-            else:
-                mask = (~ignore_mask).float()
-                
+        if mask is not None:
+            with torch.no_grad():
+                if mask.device != labels.device:
+                    mask = mask.to(labels.device)
+                labels.masked_fill_(mask == 0, self.ignore_index)
+                del mask
 
         # Compute TE parallel cross entropy
-        # Note: TE parallel_cross_entropy expects (logits, labels, label_smoothing, shift, tp_group)
         te_loss = parallel_cross_entropy(logits, labels, 0.0, False, self.tp_group)
-
-        # Apply loss mask if provided
-        if mask is not None:
-            te_loss = te_loss * mask.float()
 
         # Apply reduction
         if self.reduction == "none":

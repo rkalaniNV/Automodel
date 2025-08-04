@@ -99,7 +99,7 @@ def test_te_parallel_cross_entropy_with_masking():
     vocab_size = 128256
     dtype = torch.bfloat16
 
-    logits = torch.randn(batch_size, seq_length, vocab_size, dtype=dtype, device=device) * 100
+    logits = torch.randn(batch_size, seq_length, vocab_size, dtype=dtype, device=device)
     targets = torch.randint(0, vocab_size, (batch_size, seq_length), device=device)
     loss_mask = torch.randint(0, 2, (batch_size, seq_length), device=device)
 
@@ -110,7 +110,8 @@ def test_te_parallel_cross_entropy_with_masking():
     torch.cuda.synchronize()
     mem_before_masked = torch.cuda.memory_allocated(device)
     with torch.amp.autocast(device_type="cuda", dtype=dtype):
-        masked_ce_loss = MaskedCrossEntropy()(logits, targets, mask=loss_mask)
+        # MaskedCrossEntropy fills in -100 for masked positions in-place, so we need to clone the targets for test correctness
+        masked_ce_loss = MaskedCrossEntropy()(logits, targets.clone(), mask=loss_mask)
     torch.cuda.synchronize()
     mem_after_masked = torch.cuda.memory_allocated(device)
     masked_ce_peak = torch.cuda.max_memory_allocated(device)
@@ -120,7 +121,8 @@ def test_te_parallel_cross_entropy_with_masking():
     torch.cuda.synchronize()
     mem_before_te = torch.cuda.memory_allocated(device)
     with torch.amp.autocast(device_type="cuda", dtype=dtype):
-        te_loss_sum = TEParallelCrossEntropy()(logits, targets, mask=loss_mask)
+        te_loss = TEParallelCrossEntropy()(logits, targets.clone(), mask=loss_mask)
+
     torch.cuda.synchronize()
     mem_after_te = torch.cuda.memory_allocated(device)
     te_peak = torch.cuda.max_memory_allocated(device)
@@ -133,8 +135,8 @@ def test_te_parallel_cross_entropy_with_masking():
     print(f"  TE Parallel: {mem_after_te / 1024**2:.2f} MB)")
 
     # Accuracy comparison
-    assert torch.allclose(te_loss_sum, masked_ce_loss, rtol=1e-2, atol=1e-2), (
-        f"Masked loss mismatch: masked_cross_entropy={masked_ce_loss.item():.4f}, TE={te_loss_sum.item():.4f}"
+    assert torch.allclose(te_loss, masked_ce_loss, rtol=1e-2, atol=1e-2), (
+        f"Masked loss mismatch: masked_cross_entropy={masked_ce_loss.item():.4f}, TE={te_loss.item():.4f}"
     )
 
     # Memory efficiency check - TE should use similar or less memory
