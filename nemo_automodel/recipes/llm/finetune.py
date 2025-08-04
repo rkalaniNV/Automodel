@@ -473,7 +473,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         use_hf_fa2 = self.cfg.get("packed_sequence.packed_sequence_size", 0) > 0
 
         # Initialize pipeline parallel info with reference to config
-        self.pp_info = PipelineInfo(cfg=self.cfg.get("pipeline_parallel", None))
+        self.pp_info = PipelineInfo(cfg=self.cfg.get("pipeline_parallel", {}))
 
         # Check if pipeline parallel configuration exists using dotted notation
         pp_size = self.pp_info.cfg.get("pp_size", 1)
