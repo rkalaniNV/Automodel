@@ -40,13 +40,10 @@ model:
 # torch.compile configuration
 compile:
   enabled: true
-  mode: "reduce-overhead"  # Options: "default", "reduce-overhead", "max-autotune"
+  mode: "default"  # Options: "default", "reduce-overhead", "max-autotune"
   fullgraph: false
-  dynamic: false  # Set to false for better performance with fixed shapes
+  dynamic: true  # Set to false for better performance with fixed shapes
   backend: null  # Use default backend (inductor)
-  options:
-    # Enable CUDA graphs for better performance
-    triton.cudagraph_trees: true
 
 distributed:
   _target_: nemo_automodel.components.distributed.fsdp2.FSDP2Manager
@@ -65,7 +62,7 @@ dataset:
   split: train
 
 packed_sequence:
-  packed_sequence_size: 1024  # Enable packed sequences for better performance with torch.compile
+  packed_sequence_size: 0
 
 dataloader:
   _target_: torchdata.stateful_dataloader.StatefulDataLoader
