@@ -51,6 +51,10 @@ from nemo_automodel.components.utils.dist_utils import (
     rescale_gradients,
 )
 from nemo_automodel.components.utils.model_utils import apply_parameter_freezing, print_trainable_parameters
+from nemo_automodel.components.utils.compile_utils import (
+    build_compile_config,
+    compile_model,
+)
 from nemo_automodel.recipes.base_recipe import BaseRecipe
 
 logger = logging.getLogger(__name__)
@@ -484,6 +488,10 @@ class FinetuneRecipeForVLM(BaseRecipe):
             tp_size=self.cfg.get("distributed.tp_size", 1),
             cfg_fp8=self.cfg.get("fp8", None),
         )
+        
+        # Apply torch.compile if configured
+        compile_config = build_compile_config(self.cfg.get("compile", None))
+        self.model = compile_model(self.model, compile_config)
         self.loss_fn = build_loss_fn(self.cfg.loss_fn)
         self.dataloader, self.processor = build_dataloader(
             self.cfg.dataset,

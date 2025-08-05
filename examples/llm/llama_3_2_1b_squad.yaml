@@ -37,6 +37,17 @@ model:
   _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
   pretrained_model_name_or_path: meta-llama/Llama-3.2-1B
 
+# torch.compile configuration
+compile:
+  enabled: true
+  mode: "reduce-overhead"  # Options: "default", "reduce-overhead", "max-autotune"
+  fullgraph: false
+  dynamic: false  # Set to false for better performance with fixed shapes
+  backend: null  # Use default backend (inductor)
+  options:
+    # Enable CUDA graphs for better performance
+    triton.cudagraph_trees: true
+
 distributed:
   _target_: nemo_automodel.components.distributed.fsdp2.FSDP2Manager
   dp_size: none
@@ -54,7 +65,7 @@ dataset:
   split: train
 
 packed_sequence:
-  packed_sequence_size: 0
+  packed_sequence_size: 1024  # Enable packed sequences for better performance with torch.compile
 
 dataloader:
   _target_: torchdata.stateful_dataloader.StatefulDataLoader
