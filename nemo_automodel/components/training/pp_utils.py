@@ -13,9 +13,8 @@
 # limitations under the License.
 
 import logging
-import math
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -44,7 +43,7 @@ class PipelineInfo:
         schedule (Optional[object]): The pipeline schedule object (None if PP not enabled).
         has_first_stage (bool): Whether this rank has the first pipeline stage.
         has_last_stage (bool): Whether this rank has the last pipeline stage.
-        model_parts (Optional[List[nn.Module]]): List of model parts for this rank (None if PP not enabled).
+        model_parts (Optional[list[nn.Module]]): List of model parts for this rank (None if PP not enabled).
     """
 
     enabled: bool = False
@@ -52,9 +51,9 @@ class PipelineInfo:
     schedule: Optional[object] = None
     has_first_stage: bool = True
     has_last_stage: bool = True
-    model_parts: Optional[List[nn.Module]] = None
+    model_parts: Optional[list[nn.Module]] = None
 
-    def build_config_dict(self) -> Dict[str, Any]:
+    def build_config_dict(self) -> dict[str, Any]:
         """Build a configuration dictionary from the ConfigNode for functions that need it.
 
         Returns:
@@ -161,7 +160,7 @@ def pipeline_parallel_forward_backward_step(
     pp_schedule: _PipelineSchedule,
     pp_has_first_stage: bool,
     pp_has_last_stage: bool,
-    batch: Dict[str, torch.Tensor],
+    batch: dict[str, torch.Tensor],
     labels: torch.Tensor,
     loss_mask: Optional[torch.Tensor],
     train_ctx: Callable,
@@ -209,13 +208,13 @@ def pipeline_parallel_forward_backward_step(
 
     # Accumulate losses across pipeline microbatches
     if pp_has_last_stage:
-        loss = torch.mean(torch.stack(losses))
+        loss = torch.sum(torch.stack(losses))
         print(f"loss: {loss}")
     else:
         # Non-last stages don't compute loss
         loss = torch.tensor(0.0, device=device)
 
-    return loss.detach()
+    return loss
 
 
 def check_pipeline_parallel_validation_support(pp_schedule: Optional[_PipelineSchedule]) -> bool:
@@ -276,6 +275,18 @@ def materialize_meta_model(
         init_weights: Whether to call init_weights on the model
         empty_weights: Whether to use empty weights (zeros) instead of init_weights
     """
+
+    def _init_weights(module):
+        std = 0.02
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=std)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=std)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+
     for mp in model_parts:
         # Move from meta to device with empty weights
         mp.to_empty(device=device)
@@ -284,7 +295,7 @@ def materialize_meta_model(
             # Initialize weights using model's init_weights method
             with torch.no_grad():
                 if hasattr(mp, "init_weights"):
-                    mp.init_weights()
+                    mp.apply(_init_weights)
                 else:
                     logger.warning(f"Model part {mp.__class__.__name__} does not have init_weights method")
 
@@ -298,7 +309,7 @@ def parallelize_for_pp(
     world_mesh: DeviceMesh,
     moe_mesh: Optional[DeviceMesh] = None,
     pp_enabled: bool = False,
-    dp_axis_names: Union[Tuple[str, ...], str] = ("data_parallel",),
+    dp_axis_names: Union[tuple[str, ...], str] = ("data_parallel",),
     cp_axis_name: Optional[str] = None,
     tp_axis_name: Optional[str] = None,
     ep_axis_name: Optional[str] = None,
@@ -318,11 +329,11 @@ def build_model_and_optimizer_for_pp(
     cfg_peft: Optional[Any],
     model_wrapper: Optional[Any],
     seed: int,
-    pp_config: Dict[str, Any],
+    pp_config: dict[str, Any],
     device_mesh: DeviceMesh,
     tp_size: int = 1,
     freeze_embeddings: bool = True,
-) -> Tuple[List[nn.Module], optim.Optimizer, _PipelineSchedule, Tuple[bool, bool]]:
+) -> tuple[list[nn.Module], optim.Optimizer, _PipelineSchedule, tuple[bool, bool]]:
     """
     Build and initialize a model and optimizer for pipeline parallelism.
 
@@ -401,7 +412,7 @@ def build_model_and_optimizer_for_pp(
     for i, model_part in enumerate(model_parts):
         trainable_params.append(
             {
-                "params": filter(lambda x: x.requires_grad, model_part.parameters()),
+                "params": list(filter(lambda x: x.requires_grad, model_part.parameters())),
                 "name": f"rank_{get_rank_safe()}_model_part_{i}",
             }
         )

@@ -474,7 +474,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             # Build config dict and add runtime configs
             pp_config = self.pp_info.build_config_dict()
             pp_config["microbatch_size"] = self.pp_info.cfg.get("microbatch_size", 1)
-            pp_config["local_batch_size"] = self.pp_info.cfg.get("local_batch_size", 1)
+            pp_config["local_batch_size"] = self.cfg.get("dataloader.batch_size", 1)
             pp_config["loss_fn"] = self.cfg.loss_fn if hasattr(self.cfg, "loss_fn") else None
 
             model_parts, self.optimizer, pp_schedule, (has_first_stage, has_last_stage) = (
@@ -612,7 +612,12 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         ):
             # Get device from model or first model part
             device = self.model.device if not self.pp_info.enabled else self.pp_info.model_parts[0].device
-            batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(device)
+            batch["position_ids"] = (
+                torch.arange(0, batch["input_ids"].shape[1])
+                .unsqueeze(0)
+                .expand(batch["input_ids"].shape[0], -1)
+                .to(device)
+            )
 
         # Use pipeline parallel forward/backward if PP is enabled
         if self.pp_info.schedule is not None:
@@ -722,10 +727,13 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             tps = self.num_nonpad_tokens / time_delta
             self.num_nonpad_tokens = 0
             # log
-            reporting_loss = self.log_train_metrics(grad_norm, tps)
             current_lr = self.optimizer.param_groups[0]["lr"]
-            if not self.pp_info.enabled or (self.pp_info.enabled and self.pp_info.has_last_stage):
-                logging.info(
+            reporting_loss = self.log_train_metrics(grad_norm, tps)
+
+            # if not self.pp_info.enabled or (self.pp_info.enabled and self.pp_info.has_last_stage):
+            # reporting_loss = self.log_train_metrics(grad_norm, tps)
+            if self.dist_env.is_main:
+                logger.info(
                     "step {} | epoch {} | loss {:.4f} | grad_norm {:.4f} | lr {:.2e} | mem: {:.2f} GiB | tps {:.2f}".format(
                         self.step_scheduler.step,
                         self.step_scheduler.epoch,
@@ -826,7 +834,18 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         total_loss, total_num_loss_tokens = reduce_loss(
             self.forward_data_store, self.total_local_num_loss_tokens, per_token_loss=True, dp_group=dp_group
         )
-        reporting_loss = (total_loss / total_num_loss_tokens).item()
+        if self.pp_info.enabled:
+            # Send loss to first rank if pp group rank is 0
+            src_rank = self.device_mesh.mesh.reshape(-1)[-1].item()
+            if self.dist_env.rank == src_rank:
+                torch.distributed.send(total_loss, dst=0)
+                torch.distributed.send(total_num_loss_tokens, dst=0)
+            elif self.dist_env.is_main:
+                torch.distributed.recv(total_loss, src=src_rank)
+                torch.distributed.recv(total_num_loss_tokens, src=src_rank)
+
+        reporting_loss = total_loss / total_num_loss_tokens
+        reporting_loss = reporting_loss.item()
         grad_norm = grad_norm.item() if not isinstance(grad_norm, float) else grad_norm  # TP WAR
         self.total_local_num_loss_tokens.zero_()
         self.forward_data_store = []
