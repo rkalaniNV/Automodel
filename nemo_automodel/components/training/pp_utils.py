@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, Union
@@ -299,6 +300,9 @@ def materialize_meta_model(
                 else:
                     logger.warning(f"Model part {mp.__class__.__name__} does not have init_weights method")
 
+        mp.bfloat16()
+        mp.train()
+        print(f"Max memory allocated: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f} GB")
         # Move to target device
         mp.to(device)
 
@@ -395,7 +399,7 @@ def build_model_and_optimizer_for_pp(
         local_batch_size=local_batch_size,
         device=device,
         loss_fn=loss_fn,
-        parallelize_fn=parallelize_for_pp,
+        parallelize_fn=functools.partial(parallelize_for_pp, model_wrapper=model_wrapper),
         module_fqns_per_model_part=pp_config.get("module_fqns_per_model_part", None),
     )
 
