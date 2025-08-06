@@ -210,7 +210,6 @@ def pipeline_parallel_forward_backward_step(
     # Accumulate losses across pipeline microbatches
     if pp_has_last_stage:
         loss = torch.sum(torch.stack(losses))
-        print(f"loss: {loss}")
     else:
         # Non-last stages don't compute loss
         loss = torch.tensor(0.0, device=device)
@@ -302,7 +301,6 @@ def materialize_meta_model(
 
         mp.bfloat16()
         mp.train()
-        print(f"Max memory allocated: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f} GB")
         # Move to target device
         mp.to(device)
 
@@ -368,6 +366,7 @@ def build_model_and_optimizer_for_pp(
     with StatefulRNG(seed=seed, ranked=True):
         # Initialize model on meta device
         model = initialize_meta_model(cfg_model, use_hf_fa2)
+        model.config.return_dict = False
 
         if freeze_embeddings:
             logger.info("Marking embeddings for freezing")

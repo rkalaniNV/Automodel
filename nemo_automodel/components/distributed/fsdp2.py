@@ -77,6 +77,10 @@ class FSDP2Manager:
         default=1,
         metadata={"help": "Context-parallel group size (for pipeline-like sharding)."},
     )
+    pp_size: Optional[int] = field(
+        default=1,
+        metadata={"help": "Pipeline-parallel group size (for pipeline-like sharding)."},
+    )
     sequence_parallel: Optional[bool] = field(
         default=False,
         metadata={"help": "Enable sequence parallelism in TP plan if True."},
@@ -133,10 +137,11 @@ class FSDP2Manager:
         # infer if not provided
         self.tp_size = self.tp_size or 1
         self.cp_size = self.cp_size or 1
+        self.pp_size = self.pp_size or 1
 
         if self.dp_size is None or self.dp_size <= 0:
             # Calculate dp_size to ensure dp_size * tp_size * cp_size == world_size
-            total_parallel_ranks = self.tp_size * self.cp_size
+            total_parallel_ranks = self.tp_size * self.cp_size * self.pp_size
             if self.world_size % total_parallel_ranks != 0:
                 raise ValueError(
                     f"world_size ({self.world_size}) must be divisible by (tp_size * cp_size) "
@@ -144,8 +149,8 @@ class FSDP2Manager:
                 )
             self.dp_size = self.world_size // total_parallel_ranks
 
-        mesh_shape = (self.dp_size, self.cp_size, self.tp_size)
-        mesh_names = ("data_parallel", "context_parallel", "tensor_parallel")
+        mesh_shape = (self.pp_size, self.dp_size, self.cp_size, self.tp_size)
+        mesh_names = ("pipeline_parallel", "data_parallel", "context_parallel", "tensor_parallel")
         for shape, name in zip(mesh_shape, mesh_names):
             assert isinstance(shape, int), "Expected {} to be an int, but got {}".format(name, type(shape))
             assert shape > 0, "Expected {} > 0, {}".format(name, shape)
@@ -156,12 +161,13 @@ class FSDP2Manager:
             mesh_shape=mesh_shape,
             mesh_dim_names=mesh_names,
         )
+        print(self.device_mesh)
         # flatten dp+cp if cp>1
         if self.cp_size > 1:
             self.device_mesh[("data_parallel", "context_parallel")]._flatten(mesh_dim_name="dp_cp")
         return self
 
-    def parallelize(self, model, use_hf_tp_plan=False):
+    def parallelize(self, model, use_hf_tp_plan=True):
         """
         Parallelizes the given model using FSDP2 and TP sharding strategies.
 
@@ -182,6 +188,7 @@ class FSDP2Manager:
         if self.device_mesh["tensor_parallel"].size() > 1:
             if use_hf_tp_plan:
                 tp_shard_plan = get_hf_tp_shard_plan(model)
+                print(f"hf tp shard plan: {tp_shard_plan}")
             else:
                 # Parallelize the first embedding and the last linear out projection
                 base_model_tp_plan = {
@@ -227,5 +234,6 @@ class FSDP2Manager:
             mp_policy=self.mp_policy,
             tp_shard_plan=tp_shard_plan,
             offload_policy=self.offload_policy,
+            activation_checkpointing=True,
         )
         return model

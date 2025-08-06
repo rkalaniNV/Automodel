@@ -20,7 +20,7 @@ from typing import List, Optional, Union
 
 import torch
 from torch.nn.attention import SDPBackend, sdpa_kernel
-from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, PreTrainedModel
+from transformers import AutoConfig, AutoModelForCausalLM, AutoModelForImageTextToText, PreTrainedModel
 from transformers.models.auto.auto_factory import _BaseAutoModelClass
 
 from nemo_automodel import __version__
@@ -143,6 +143,7 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
         sdpa_method: Optional[List[SDPBackend]] = None,
         torch_dtype="auto",
         attn_implementation: str = "flash_attention_2",
+        device_map: Optional[Union[str, dict]] = None,
         **kwargs,
     ) -> PreTrainedModel:
         """
@@ -169,6 +170,8 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
                 Data type passed to the underlying `from_pretrained` call.
             attn_implementation (str, default="flash_attention_2"): Desired
                 attention implementation; forwarded to the HF config.
+            device_map (str | dict | None, optional): Device map for model
+                placement. Use "meta" for meta device initialization.
             **kwargs: Additional keyword arguments forwarded verbatim to
                 `AutoModelForCausalLM.from_pretrained`.
 
@@ -197,6 +200,7 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
                 use_liger_kernel=override.get("use_liger_kernel", use_liger_kernel),
                 use_sdpa_patching=override.get("use_sdpa_patching", use_sdpa_patching),
                 sdpa_method=sdpa_method,
+                device_map=device_map,
                 **kwargs,
             )
 
@@ -210,6 +214,7 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
                 *model_args,
                 torch_dtype=torch_dtype,
                 attn_implementation=attn_implementation,
+                device_map=device_map,
                 **kwargs,
             )
             cls.__name__ = name
@@ -367,7 +372,10 @@ class NeMoAutoModelForCausalLM(_BaseNeMoAutoModelClass, AutoModelForCausalLM):
     ...     "gpt2", use_liger_kernel=False)                                 # skip Liger
     """
 
-    pass
+    @classmethod
+    def from_pretrained_config(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        config = AutoConfig.from_pretrained(pretrained_model_name_or_path)
+        return super().from_config(config, *model_args, **kwargs)
 
 
 class NeMoAutoModelForImageTextToText(_BaseNeMoAutoModelClass, AutoModelForImageTextToText):

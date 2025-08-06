@@ -862,6 +862,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             log_data["learning_rate"] = self.optimizer.param_groups[0]["lr"]
 
         if wandb.run is not None:
+            print(f"Logging to wandb: {log_data}")
             wandb.log(log_data)
         return reporting_loss
 
