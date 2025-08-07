@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import pathlib
 import time
+import os
 from typing import Any, Dict
 
 import torch
@@ -57,7 +58,62 @@ from nemo_automodel.components.utils.compile_utils import (
 )
 from nemo_automodel.recipes.base_recipe import BaseRecipe
 
+torch.backends.cuda.enable_flash_sdp(True)
+torch.backends.cuda.enable_mem_efficient_sdp(False)
+torch.backends.cuda.enable_math_sdp(False)
+torch.backends.cuda.enable_cudnn_sdp(False)
 logger = logging.getLogger(__name__)
+
+# Profiling configuration from environment variables
+PROFILE_START_STOP = os.environ.get("PROFILE_START_STOP", None)  # e.g., "10-20"
+PROFILE_ENABLED = PROFILE_START_STOP is not None
+PROFILE_WARMUP_STEPS = int(os.environ.get("PROFILE_WARMUP_STEPS", "5"))
+ENABLE_NVTX = os.environ.get("ENABLE_NVTX", "1").lower() in ("1", "true")
+
+# Parse profile range
+if PROFILE_ENABLED:
+    try:
+        profile_start, profile_end = map(int, PROFILE_START_STOP.split("-"))
+        logger.info(f"Profiling enabled: steps {profile_start} to {profile_end}")
+    except ValueError:
+        logger.error(f"Invalid PROFILE_START_STOP format: {PROFILE_START_STOP}. Expected 'start-end'")
+        PROFILE_ENABLED = False
+        profile_start = profile_end = 0
+else:
+    profile_start = profile_end = 0
+
+# Profiling helper functions
+def start_profiling(step: int) -> bool:
+    """Start profiling if conditions are met."""
+    if not PROFILE_ENABLED or step != profile_start:
+        return False
+    
+    logger.info(f"Starting profiling at step {step}")
+    torch.cuda.cudart().cudaProfilerStart()
+    if ENABLE_NVTX:
+        torch.cuda.nvtx.range_push("profiling_region")
+    return True
+
+def stop_profiling(step: int) -> bool:
+    """Stop profiling if conditions are met."""
+    if not PROFILE_ENABLED or step != profile_end:
+        return False
+    
+    logger.info(f"Stopping profiling at step {step}")
+    if ENABLE_NVTX:
+        torch.cuda.nvtx.range_pop()
+    torch.cuda.cudart().cudaProfilerStop()
+    return True
+
+def nvtx_range_push(name: str):
+    """Push NVTX range if enabled."""
+    if ENABLE_NVTX:
+        torch.cuda.nvtx.range_push(name)
+
+def nvtx_range_pop():
+    """Pop NVTX range if enabled."""
+    if ENABLE_NVTX:
+        torch.cuda.nvtx.range_pop()
 
 # ---------------------------
 #  Stateless helper functions
@@ -548,15 +604,41 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         self.model.train()
         self.timestamp = time.perf_counter()
         self.num_nonpad_tokens = 0
+        
+        # Add warmup for profiling
+        if PROFILE_ENABLED:
+            logger.info(f"Profiling warmup: running {PROFILE_WARMUP_STEPS} warmup steps before profiling")
+        
         for epoch in self.step_scheduler.epochs:
             self.step_scheduler.set_epoch(epoch)
             for batch_idx, batch in enumerate(self.step_scheduler):
+                current_step = self.step_scheduler.step
+                
+                # Start profiling if needed
+                start_profiling(current_step)
+                
+                # Add NVTX marker for the training step
+                nvtx_range_push(f"train_step_{current_step}")
+                
                 self._run_train_step(batch, self.step_scheduler.is_optim_step, 1.0)
+                
+                # Pop NVTX marker for the training step
+                nvtx_range_pop()
+                
                 if self.step_scheduler.is_ckpt_step:
+                    nvtx_range_push("checkpoint_save")
                     self.save_checkpoint(epoch, self.step_scheduler.step)
+                    nvtx_range_pop()
 
                 if self.step_scheduler.is_val_step and self.val_dataloader is not None:
+                    nvtx_range_push("validation")
                     self._run_validation_epoch()
+                    nvtx_range_pop()
+                
+                # Stop profiling if needed
+                if stop_profiling(current_step):
+                    logger.info("Profiling completed, exiting...")
+                    return
 
     # ------------------ helpers ------------------
     def _run_train_step(self, batch, is_optim_step, clip_norm=1.0):
@@ -569,6 +651,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         """
         self.model.train()
 
+        # Data preparation
+        nvtx_range_push("data_preparation")
         batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
         labels = batch.pop("labels")
         loss_mask = batch.pop("loss_mask", None)
@@ -581,18 +665,27 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             and (self.device_mesh["cp"].size() > 1 or self.device_mesh["tp"].size() > 1)
         ):
             batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(self.model.device)
+        nvtx_range_pop()
 
+        # Forward pass
+        nvtx_range_push("forward_pass")
         train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels, loss_mask)
-        with train_ctx():
+        with train_ctx(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
             if isinstance(self.loss_fn, FusedLinearCrossEntropy):
                 # use num_logits_to_keep to avoid full logits matrix in memory
+                nvtx_range_push("model_forward_fused")     
                 out = self.model(logits_to_keep=1, **batch)
+                nvtx_range_pop()
                 if "hidden_states" not in out:
                     raise ValueError(
                         "FusedLinearCrossEntropy requires the model to output hidden states. Set `model.output_hidden_states=True` in the config."
                     )
             else:
+                nvtx_range_push("model_forward")
                 out = self.model(**batch)
+                nvtx_range_pop()
+            
+            nvtx_range_push("loss_calculation")
             local_loss = calculate_loss(
                 self.loss_fn,
                 logits=out.logits,
@@ -601,21 +694,31 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 model=self.model,
                 hidden_states=out.hidden_states[-1] if "hidden_states" in out else None,
             )
+            nvtx_range_pop()
+        nvtx_range_pop()  # End forward_pass
 
         # local_num_loss_tokens are the number of tokens that are used for loss calculation
         # in pretraining, this excludes padding tokens. In SFT, this additionally
         # excludes the context tokens.
+        nvtx_range_push("loss_tracking")
         local_num_loss_tokens = loss_mask.sum().detach().to(torch.int)
         # num_nonpad_tokens are the number of non-padding tokens
         self.num_nonpad_tokens += labels.numel() - count_tail_padding(labels)
         self.total_local_num_loss_tokens += local_num_loss_tokens
         self.forward_data_store.append(local_loss.detach())
+        nvtx_range_pop()
 
+        # Backward pass
+        nvtx_range_push("backward_pass")
         with get_sync_ctx(self.model, is_optim_step):
             local_loss.backward()
+        nvtx_range_pop()
 
         grad_norm = None
         if is_optim_step:
+            nvtx_range_push("optimizer_step")
+            
+            nvtx_range_push("gradient_rescaling")
             rescale_gradients(
                 self.model,
                 self.total_local_num_loss_tokens,
@@ -625,20 +728,25 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 if self.device_mesh is not None
                 else None,
             )
+            nvtx_range_pop()
 
             # Clip gradients **after** any rescaling.
             # TODO(@boxiangw): Fix TP gradient clipping
+            nvtx_range_push("gradient_clipping")
             if not self.device_mesh or self.device_mesh["tp"].size() == 1:
                 grad_norm = clip_gradients(self.model, clip_norm)
             else:
                 # TODO: TP WAR
                 grad_norm = 0.0
+            nvtx_range_pop()
 
             # Note(nvFSDP): Need to call these functions for nvFSDP if not using latest api
             # self.model.finish_grad_sync()
 
+            nvtx_range_push("param_update")
             self.optimizer.step()
             self.optimizer.zero_grad()
+            nvtx_range_pop()
 
             # Precompute FP8 scales
             if (
@@ -646,10 +754,16 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 and self.model.precompute_float8_dynamic_scale_for_fsdp
                 and self.device_mesh["dp_shard"].size() > 1
             ):
+                nvtx_range_push("fp8_scale_precompute")
                 precompute_float8_dynamic_scale_for_fsdp(self.model)
+                nvtx_range_pop()
 
             if self.lr_scheduler is not None:
+                nvtx_range_push("lr_scheduler_step")
                 self.lr_scheduler.step(1)
+                nvtx_range_pop()
+            
+            nvtx_range_pop()  # End optimizer_step
 
             # Note(nvFSDP): Need to call these functions for nvFSDP if not using latest api
             # self.model.install_optimized_model_weights()
@@ -658,6 +772,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             # TPS is calculated as follows (assuming grad-accumulation-steps=2):
             # fwd 0 | bwd 0 | fwd 1 | bwd 1 | opt 0 | fwd 2 | bwd 2 | ...
             # ^                                     ^
+            nvtx_range_push("metrics_and_logging")
             t = time.perf_counter()
             time_delta = t - self.timestamp
             self.timestamp = t
@@ -678,17 +793,21 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 )
             )
             torch.cuda.reset_peak_memory_stats()
+            nvtx_range_pop()
 
     @torch.no_grad()
     def _run_validation_epoch(self):
         """Run one pass over `self.val_dataloader`."""
         with StatefulRNG(seed=1, ranked=True):
+            nvtx_range_push("validation_setup")
             self.model.eval()
 
             total_loss = 0.0
             total_tokens = 0
+            nvtx_range_pop()
 
-            for batch in self.val_dataloader:
+            for batch_idx, batch in enumerate(self.val_dataloader):
+                nvtx_range_push(f"validation_batch_{batch_idx}")
                 batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
                 labels = batch.pop("labels")
                 loss_mask = batch.pop("loss_mask", None)
@@ -721,7 +840,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
                 total_loss += local_loss.item()
                 total_tokens += loss_mask.sum().item()
+                nvtx_range_pop()  # End validation_batch
 
+        nvtx_range_push("validation_aggregation")
         # Aggregate across ranks if distributed is initialized
         if dist.is_initialized():
             tensor = torch.tensor([total_loss, total_tokens], device=self.dist_env.device)
@@ -738,6 +859,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 self.step_scheduler.step, self.step_scheduler.epoch, val_loss, current_lr
             )
         )
+        nvtx_range_pop()
 
     def log_train_metrics(self, grad_norm, tps) -> float:
         """Log metrics to wandb.

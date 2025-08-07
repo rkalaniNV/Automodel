@@ -59,11 +59,15 @@ def _patch_attention(obj, sdpa_method=None):
     """
     if sdpa_method is None:
         sdpa_method = [
-            SDPBackend.CUDNN_ATTENTION,
+            #SDPBackend.CUDNN_ATTENTION,
             SDPBackend.FLASH_ATTENTION,
-            SDPBackend.EFFICIENT_ATTENTION,
-            SDPBackend.MATH,
+            #SDPBackend.EFFICIENT_ATTENTION,
+            #SDPBackend.MATH,
         ]
+    sdpa_kernel.enable_flash(True)
+    sdpa_kernel.enable_math(False)
+    sdpa_kernel.enable_mem_efficient(False)
+
     orig_forward = obj.forward
 
     def patch_method(method):
@@ -358,13 +362,13 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
             logging.warning("Retrying without Liger kernels.")
             return _retry(use_liger_kernel=False)
 
-        # Patch sdpa attention
-        try:
-            if use_sdpa_patching:
-                model = _patch_attention(model, sdpa_method)
-        except:
-            logging.warning("Retrying without SDPA patching.")
-            return _retry(use_sdpa_patching=False)
+        # # Patch sdpa attention
+        # try:
+        #     if use_sdpa_patching:
+        #         model = _patch_attention(model, sdpa_method)
+        # except:
+        #     logging.warning("Retrying without SDPA patching.")
+        #     return _retry(use_sdpa_patching=False)
 
         # Apply FP8 quantization
         try:
