@@ -129,7 +129,7 @@ def save_model(
         fqn_to_file_index_mapping = None
         if checkpoint_config.save_consolidated:
             # we first need to find the FQN -> .safetensors mapping
-            index_path = _get_safetensors_index_path(
+            index_path = get_safetensors_index_path(
                 checkpoint_config.model_cache_dir,
                 checkpoint_config.model_repo_id,
             )
@@ -164,6 +164,35 @@ def save_model(
         dcp.save(model_state.state_dict(), checkpoint_id=model_path)
     else:
         raise ValueError(f"Unsupported model save format: {checkpoint_config.model_save_format}")
+
+
+def load_model_from_base_checkpoint(
+    model: torch.nn.Module, device: torch.device, is_peft: bool, root_dir: str, model_name: str
+):
+    """
+    Load a model from the base Hugging Face checkpoint in parallel.
+
+    Args:
+        model: Model to load state into
+        device: Device to load model onto
+        is_peft: Whether the model is PEFT
+        root_dir: Root directory of the model
+        model_name: Name of the model
+    """
+    model.to_empty(device=device)
+    # TODO: init weights correctly here. only necessary for pretraining.
+
+    model_state = ModelState(model, is_peft=is_peft, is_init_step=True)
+    model_state_dict = model_state.state_dict()
+    model_path = get_safetensors_index_path(root_dir, model_name)
+    dcp.load(
+        model_state_dict,
+        storage_reader=_HuggingFaceStorageReader(
+            model_path, key_mapping=getattr(model, "_checkpoint_conversion_mapping", None)
+        ),
+    )
+    model.load_state_dict(model_state_dict, strict=False if model_state.is_tied_lm_head else True)
+    breakpoint()
 
 
 def load_model(
@@ -260,7 +289,7 @@ def load_optimizer(
     optimizer_state.load_state_dict(reinstated_state_dict)
 
 
-def _get_safetensors_index_path(cache_dir: str, repo_id: str) -> str:
+def get_safetensors_index_path(cache_dir: str, repo_id: str) -> str:
     """
     Return the directory containing the first `model.safetensors.index.json` found for given model.
 

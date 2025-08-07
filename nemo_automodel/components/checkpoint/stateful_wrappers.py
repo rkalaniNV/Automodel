@@ -64,7 +64,7 @@ class ModelState:
         model: The PyTorch model to track.
     """
 
-    def __init__(self, model: torch.nn.Module, is_peft: bool = False):
+    def __init__(self, model: torch.nn.Module, is_peft: bool = False, is_init_step: bool = False):
         """
         Initialize a ModelState instance for distributed checkpointing.
 
@@ -77,10 +77,12 @@ class ModelState:
             model (torch.nn.Module): The PyTorch model whose state should be
                 captured during checkpointing.
             is_peft (bool): Whether the model is PEFT.
+            is_init_step (bool): Whether the model is being initialized.
         """
         self.model = model
         self.is_tied_lm_head = getattr(getattr(model, "config", {}), "tie_word_embeddings", False)
         self.is_peft = is_peft
+        self.is_init_step = is_init_step
 
     def state_dict(self) -> dict[str, Any]:
         """
@@ -90,14 +92,14 @@ class ModelState:
             dict: Dictionary containing the model's state dict with CPU offloading enabled.
         """
         options = None
-        if self.is_peft:
+        if self.is_peft and not self.is_init_step:
             options = StateDictOptions(full_state_dict=True, cpu_offload=True, ignore_frozen_params=True)
         model_state_dict = get_model_state_dict(self.model, options=options)
         if self.is_tied_lm_head:
             _, lm_head_param_name = _get_lm_head_weight_and_name(self.model)
             model_state_dict.pop(lm_head_param_name, None)
 
-        if self.is_peft:
+        if self.is_peft and not self.is_init_step:
             # HF PEFT models are saved with a "base.model." prefix. This is so they can be loaded
             # correctly with the HF PEFT API.
             _add_outer_prefix(model_state_dict, "base_model.model.")

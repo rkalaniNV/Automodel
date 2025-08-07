@@ -29,10 +29,11 @@ from torchao.float8 import precompute_float8_dynamic_scale_for_fsdp
 from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
 from transformers import AutoTokenizer
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+from transformers.utils import TRANSFORMERS_CACHE
 from wandb import Settings
 
 from nemo_automodel.components._peft.lora import apply_lora_to_linear_modules
-from nemo_automodel.components.checkpoint.checkpointing import CheckpointingConfig
+from nemo_automodel.components.checkpoint.checkpointing import CheckpointingConfig, load_model_from_base_checkpoint
 from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
 from nemo_automodel.components.datasets.llm.packed_sequence import PackedSequence
 from nemo_automodel.components.distributed.cp_utils import make_cp_batch_and_ctx
@@ -102,15 +103,18 @@ def build_model_and_optimizer(
         if cfg_fp8 is not None:
             kwargs["fp8_config"] = cfg_fp8.instantiate()
 
-        model = cfg_model.instantiate(**kwargs)
-        if freeze_embeddings:
-            logging.info("Freezing embeddings")
-            for m in model.modules():
-                if isinstance(m, nn.Embedding):
-                    m.weight.requires_grad_(False)
-        # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
-        if cfg_peft is not None:
-            apply_lora_to_linear_modules(model, cfg_peft)
+        # Instantiate the model in meta device to avoid OOM
+        with torch.device("meta" if model_wrapper is not None else device):
+            model = cfg_model.instantiate(**kwargs)
+
+            if freeze_embeddings:
+                logging.info("Freezing embeddings")
+                for m in model.modules():
+                    if isinstance(m, nn.Embedding):
+                        m.weight.requires_grad_(False)
+            # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
+            if cfg_peft is not None:
+                apply_lora_to_linear_modules(model, cfg_peft)
 
     if callable(getattr(model_wrapper, "parallelize", None)):
         # FSDP2 and nvFSDP should already be on the correct device
@@ -129,6 +133,15 @@ def build_model_and_optimizer(
 
         else:
             model = model_wrapper.parallelize(model)
+
+        # Load the weights into the model in parallel.
+        load_model_from_base_checkpoint(
+            model,
+            device,
+            cfg_peft is not None,
+            cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
+            cfg_model.pretrained_model_name_or_path,
+        )
     else:
         model = model.to(device)
 
@@ -154,7 +167,6 @@ def build_checkpoint_config(cfg_ckpt, cache_dir, model_repo_id, is_peft) -> Chec
     Returns:
         The instantiated checkpoint configuration.
     """
-    from transformers.utils import TRANSFORMERS_CACHE
 
     ckpt_kwargs = dict(
         enabled=False,
