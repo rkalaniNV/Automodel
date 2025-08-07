@@ -46,6 +46,7 @@ from nemo_automodel.components.training.pp_utils import (
     PipelineInfo,
     build_model_and_optimizer_for_pp,
     check_pipeline_parallel_validation_support,
+    clip_grad_norm_for_pp,
     pipeline_parallel_forward_backward_step,
     rescale_gradients_for_pp,
 )
@@ -506,6 +507,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     pp_config=pp_config,
                     device_mesh=self.device_mesh,
                     tp_size=self.cfg.get("distributed.tp_size", 1),
+                    freeze_embeddings=False,
                 )
             )
             self.pp_info.model_parts = model_parts
@@ -719,8 +721,13 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             if not self.device_mesh or self.device_mesh["tensor_parallel"].size() == 1 and not self.pp_info.enabled:
                 grad_norm = clip_gradients(grad_model, clip_norm)
             else:
-                # TODO: TP WAR
-                grad_norm = 0.0
+                grad_norm = clip_grad_norm_for_pp(
+                    [p for m in self.pp_info.model_parts for p in m.parameters()],
+                    clip_norm,
+                    foreach=True,
+                    pp_mesh=(self.device_mesh["pipeline_parallel"] if self.pp_info.enabled else None),
+                    ep_dense_params_mesh_ndim=None,
+                )
 
             # Note(nvFSDP): Need to call these functions for nvFSDP if not using latest api
             # self.model.finish_grad_sync()
