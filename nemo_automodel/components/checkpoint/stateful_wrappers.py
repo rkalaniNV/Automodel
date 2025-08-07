@@ -91,15 +91,20 @@ class ModelState:
         Returns:
             dict: Dictionary containing the model's state dict with CPU offloading enabled.
         """
+        if self.is_init_step:
+            return self._get_base_model_state_dict()
+
         options = None
-        if self.is_peft and not self.is_init_step:
+        if self.is_peft:
             options = StateDictOptions(full_state_dict=True, cpu_offload=True, ignore_frozen_params=True)
+
         model_state_dict = get_model_state_dict(self.model, options=options)
+    
         if self.is_tied_lm_head:
             _, lm_head_param_name = _get_lm_head_weight_and_name(self.model)
             model_state_dict.pop(lm_head_param_name, None)
 
-        if self.is_peft and not self.is_init_step:
+        if self.is_peft:
             # HF PEFT models are saved with a "base.model." prefix. This is so they can be loaded
             # correctly with the HF PEFT API.
             _add_outer_prefix(model_state_dict, "base_model.model.")
@@ -132,6 +137,18 @@ class ModelState:
             state_dict,
             options=options,
         )
+    
+    def _get_base_model_state_dict(self) -> dict[str, Any]:
+        model_state_dict = get_model_state_dict(self.model)
+        if self.is_tied_lm_head:
+            _, lm_head_param_name = _get_lm_head_weight_and_name(self.model)
+            model_state_dict.pop(lm_head_param_name, None)
+        if self.is_peft:
+            keys_to_remove = [k for k in model_state_dict.keys() if "lora" in k]
+            for k in keys_to_remove:
+                model_state_dict.pop(k)
+
+        return model_state_dict
 
 
 class OptimizerState:

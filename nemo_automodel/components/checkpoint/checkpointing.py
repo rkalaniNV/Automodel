@@ -195,7 +195,8 @@ def load_model_from_base_checkpoint(
             model_path, key_mapping=getattr(model, "_checkpoint_conversion_mapping", None)
         ),
     )
-    model.load_state_dict(model_state_dict, strict=False if model_state.is_tied_lm_head else True)
+    strict = not (model_state.is_tied_lm_head or model_state.is_peft)
+    model.load_state_dict(model_state_dict, strict=strict)
 
 
 def load_model(
