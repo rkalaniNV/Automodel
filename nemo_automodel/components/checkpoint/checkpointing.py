@@ -184,7 +184,11 @@ def load_model_from_base_checkpoint(
 
     model_state = ModelState(model, is_peft=is_peft, is_init_step=True)
     model_state_dict = model_state.state_dict()
-    model_path = get_safetensors_index_path(root_dir, model_name)
+    if os.path.exists(model_name):
+        # offline models will pass in the model path directly
+        model_path = model_name
+    else:
+        model_path = get_safetensors_index_path(root_dir, model_name)
     dcp.load(
         model_state_dict,
         storage_reader=_HuggingFaceStorageReader(
