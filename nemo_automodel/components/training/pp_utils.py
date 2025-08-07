@@ -14,14 +14,16 @@
 
 import functools
 import logging
+import math
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Iterable, Optional, Union
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.pipelining.schedules import _PipelineSchedule
+from torch.distributed.tensor import DTensor
 
 from nemo_automodel.components._peft.lora import apply_lora_to_linear_modules
 from nemo_automodel.components.distributed.init_utils import get_rank_safe
@@ -75,7 +77,7 @@ class PipelineInfo:
         }
 
 
-def validate_model_for_pipeline_support(cfg_model: Any, model_wrapper: Optional[Any]) -> None:
+def validate_model_for_pipeline_support(model: nn.Module, model_wrapper: Optional[Any]) -> None:
     """
     Validate if a model configuration is compatible with pipeline parallel training.
 
@@ -86,11 +88,12 @@ def validate_model_for_pipeline_support(cfg_model: Any, model_wrapper: Optional[
         ValueError: If the model configuration is incompatible with pipeline parallelism
     """
     # Get the model config to check compatibility
-    if hasattr(cfg_model, "pretrained_model_name_or_path"):
-        model_name = cfg_model.pretrained_model_name_or_path
+    if hasattr(model.config, "pretrained_model_name_or_path"):
+        model_name = model.pretrained_model_name_or_path
     else:
         model_name = "Unknown model"
 
+    config = model.config
     # List of known incompatibilities
     incompatibilities = []
 
@@ -101,40 +104,33 @@ def validate_model_for_pipeline_support(cfg_model: Any, model_wrapper: Optional[
 
     # Check if we can access the config to validate
     try:
-        # Try to get the config without instantiating the full model
-        from transformers import AutoConfig
+        if getattr(config, "tie_word_embeddings", False):
+            incompatibilities.append(
+                "tie_word_embeddings=True is not supported with pipeline parallelism. "
+                "The input and output embeddings must be separate for proper stage assignment."
+            )
 
-        if hasattr(cfg_model, "pretrained_model_name_or_path"):
-            config = AutoConfig.from_pretrained(cfg_model.pretrained_model_name_or_path)
+        # Check for models that use shared embeddings/parameters across layers
+        model_type = getattr(config, "model_type", "")
+        if model_type in ["albert", "reformer"]:
+            incompatibilities.append(
+                f"Model type '{model_type}' uses parameter sharing across layers, "
+                "which is incompatible with pipeline parallelism."
+            )
 
-            # Check tie_word_embeddings
-            if getattr(config, "tie_word_embeddings", False):
-                incompatibilities.append(
-                    "tie_word_embeddings=True is not supported with pipeline parallelism. "
-                    "The input and output embeddings must be separate for proper stage assignment."
-                )
+        # Check if model has cross-attention (encoder-decoder models)
+        if getattr(config, "is_encoder_decoder", False):
+            incompatibilities.append(
+                "Encoder-decoder models are not yet supported with pipeline parallelism "
+                "due to cross-attention dependencies between encoder and decoder."
+            )
 
-            # Check for models that use shared embeddings/parameters across layers
-            model_type = getattr(config, "model_type", "")
-            if model_type in ["albert", "reformer"]:
-                incompatibilities.append(
-                    f"Model type '{model_type}' uses parameter sharing across layers, "
-                    "which is incompatible with pipeline parallelism."
-                )
-
-            # Check if model has cross-attention (encoder-decoder models)
-            if getattr(config, "is_encoder_decoder", False):
-                incompatibilities.append(
-                    "Encoder-decoder models are not yet supported with pipeline parallelism "
-                    "due to cross-attention dependencies between encoder and decoder."
-                )
-
-            # Additional architecture-specific checks
-            if hasattr(config, "use_cache") and getattr(config, "gradient_checkpointing", False):
-                logger.warning(
-                    "Using both gradient checkpointing and KV-cache with pipeline parallelism "
-                    "may lead to unexpected behavior. Consider disabling one of them."
-                )
+        # Additional architecture-specific checks
+        if hasattr(config, "use_cache") and getattr(config, "gradient_checkpointing", False):
+            logger.warning(
+                "Using both gradient checkpointing and KV-cache with pipeline parallelism "
+                "may lead to unexpected behavior. Consider disabling one of them."
+            )
 
     except Exception as e:
         logger.warning(
@@ -210,7 +206,6 @@ def pipeline_parallel_forward_backward_step(
     # Accumulate losses across pipeline microbatches
     if pp_has_last_stage:
         loss = torch.sum(torch.stack(losses))
-        print(f"loss: {loss}")
     else:
         # Non-last stages don't compute loss
         loss = torch.tensor(0.0, device=device)
@@ -276,33 +271,21 @@ def materialize_meta_model(
         init_weights: Whether to call init_weights on the model
         empty_weights: Whether to use empty weights (zeros) instead of init_weights
     """
-
-    def _init_weights(module):
-        std = 0.02
-        if isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=std)
-            if module.bias is not None:
-                module.bias.data.zero_()
-        elif isinstance(module, nn.Embedding):
-            module.weight.data.normal_(mean=0.0, std=std)
-            if module.padding_idx is not None:
-                module.weight.data[module.padding_idx].zero_()
-
     for mp in model_parts:
+        logger.debug(f"Rank {get_rank_safe()}: Materializing model part {mp}")
         # Move from meta to device with empty weights
         mp.to_empty(device=device)
 
         if not empty_weights and init_weights:
             # Initialize weights using model's init_weights method
             with torch.no_grad():
-                if hasattr(mp, "init_weights"):
-                    mp.apply(_init_weights)
-                else:
-                    logger.warning(f"Model part {mp.__class__.__name__} does not have init_weights method")
+                mp.apply(mp._init_weights)
 
         mp.bfloat16()
         mp.train()
-        print(f"Max memory allocated: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f} GB")
+        logger.debug(
+            f"Rank {get_rank_safe()}: Max memory allocated: {torch.cuda.max_memory_allocated() / 1024**3:.2f} GB"
+        )
         # Move to target device
         mp.to(device)
 
@@ -317,6 +300,7 @@ def parallelize_for_pp(
     cp_axis_name: Optional[str] = None,
     tp_axis_name: Optional[str] = None,
     ep_axis_name: Optional[str] = None,
+    ep_shard_axis_names: Optional[tuple[str, ...]] = None,
     model_wrapper: Optional[Any] = None,
 ) -> nn.Module:
     if model_wrapper is not None:
@@ -336,7 +320,7 @@ def build_model_and_optimizer_for_pp(
     pp_config: dict[str, Any],
     device_mesh: DeviceMesh,
     tp_size: int = 1,
-    freeze_embeddings: bool = True,
+    freeze_embeddings: bool = False,
 ) -> tuple[list[nn.Module], optim.Optimizer, _PipelineSchedule, tuple[bool, bool]]:
     """
     Build and initialize a model and optimizer for pipeline parallelism.
@@ -357,9 +341,6 @@ def build_model_and_optimizer_for_pp(
     Returns:
         Tuple of (model_parts, optimizer, pp_schedule, (pp_has_first_stage, pp_has_last_stage))
     """
-    # Validate model compatibility with pipeline parallelism
-    validate_model_for_pipeline_support(cfg_model, model_wrapper)
-
     # Extract PP configuration
     pp_schedule = pp_config.get("pp_schedule", "1f1b")
     microbatch_size = pp_config.get("microbatch_size", 1)
@@ -378,6 +359,9 @@ def build_model_and_optimizer_for_pp(
         # Apply PEFT if configured
         if cfg_peft is not None:
             apply_lora_to_linear_modules(model, cfg_peft)
+
+    # Validate model compatibility with pipeline parallelism
+    validate_model_for_pipeline_support(model, model_wrapper)
 
     # Build loss function for PP (will be passed to pipeline_model_hf)
     loss_fn = build_loss_fn_for_pp(pp_config.get("loss_fn", None))
@@ -486,15 +470,7 @@ def rescale_gradients_for_pp(
         dp_group: The data parallel process group for all-reduce
     """
     # Calculate the scaling factor similar to rescale_gradients
-    num_tokens_for_grad_scaling = num_tokens_for_grad_scaling.clone().detach()
-    dp_group_size = 1
-    if dp_group is not None:
-        torch.distributed.all_reduce(num_tokens_for_grad_scaling, group=dp_group)
-        dp_group_size = torch.distributed.get_world_size(group=dp_group)
-
-    # The regular rescale_gradients uses: scaling_factor = dp_group_size / num_tokens
-    # But stage.scale_grads divides by the factor, so we need the inverse
-    grad_scale_factor = num_tokens_for_grad_scaling.item() / dp_group_size
+    num_tokens_for_grad_scaling = num_tokens_for_grad_scaling.clone().detach().item()
 
     # Access stages based on schedule type
     stages = []
@@ -511,6 +487,137 @@ def rescale_gradients_for_pp(
     # Apply gradient scaling to each stage
     for stage in stages:
         if hasattr(stage, "scale_grads"):
-            stage.scale_grads(grad_scale_factor)
+            stage.scale_grads(num_tokens_for_grad_scaling)
         else:
             logger.warning(f"Stage {getattr(stage, 'stage_index', 'unknown')} does not have scale_grads method")
+
+
+# Adapted from torchtitan
+@torch.no_grad()
+def clip_grad_norm_for_pp(
+    parameters: torch.Tensor | Iterable[torch.Tensor],
+    max_norm: float,
+    norm_type: float = 2.0,
+    error_if_nonfinite: bool = False,
+    foreach: bool | None = None,
+    pp_mesh: DeviceMesh | None = None,
+    ep_dense_params_mesh_ndim: int | None = None,
+) -> torch.Tensor:
+    """
+    Clip the gradient norm of an iterable of parameters.
+
+    Gradient norm clipping requires computing the gradient norm over the entire model.
+    `torch.nn.utils.clip_grad_norm_` only computes gradient norm along DP/FSDP/TP dimensions.
+    We need to manually reduce the gradient norm across PP stages.
+    See https://github.com/pytorch/torchtitan/issues/596 for details.
+
+    Args:
+        parameters: an iterable of Tensors or a single Tensor that will have gradients normalized
+        max_norm (float): max norm of the gradients
+        norm_type (float): type of the used p-norm. Can be ``'inf'`` for
+            infinity norm.
+        error_if_nonfinite (bool): if True, an error is thrown if the total
+            norm of the gradients from :attr:`parameters` is ``nan``,
+            ``inf``, or ``-inf``. Default: False (will switch to True in the future)
+        foreach (bool): use the faster foreach-based implementation.
+            If ``None``, use the foreach implementation for CUDA and CPU native tensors and silently
+            fall back to the slow implementation for other device types.
+            Default: ``None``
+        pp_mesh: Pipeline Parallel device mesh. If not None, will reduce gradient norm across PP stages.
+        ep_dense_params_mesh_ndim: Mesh ndim of the dense params when EP is used. If EP is not used,
+            set it to ``None``.
+
+    Returns:
+        Total norm of the parameter gradients (viewed as a single vector).
+
+    """
+    if ep_dense_params_mesh_ndim is not None:
+        return _clip_grad_norm_with_ep(
+            parameters,
+            max_norm,
+            norm_type,
+            error_if_nonfinite,
+            foreach,
+            pp_mesh,
+            ep_dense_params_mesh_ndim,
+        )
+
+    if isinstance(parameters, torch.Tensor):
+        parameters = [parameters]
+    else:
+        # prevent generators from being exhausted
+        parameters = list(parameters)
+    grads = [p.grad for p in parameters if p.grad is not None]
+    total_norm = torch.nn.utils.get_total_norm(grads, norm_type, error_if_nonfinite, foreach)
+
+    # If total_norm is a DTensor, the placements must be `torch.distributed._tensor.ops.math_ops._NormPartial`.
+    # We can simply reduce the DTensor to get the total norm in this tensor's process group
+    # and then convert it to a local tensor.
+    # NOTE: It has two purposes:
+    #       1. to make sure the total norm is computed correctly when PP is used (see below)
+    #       2. to return a reduced total_norm tensor whose .item() would return the correct value
+    if isinstance(total_norm, DTensor):
+        # Will reach here if any non-PP parallelism is used.
+        # If only using PP, total_norm will be a local tensor.
+        total_norm = total_norm.full_tensor()
+
+    if pp_mesh is not None:
+        if math.isinf(norm_type):
+            torch.distributed.all_reduce(total_norm, op=torch.distributed.ReduceOp.MAX, group=pp_mesh.get_group())
+        else:
+            total_norm **= norm_type
+            torch.distributed.all_reduce(total_norm, op=torch.distributed.ReduceOp.SUM, group=pp_mesh.get_group())
+            total_norm **= 1.0 / norm_type
+
+    torch.nn.utils.clip_grads_with_norm_(parameters, max_norm, total_norm, foreach)
+    return total_norm
+
+
+@torch.no_grad()
+def _clip_grad_norm_with_ep(
+    parameters: torch.Tensor | Iterable[torch.Tensor],
+    max_norm: float,
+    norm_type: float,
+    error_if_nonfinite: bool,
+    foreach: bool | None,
+    pp_mesh: DeviceMesh | None,
+    dense_params_mesh_ndim: int,
+) -> torch.Tensor:
+    ep_params = []
+    non_ep_params = []
+    ep_grads = []
+    non_ep_grads = []
+
+    for p in parameters:
+        if p.grad is None:
+            continue
+        assert isinstance(p, DTensor) and isinstance(p.grad, DTensor)
+        if p.device_mesh.ndim == dense_params_mesh_ndim:
+            non_ep_params.append(p)
+            non_ep_grads.append(p.grad)
+        else:
+            ep_params.append(p)
+            ep_grads.append(p.grad)
+    ep_grads_total_norm = torch.nn.utils.get_total_norm(ep_grads, norm_type, error_if_nonfinite, foreach).full_tensor()
+    non_ep_grads_total_norm = torch.nn.utils.get_total_norm(
+        non_ep_grads, norm_type, error_if_nonfinite, foreach
+    ).full_tensor()
+
+    if math.isinf(norm_type):
+        total_norm = torch.maximum(ep_grads_total_norm, non_ep_grads_total_norm)
+    else:
+        total_norm = ep_grads_total_norm**norm_type + non_ep_grads_total_norm**norm_type
+        total_norm **= 1.0 / norm_type
+
+    if pp_mesh is not None:
+        if math.isinf(norm_type):
+            torch.distributed.all_reduce(total_norm, op=torch.distributed.ReduceOp.MAX, group=pp_mesh.get_group())
+        else:
+            total_norm **= norm_type
+            torch.distributed.all_reduce(total_norm, op=torch.distributed.ReduceOp.SUM, group=pp_mesh.get_group())
+            total_norm **= 1.0 / norm_type
+
+    torch.nn.utils.clip_grads_with_norm_(ep_params, max_norm, total_norm, foreach)
+    torch.nn.utils.clip_grads_with_norm_(non_ep_params, max_norm, total_norm, foreach)
+
+    return total_norm
