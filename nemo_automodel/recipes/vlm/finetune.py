@@ -137,6 +137,7 @@ def build_model_and_optimizer(
         if cfg_fp8 is not None:
             kwargs["fp8_config"] = cfg_fp8.instantiate()
 
+        # Instantiate the model in meta device to avoid OOM
         with torch.device("meta" if model_wrapper is not None else device):
             model = cfg_model.instantiate(**kwargs)
             model = _freeze_model(model, cfg_freeze, freeze_embeddings)
@@ -158,7 +159,6 @@ def build_model_and_optimizer(
             else:
                 model = model_wrapper.parallelize(model)
 
-            breakpoint()
             # Load the weights into the model in parallel.
             load_model_from_base_checkpoint(
                 model,

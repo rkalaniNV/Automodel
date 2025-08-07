@@ -192,7 +192,6 @@ def load_model_from_base_checkpoint(
         ),
     )
     model.load_state_dict(model_state_dict, strict=False if model_state.is_tied_lm_head else True)
-    breakpoint()
 
 
 def load_model(
