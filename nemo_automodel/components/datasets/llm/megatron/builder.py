@@ -113,6 +113,7 @@ class BlendedMegatronDatasetBuilder:
             List[Optional[GPTDataset]]: A list containing a dataset instance (or None) per
                 split
         """
+        breakpoint()
         if self.config.blend:
             prefixes, weights = self.config.blend
             assert len(prefixes) == 1, "Dataset blending not supported yet"

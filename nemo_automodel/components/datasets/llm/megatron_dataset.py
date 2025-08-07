@@ -114,6 +114,7 @@ class MegatronPretraining:
         """
         Build the datasets using the trainer parameters provided during initialization.
         """
+        breakpoint()
         # Support for building full dataset
         if self.trainer_max_steps is None or self.trainer_max_steps == -1:
             # Use None to indicate "use full dataset for one epoch"
@@ -180,7 +181,7 @@ class MegatronPretraining:
         ).build()
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> StatefulDataLoader:
-        self.init_global_step = self.trainer.global_step
+        # self.init_global_step = self.trainer.global_step
         # self.data_sampler.init_global_step = self.init_global_step
         
         # Use 0 workers when debugging to enable breakpoints

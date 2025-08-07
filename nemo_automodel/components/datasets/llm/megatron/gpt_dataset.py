@@ -33,6 +33,7 @@ import json
 import hashlib
 from collections import OrderedDict
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+from megatron.core.datasets import helpers
 
 # taken and modified from https://github.com/NVIDIA/Megatron-LM/blob/5e798111e60f45e82c336ef7b89d8d793c93208f/megatron/core/datasets/gpt_dataset.py
 logger = logging.getLogger(__name__)
@@ -107,6 +108,7 @@ class BlendedMegatronDatasetConfig:
 
     def __post_init__(self) -> None:
         """Do asserts and set fields post init"""
+        breakpoint()
         if self.blend_per_split is not None and any(self.blend_per_split):
             assert self.blend is None, "blend and blend_per_split are incompatible"
             assert self.split is None, "split and blend_per_split are incompatible"
@@ -581,7 +583,6 @@ class GPTDataset(torch.utils.data.Dataset):
                 drop_last_partial_sequence = self.config.drop_last_partial_validation_sequence
 
             # Build the sample index
-            from megatron.core.datasets import helpers
 
             if self.index_split == Split.valid:
                 drop_last_partial_sequence = self.config.drop_last_partial_validation_sequence
