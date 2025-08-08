@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import pathlib
 import time
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import torch
 import torch.distributed as dist
@@ -53,6 +53,11 @@ from nemo_automodel.components.utils.dist_utils import (
 )
 from nemo_automodel.components.utils.model_utils import apply_parameter_freezing, print_trainable_parameters
 from nemo_automodel.recipes.base_recipe import BaseRecipe
+
+if TYPE_CHECKING:
+    from torch.optim import Optimizer
+
+    from nemo_automodel.components.distributed.init_utils import DistInfo
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +136,7 @@ def build_model_and_optimizer(
     Returns:
         The instantiated model on the specified device and optimizer.
     """
+    is_meta_device = model_wrapper is not None and not isinstance(model_wrapper, NVFSDPManager)
     with StatefulRNG(seed=seed, ranked=True):
         # Add FP8 config if provided
         kwargs = {}
@@ -138,7 +144,7 @@ def build_model_and_optimizer(
             kwargs["fp8_config"] = cfg_fp8.instantiate()
 
         # Instantiate the model in meta device to avoid OOM
-        with torch.device("meta" if model_wrapper is not None else device):
+        with torch.device("meta" if is_meta_device else device):
             model = cfg_model.instantiate(**kwargs)
             model = _freeze_model(model, cfg_freeze, freeze_embeddings)
             # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
@@ -159,14 +165,15 @@ def build_model_and_optimizer(
             else:
                 model = model_wrapper.parallelize(model)
 
-            # Load the weights into the model in parallel.
-            load_model_from_base_checkpoint(
-                model,
-                device,
-                cfg_peft is not None,
-                cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
-                cfg_model.pretrained_model_name_or_path,
-            )
+                # Load the weights into the model in parallel.
+                load_model_from_base_checkpoint(
+                    model,
+                    device,
+                    cfg_peft is not None,
+                    cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
+                    cfg_model.pretrained_model_name_or_path,
+                    getattr(cfg_peft, "lora_A_init", None),
+                )
         else:
             model = model.to(device)
 
