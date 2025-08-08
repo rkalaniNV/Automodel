@@ -99,7 +99,7 @@ class ModelState:
             options = StateDictOptions(full_state_dict=True, cpu_offload=True, ignore_frozen_params=True)
 
         model_state_dict = get_model_state_dict(self.model, options=options)
-    
+
         if self.is_tied_lm_head:
             _, lm_head_param_name = _get_lm_head_weight_and_name(self.model)
             model_state_dict.pop(lm_head_param_name, None)
@@ -137,7 +137,7 @@ class ModelState:
             state_dict,
             options=options,
         )
-    
+
     def _get_base_model_state_dict(self) -> dict[str, Any]:
         model_state_dict = get_model_state_dict(self.model)
         if self.is_tied_lm_head:
