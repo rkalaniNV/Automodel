@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # pylint: disable=line-too-long
-"""Tests for consolidated HF safetensors checkpointing for VLM."""
+"""Tests for consolidated HF safetensors checkpointing for VLM. """
 
 import os
 import shutil
