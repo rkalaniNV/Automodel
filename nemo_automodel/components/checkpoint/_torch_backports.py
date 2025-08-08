@@ -52,3 +52,13 @@ def apply_patches() -> None:
     except ModuleNotFoundError:
         # planner module unavailable – nothing to patch
         pass
+
+    try:
+        from nemo_automodel.components.checkpoint._backports.dtensor_backports import gen_select_strategy
+
+        tensor_ops_mod = importlib.import_module("torch.distributed.tensor._ops._tensor_ops")
+        gen_select_strategy = getattr(tensor_ops_mod, "gen_select_strategy", None)
+        if gen_select_strategy is None:
+            tensor_ops_mod.gen_select_strategy = gen_select_strategy
+    except (ModuleNotFoundError, AttributeError):
+        pass
