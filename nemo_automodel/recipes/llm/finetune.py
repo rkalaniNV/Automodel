@@ -718,14 +718,14 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
             # Clip gradients **after** any rescaling.
             # TODO(@boxiangw): Fix TP gradient clipping
-            if not self.device_mesh or self.device_mesh["tensor_parallel"].size() == 1 and not self.pp_info.enabled:
+            if not self.device_mesh or self.device_mesh["tp"].size() == 1 and not self.pp_info.enabled:
                 grad_norm = clip_gradients(grad_model, clip_norm)
             else:
                 grad_norm = clip_grad_norm_for_pp(
                     [p for m in self.pp_info.model_parts for p in m.parameters()],
                     clip_norm,
                     foreach=True,
-                    pp_mesh=(self.device_mesh["pipeline_parallel"] if self.pp_info.enabled else None),
+                    pp_mesh=(self.device_mesh["pp"] if self.pp_info.enabled else None),
                     ep_dense_params_mesh_ndim=None,
                 )
 

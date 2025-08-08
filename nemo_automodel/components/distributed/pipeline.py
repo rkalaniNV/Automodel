@@ -230,7 +230,7 @@ def create_pipeline_forward_inner(model_class_name: str = "AutoModel") -> Callab
         all_self_attns = () if output_attentions else None
 
         if hasattr(self, "layers") and self.layers is not None:
-            for decoder_layer in self.layers:
+            for decoder_layer in self.layers.values():
                 if output_hidden_states:
                     all_hidden_states += (hidden_states,)
 
@@ -533,8 +533,8 @@ def split_model_into_stages(
                                     del module[layer_name]
                         elif isinstance(module, nn.ModuleList):
                             indices_to_keep = {int(idx) for idx in layers_to_keep if idx.isdigit()}
-                            new_layers = nn.ModuleList(
-                                [layer for i, layer in enumerate(module) if i in indices_to_keep]
+                            new_layers = nn.ModuleDict(
+                                {str(i): layer for i, layer in enumerate(module) if i in indices_to_keep}
                             )
                             setattr(parent_module, name, new_layers)
                     else:
@@ -542,7 +542,7 @@ def split_model_into_stages(
                         if isinstance(module, nn.ModuleDict):
                             setattr(parent_module, name, nn.ModuleDict())
                         elif isinstance(module, nn.ModuleList):
-                            setattr(parent_module, name, nn.ModuleList())
+                            setattr(parent_module, name, nn.ModuleDict())
 
                 # Handle other modules
                 elif full_name not in modules_to_keep and not any(

@@ -180,10 +180,12 @@ class TestCreatePipelineForwardInner:
         mock_embed_tokens.return_value = torch.randn(1, 10, 768)
         mock_model.embed_tokens = mock_embed_tokens
 
-        # Mock layers
-        mock_layer = Mock()
-        mock_layer.return_value = (torch.randn(1, 10, 768),)
-        mock_model.layers = [mock_layer]
+        # Layers as nn.ModuleDict with nn.Module children (not plain Mocks)
+        class DummyLayer(nn.Module):
+            def forward(self, hidden_states, **kwargs):
+                return (hidden_states,)
+
+        mock_model.layers = nn.ModuleDict({"0": DummyLayer()})
 
         # Mock norm
         mock_norm = Mock()

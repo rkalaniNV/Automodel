@@ -89,7 +89,7 @@ def validate_model_for_pipeline_support(model: nn.Module, model_wrapper: Optiona
     """
     # Get the model config to check compatibility
     if hasattr(model.config, "pretrained_model_name_or_path"):
-        model_name = model.pretrained_model_name_or_path
+        model_name = model.config.pretrained_model_name_or_path
     else:
         model_name = "Unknown model"
 
@@ -371,10 +371,14 @@ def build_model_and_optimizer_for_pp(
         model,
         world_mesh=device_mesh,
         moe_mesh=None,
-        pp_axis_name="pipeline_parallel",
-        dp_axis_names=("data_parallel",),
-        cp_axis_name="context_parallel" if "context_parallel" in device_mesh.mesh_dim_names else None,
-        tp_axis_name="tensor_parallel" if "tensor_parallel" in device_mesh.mesh_dim_names else None,
+        pp_axis_name="pp",
+        dp_axis_names=(
+            ("dp_replicate", "dp_shard")
+            if "dp_replicate" in device_mesh.mesh_dim_names and "dp_shard" in device_mesh.mesh_dim_names
+            else ("dp_shard",)
+        ),
+        cp_axis_name="cp" if "cp" in device_mesh.mesh_dim_names else None,
+        tp_axis_name="tp" if "tp" in device_mesh.mesh_dim_names else None,
         ep_axis_name=None,
         layers_per_stage=pp_config.get("layers_per_stage", None),
         pipeline_parallel_schedule_csv=None,
