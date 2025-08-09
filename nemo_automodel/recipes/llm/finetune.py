@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import pathlib
 import time
+from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Dict
 
 import torch
@@ -96,7 +97,15 @@ def build_model_and_optimizer(
     Returns:
         The instantiated model on the specified device and optimizer.
     """
-    is_meta_device = model_wrapper is not None and not isinstance(model_wrapper, NVFSDPManager)
+    is_meta_device = False
+    init_ctx = nullcontext()
+    if hasattr(cfg_model, "is_meta_device"):
+        is_meta_device = cfg_model.is_meta_device
+        if is_meta_device and isinstance(model_wrapper, NVFSDPManager):
+            raise ValueError("Meta device initialization is not supported with NVFSDPManager")
+        init_ctx = torch.device("meta") if is_meta_device else init_ctx
+        del cfg_model.is_meta_device
+
     with StatefulRNG(seed=seed, ranked=True):
         kwargs = {}
         if use_hf_fa2:
@@ -110,7 +119,7 @@ def build_model_and_optimizer(
             kwargs["fp8_config"] = cfg_fp8.instantiate()
 
         # Instantiate the model in meta device to avoid OOM
-        with torch.device("meta" if is_meta_device else device):
+        with init_ctx:
             model = cfg_model.instantiate(**kwargs)
 
             if freeze_embeddings:
@@ -141,14 +150,15 @@ def build_model_and_optimizer(
             model = model_wrapper.parallelize(model)
 
             # Load the weights into the model in parallel.
-            load_model_from_base_checkpoint(
-                model,
-                device,
-                cfg_peft is not None,
-                cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
-                cfg_model.pretrained_model_name_or_path,
-                getattr(cfg_peft, "lora_A_init", None),
-            )
+            if is_meta_device:
+                load_model_from_base_checkpoint(
+                    model,
+                    device,
+                    cfg_peft is not None,
+                    cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
+                    cfg_model.pretrained_model_name_or_path,
+                    getattr(cfg_peft, "lora_A_init", None),
+                )
     else:
         model = model.to(device)
 
