@@ -187,20 +187,28 @@ def load_model_from_base_checkpoint(
         model_name: Name of the model
     """
     model.to_empty(device=device)
+    from transformers.models.gemma3.modeling_gemma3 import Gemma3ForConditionalGeneration
+
     # HF models set _is_hf_initialized to True after initialization.
     # But because we initialize on meta device, these are erroneously set to True.
     # We need to set them to False and call initialize_weights to re-initialize the weights.
-    for _, module in model.named_modules():
-        if hasattr(module, "_is_hf_initialized"):
-            module._is_hf_initialized = False
 
-    # init model weights
-    if hasattr(model, "initialize_weights"):
-        model.initialize_weights()
-    else:
-        logging.warning(
-            "Warning: Model does not have initialize_weights method. Requires custom initialization to be implemented."
-        )
+    # Gemma3ForConditionalGeneration cannot be pretrained currently. The pinned torch version
+    # doesn't support initialize_weights when the model is sharded. This is because Gemma's
+    # initialize_weights method requires setting a row to zeros in the embedding matrix.
+    # This index selection op is not supported for DTensors in the pinned torch version.
+    if not isinstance(model, Gemma3ForConditionalGeneration):
+        for _, module in model.named_modules():
+            if hasattr(module, "_is_hf_initialized"):
+                module._is_hf_initialized = False
+
+        # init model weights
+        if hasattr(model, "initialize_weights"):
+            model.initialize_weights()
+        else:
+            logging.warning(
+                "Warning: Model does not have initialize_weights method. Requires custom initialization to be implemented."
+            )
 
     # init buffer-only modules
     _rebuild_buffer_only_modules_in_place(model, device, getattr(model, "config", None))
