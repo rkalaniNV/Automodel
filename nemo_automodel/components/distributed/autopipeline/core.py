@@ -288,6 +288,11 @@ class AutoPipeline:
         for mp in self._info.model_parts:
             mp.eval()
 
+    def parameters(self) -> list[torch.Tensor]:
+        if self._info.model_parts is None:
+            return []
+        return [p for part in self._info.model_parts for p in part.parameters()]
+
     # -------------------------- Debug utilities --------------------------
     def list_stage_modules(self) -> list[list[str]]:
         names_per_stage: list[list[str]] = []

@@ -695,25 +695,15 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
         grad_norm = None
         if is_optim_step:
-            dp_group = (
-                self.device_mesh[
+            rescale_gradients(
+                self.model,
+                self.total_local_num_loss_tokens,
+                dp_group=self.device_mesh[
                     ("dp_cp" if "dp_cp" in _mesh_resources.root_to_flatten_mapping.get(self.device_mesh, {}) else "dp")
                 ].get_group()
                 if self.device_mesh is not None
-                else None
+                else None,
             )
-            if self.pp_enabled:
-                total_num_loss_tokens = self.total_local_num_loss_tokens.clone().detach()
-                if dp_group is not None and dp_group.size() > 1:
-                    dist.all_reduce(total_num_loss_tokens, group=dp_group)
-
-                self.model.scale_grads_by_divisor(total_num_loss_tokens.item())
-            else:
-                rescale_gradients(
-                    self.model,
-                    self.total_local_num_loss_tokens,
-                    dp_group=dp_group,
-                )
 
             # Clip gradients **after** any rescaling.
             # TODO(@boxiangw): Fix TP gradient clipping
