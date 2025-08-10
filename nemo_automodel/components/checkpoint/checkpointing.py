@@ -29,6 +29,7 @@ import torch.nn as nn
 import yaml
 from safetensors import safe_open
 from safetensors.torch import save_file
+from torch.distributed.device_mesh import DeviceMesh
 
 from nemo_automodel.components.checkpoint._backports.filesystem import SerializationFormat
 from nemo_automodel.components.checkpoint._backports.hf_storage import (
@@ -180,6 +181,7 @@ def load_model_from_base_checkpoint(
     root_dir: str,
     model_name: str,
     peft_init_method: str,
+    device_mesh: Optional[DeviceMesh] = None,
 ):
     """
     Load a model from the base Hugging Face checkpoint in parallel.

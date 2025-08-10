@@ -14,15 +14,18 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import pathlib
 import time
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from functools import partial
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
 import wandb
+from torch.distributed.device_mesh import DeviceMesh, _mesh_resources
 from torch.utils.data import DataLoader
 from torchao.float8 import precompute_float8_dynamic_scale_for_fsdp
 from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
@@ -31,14 +34,21 @@ from transformers.integrations.accelerate import init_empty_weights
 from transformers.modeling_utils import no_init_weights
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.utils import TRANSFORMERS_CACHE, ContextManagers
+from transformers.utils.hub import TRANSFORMERS_CACHE
 from wandb import Settings
 
 from nemo_automodel.components._peft.lora import apply_lora_to_linear_modules
 from nemo_automodel.components.checkpoint.checkpointing import CheckpointingConfig, load_model_from_base_checkpoint
 from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
 from nemo_automodel.components.datasets.llm.packed_sequence import PackedSequence
+from nemo_automodel.components.distributed.autopipeline.core import AutoPipeline
+from nemo_automodel.components.distributed.autopipeline.hf_utils import init_hf_model_buffers
 from nemo_automodel.components.distributed.cp_utils import make_cp_batch_and_ctx
-from nemo_automodel.components.distributed.init_utils import initialize_distributed
+from nemo_automodel.components.distributed.init_utils import (
+    get_local_rank_preinit,
+    get_rank_safe,
+    initialize_distributed,
+)
 from nemo_automodel.components.distributed.nvfsdp import NVFSDPManager
 from nemo_automodel.components.loggers.log_utils import setup_logging
 from nemo_automodel.components.loggers.wandb_utils import suppress_wandb_log_messages
@@ -67,6 +77,20 @@ logger = logging.getLogger(__name__)
 # ---------------------------
 
 
+@contextlib.contextmanager
+def _model_init_context(seed: int, use_meta_device: bool = False):
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(StatefulRNG(seed=seed, ranked=True))
+        if use_meta_device:
+            stack.enter_context(torch.device("meta"))
+            stack.enter_context(init_empty_weights())
+        else:
+            stack.enter_context(
+                torch.device(f"cuda:{get_local_rank_preinit()}" if torch.cuda.is_available() else "cpu")
+            )
+        yield
+
+
 def build_model_and_optimizer(
     device,
     cfg_model,
@@ -79,7 +103,10 @@ def build_model_and_optimizer(
     freeze_embeddings=True,
     cfg_fp8=None,
     cfg_compile=None,
-) -> tuple[nn.Module, "Optimizer"]:  # noqa: F821
+    autopipeline: AutoPipeline | None = None,
+    loss_fn=None,
+    parallelize_fn=None,
+) -> tuple[nn.Module | AutoPipeline, "Optimizer"]:  # noqa: F821
     """
     Build and initialize a model and optimizer.
 
@@ -108,6 +135,8 @@ def build_model_and_optimizer(
             raise ValueError("Meta device initialization is not supported with NVFSDPManager")
         init_ctx = ContextManagers([no_init_weights(), init_empty_weights()]) if is_meta_device else init_ctx
         del cfg_model.is_meta_device
+    if autopipeline is not None:
+        is_meta_device = True
 
     with StatefulRNG(seed=seed, ranked=True):
         kwargs = {}
@@ -136,48 +165,76 @@ def build_model_and_optimizer(
 
     print_trainable_parameters(model)
 
-    if callable(getattr(model_wrapper, "parallelize", None)):
-        # FSDP2 and nvFSDP should already be on the correct device
-        if isinstance(model_wrapper, NVFSDPManager):
-            # nvFSDP instantiate optimizer inside parallelize_function
-            trainable_params = list(filter(lambda x: x.requires_grad, model.parameters()))
-            assert len(trainable_params) > 0, "trainable_params cannot be empty"
-            if tp_size > 1:
-                # TP does not support foreach
-                cfg_opt.foreach = False
-            optimizer = cfg_opt.instantiate(params=trainable_params)
+    if autopipeline is not None:
+        autopipeline.build(model, loss_fn=loss_fn, parallelize_fn=parallelize_fn)
+        autopipeline.materialize(
+            init_buffers_fn=init_hf_model_buffers,
+            init_weights_fn=None,
+        )
+        for mp in autopipeline.parts:
+            load_model_from_base_checkpoint(
+                mp,
+                device,
+                cfg_peft is not None,
+                cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
+                cfg_model.pretrained_model_name_or_path,
+                getattr(cfg_peft, "lora_A_init", None),
+                device_mesh=autopipeline.cfg.world_mesh,
+            )
 
-            model, optimizer = model_wrapper.parallelize(model, optimizer)
-
-            return model, optimizer
-
-        else:
-            model = model_wrapper.parallelize(model)
-
-            # Load the weights into the model in parallel.
-            if is_meta_device:
-                load_model_from_base_checkpoint(
-                    model,
-                    device,
-                    cfg_peft is not None,
-                    cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
-                    cfg_model.pretrained_model_name_or_path,
-                    getattr(cfg_peft, "lora_A_init", None),
-                )
+        # Create optimizer for all model parts
+        trainable_params = []
+        for i, model_part in enumerate(autopipeline.parts):
+            trainable_params.append(
+                {
+                    "params": list(filter(lambda x: x.requires_grad, model_part.parameters())),
+                    "name": f"rank_{get_rank_safe()}_model_part_{i}",
+                }
+            )
+        model = autopipeline
     else:
-        model = model.to(device)
+        if callable(getattr(model_wrapper, "parallelize", None)):
+            # FSDP2 and nvFSDP should already be on the correct device
+            if isinstance(model_wrapper, NVFSDPManager):
+                # nvFSDP instantiate optimizer inside parallelize_function
+                trainable_params = list(filter(lambda x: x.requires_grad, model.parameters()))
+                assert len(trainable_params) > 0, "trainable_params cannot be empty"
+                if tp_size > 1:
+                    # TP does not support foreach
+                    cfg_opt.foreach = False
+                optimizer = cfg_opt.instantiate(params=trainable_params)
 
-    trainable_params = list(filter(lambda x: x.requires_grad, model.parameters()))
+                model, optimizer = model_wrapper.parallelize(model, optimizer)
+
+                return model, optimizer
+
+            else:
+                model = model_wrapper.parallelize(model)
+
+                # Load the weights into the model in parallel.
+                if is_meta_device:
+                    load_model_from_base_checkpoint(
+                        model,
+                        device,
+                        cfg_peft is not None,
+                        cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
+                        cfg_model.pretrained_model_name_or_path,
+                        getattr(cfg_peft, "lora_A_init", None),
+                    )
+        else:
+            model = model.to(device)
+
+        trainable_params = list(filter(lambda x: x.requires_grad, model.parameters()))
+        # Apply torch.compile if configured
+        if cfg_compile is not None:
+            compile_config = build_compile_config(cfg_compile)
+            model = compile_model(model, compile_config)
+
     assert len(trainable_params) > 0, "trainable_params cannot be empty"
     if tp_size > 1:
         # TP does not support foreach
         cfg_opt.foreach = False
     optimizer = cfg_opt.instantiate(params=trainable_params)
-
-    # Apply torch.compile if configured
-    if cfg_compile is not None:
-        compile_config = build_compile_config(cfg_compile)
-        model = compile_model(model, compile_config)
 
     return model, optimizer
 
@@ -459,6 +516,25 @@ def calculate_loss(loss_fn, **kwargs) -> torch.Tensor:
     return loss_fn(**loss_fn_kwargs)
 
 
+def parallelize_for_pp(
+    model: nn.Module,
+    *,
+    world_mesh: DeviceMesh,
+    moe_mesh: Optional[DeviceMesh] = None,
+    pp_enabled: bool = False,
+    dp_axis_names: Union[tuple[str, ...], str] = ("data_parallel",),
+    cp_axis_name: Optional[str] = None,
+    tp_axis_name: Optional[str] = None,
+    ep_axis_name: Optional[str] = None,
+    ep_shard_axis_names: Optional[tuple[str, ...]] = None,
+    model_wrapper: Optional[Any] = None,
+) -> nn.Module:
+    if model_wrapper is not None:
+        if callable(getattr(model_wrapper, "parallelize", None)):
+            model = model_wrapper.parallelize(model)
+    return model
+
+
 # ---------------------------------------------------------------------------
 #  Trainer class – orchestration only
 # ---------------------------------------------------------------------------
@@ -510,10 +586,39 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         # Check if packed_sequence_size > 0 and use HF's flash_attention_2 for attn implementation.
         use_hf_fa2 = self.cfg.get("packed_sequence.packed_sequence_size", 0) > 0
 
+        self.pp_enabled: bool = False if self.model_wrapper.pp_size <= 1 else True
+        autopipeline_cfg = self.cfg.get("autopipeline", None)
+        if self.pp_enabled:
+            assert autopipeline_cfg is not None, "AutoPipelineConfig is required when pipeline parallelism is enabled"
+            assert not isinstance(
+                self.model_wrapper, NVFSDPManager
+            ), "NVFSDPManager is not supported when pipeline parallelism is enabled"
+            autopipeline_cfg = autopipeline_cfg.instantiate(
+                world_mesh=self.device_mesh,
+                moe_mesh=None,
+                pp_axis_name="pp",
+                dp_axis_names=(
+                    ("dp_replicate", "dp_shard")
+                    if "dp_replicate" in self.device_mesh.mesh_dim_names
+                    and "dp_shard" in self.device_mesh.mesh_dim_names
+                    else ("dp_shard",)
+                ),
+                cp_axis_name="cp" if "cp" in self.device_mesh.mesh_dim_names else None,
+                tp_axis_name="tp" if "tp" in self.device_mesh.mesh_dim_names else None,
+                ep_axis_name=None,
+                ep_shard_axis_names=None,
+                device=torch.cuda.current_device(),
+                dtype=torch.bfloat16,
+            )
+            autopipeline = AutoPipeline(autopipeline_cfg)
+        else:
+            autopipeline = None
+
         # Build components
         self.peft_config = None
         if self.cfg.get("peft", None) is not None:
             self.peft_config = self.cfg.peft.instantiate()
+        self.loss_fn = build_loss_fn(self.cfg.loss_fn)
         self.model, self.optimizer = build_model_and_optimizer(
             self.dist_env.device,
             self.cfg.model,
@@ -525,8 +630,10 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             tp_size=self.cfg.get("distributed.tp_size", 1),
             cfg_fp8=self.cfg.get("fp8", None),
             cfg_compile=self.cfg.get("compile", None),
+            autopipeline=autopipeline,
+            loss_fn=self.loss_fn,
+            parallelize_fn=partial(parallelize_for_pp, model_wrapper=self.model_wrapper),
         )
-        self.loss_fn = build_loss_fn(self.cfg.loss_fn)
         self.dataloader, self.tokenizer = build_dataloader(
             self.cfg.dataset,
             self.cfg.dataloader,
@@ -630,45 +737,66 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
             labels = batch.pop("labels")
 
+            loss_mask = batch.pop("loss_mask", None)
+            if loss_mask is None:
+                loss_mask = (labels.detach() != -100).to(torch.int)
+
             if (
                 "position_ids" not in batch
                 and self.device_mesh is not None
                 and (self.device_mesh["cp"].size() > 1 or self.device_mesh["tp"].size() > 1)
             ):
-                batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(self.model.device)
+                batch["position_ids"] = (
+                    torch.arange(0, batch["input_ids"].shape[1])
+                    .unsqueeze(0)
+                    .expand(batch["input_ids"].shape[0], -1)
+                    .to(self.model.device)
+                )
 
             train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels)
-
-            with train_ctx(), get_sync_ctx(self.model, i == num_batches - 1):
-                if isinstance(self.loss_fn, FusedLinearCrossEntropy):
-                    # use num_logits_to_keep to avoid full logits matrix in memory
-                    out = self.model(logits_to_keep=1, **batch)
-                    if "hidden_states" not in out:
-                        raise ValueError(
-                            "FusedLinearCrossEntropy requires the model to output hidden states. Set `model.output_hidden_states=True` in the config."
-                        )
-                else:
-                    out = self.model(**batch)
-
-                local_loss = calculate_loss(
-                    self.loss_fn,
-                    logits=out.logits,
-                    labels=labels,
-                    model=self.model,
-                    hidden_states=out.hidden_states[-1] if "hidden_states" in out else None,
-                    num_label_tokens=num_label_tokens,
-                )
+            if self.pp_enabled:
+                local_loss = self.model.step(batch, labels, loss_mask, train_ctx=train_ctx)
                 loss_buffer.append(local_loss.clone().detach())
-                local_loss.backward()
+            else:
+                with train_ctx(), get_sync_ctx(self.model, i == num_batches - 1):
+                    if isinstance(self.loss_fn, FusedLinearCrossEntropy):
+                        # use num_logits_to_keep to avoid full logits matrix in memory
+                        out = self.model(logits_to_keep=1, **batch)
+                        if "hidden_states" not in out:
+                            raise ValueError(
+                                "FusedLinearCrossEntropy requires the model to output hidden states. Set `model.output_hidden_states=True` in the config."
+                            )
+                    else:
+                        out = self.model(**batch)
 
-        # do the optimization step
-        grad_norm = 0
+                    local_loss = calculate_loss(
+                        self.loss_fn,
+                        logits=out.logits,
+                        labels=labels,
+                        model=self.model,
+                        hidden_states=out.hidden_states[-1] if "hidden_states" in out else None,
+                        num_label_tokens=num_label_tokens,
+                    )
+                    loss_buffer.append(local_loss.clone().detach())
+                    local_loss.backward()
+
+        grad_norm = None
         # Clip gradients **after** any rescaling.
         # TODO(@boxiangw): Fix TP gradient clipping
-        if max_grad_norm is not None and (not self.device_mesh or self.device_mesh["tp"].size() == 1):
-            grad_norm = torch.nn.utils.clip_grad_norm_(
-                [p for p in self.model.parameters() if p.requires_grad], max_grad_norm
-            )
+        if max_grad_norm is not None:
+            if self.pp_enabled:
+                grad_norm = self.model.clip_grad_norm(
+                    max_grad_norm,
+                    foreach=True,
+                    pp_mesh=(self.device_mesh["pp"] if self.pp_enabled else None),
+                    ep_dense_params_mesh_ndim=None,
+                )
+            else:
+                if not self.device_mesh or self.device_mesh["tp"].size() == 1:
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        [p for p in self.model.parameters() if p.requires_grad], max_grad_norm
+                    )
+
             if isinstance(grad_norm, torch.Tensor):
                 grad_norm = grad_norm.item()
 
@@ -676,10 +804,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         # self.model.finish_grad_sync()
 
         self.optimizer.step()
-        self.optimizer.zero_grad(set_to_none=True)
-
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step(1)
+        self.optimizer.zero_grad()
 
         # Precompute FP8 scales
         if (
@@ -704,6 +829,10 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
     @torch.no_grad()
     def _run_validation_epoch(self):
         """Run one pass over `self.val_dataloader`."""
+        if self.pp_enabled:
+            logger.warning("Validation is not supported for pipeline parallelism")
+            return
+
         with StatefulRNG(seed=1, ranked=True):
             self.model.eval()
 
@@ -721,7 +850,10 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     and (self.device_mesh["cp"].size() > 1 or self.device_mesh["tp"].size() > 1)
                 ):
                     batch["position_ids"] = (
-                        torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(self.model.device)
+                        torch.arange(0, batch["input_ids"].shape[1])
+                        .unsqueeze(0)
+                        .expand(batch["input_ids"].shape[0], -1)
+                        .to(self.model.device)
                     )
 
                 train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels)
@@ -765,6 +897,14 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             num_tokens_in_batch: Total number of loss tokens.
             tps: Tokens per second.
         """
+        if self.pp_enabled:
+            # Send loss to first rank if pp group rank is 0
+            src_rank = self.device_mesh.mesh.reshape(-1)[-1].item()
+            if self.dist_env.rank == src_rank:
+                torch.distributed.send(train_loss, dst=0)
+            elif self.dist_env.is_main:
+                torch.distributed.recv(train_loss, src=src_rank)
+
         log_data = {
             "step": self.step_scheduler.step,
             "epoch": self.step_scheduler.epoch,
@@ -779,18 +919,19 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         if wandb.run is not None:
             wandb.log(log_data)
 
-        logging.info(
-            "step {} | epoch {} | loss {:.4f} | grad_norm {:.4f} | lr {:.2e} | mem {:.2f} GiB | tps {:.2f} | num_label_tokens {}".format(
-                self.step_scheduler.step,
-                self.step_scheduler.epoch,
-                train_loss,
-                grad_norm,
-                current_lr,
-                torch.cuda.max_memory_allocated() / 1024**3,
-                tps,
-                num_label_tokens,
+        if self.dist_env.is_main:
+            logging.info(
+                "step {} | epoch {} | loss {:.4f} | grad_norm {:.4f} | lr {:.2e} | mem {:.2f} GiB | tps {:.2f} | num_label_tokens {}".format(
+                    self.step_scheduler.step,
+                    self.step_scheduler.epoch,
+                    train_loss,
+                    grad_norm,
+                    current_lr,
+                    torch.cuda.max_memory_allocated() / 1024**3,
+                    tps,
+                    num_label_tokens,
+                )
             )
-        )
         torch.cuda.reset_peak_memory_stats()
 
 
