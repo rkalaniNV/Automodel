@@ -134,7 +134,7 @@ class AutoPipeline:
 
         self.world_mesh: DeviceMesh = cfg.world_mesh
         self.pp_mesh: DeviceMesh = self.world_mesh[cfg.pp_axis_name]
-        self.device: torch.device = cfg.device
+        self._device: torch.device = cfg.device
 
         self._info = PipelineInfo(
             enabled=False,
@@ -271,6 +271,10 @@ class AutoPipeline:
             raise RuntimeError("Autopipeline not built. Call build() first.")
 
         return self._info.model_parts
+
+    @property
+    def device(self) -> torch.device:
+        return self._device
 
     def train(self) -> None:
         if self._info.model_parts is None:

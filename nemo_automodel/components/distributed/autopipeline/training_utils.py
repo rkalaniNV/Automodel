@@ -4,6 +4,7 @@ import torch
 from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.pipelining.schedules import _PipelineSchedule
 from torch.distributed.pipelining.stage import PipelineStage
+from torch.distributed.tensor import DTensor
 
 
 def validate_batch_shapes(batch: dict[str, Any], *, must_have: Optional[list[str]] = None) -> None:
@@ -73,7 +74,7 @@ def pp_clip_grad_norm(
     grads = [p.grad for p in parameters if p.grad is not None]
     total_norm = torch.nn.utils.get_total_norm(grads, norm_type, error_if_nonfinite, foreach)
 
-    if isinstance(total_norm, torch.Tensor) and total_norm.__class__.__name__ == "DTensor":
+    if isinstance(total_norm, DTensor):
         total_norm = total_norm.full_tensor()
 
     if pp_mesh is not None:
