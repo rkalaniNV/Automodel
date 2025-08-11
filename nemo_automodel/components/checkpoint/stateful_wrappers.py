@@ -118,6 +118,10 @@ class ModelState:
         Args:
             state_dict (dict): State dictionary to load.
         """
+        if self.is_init_step:
+            self._set_base_model_state_dict(state_dict)
+            return
+
         options = None
         if self.is_peft:
             _drop_outer_prefix(state_dict, "base_model.model.")
@@ -149,6 +153,9 @@ class ModelState:
                 model_state_dict.pop(k)
 
         return model_state_dict
+    
+    def _set_base_model_state_dict(self, state_dict: dict[str, Any]) -> None:
+        set_model_state_dict(self.model, state_dict, options=StateDictOptions(strict=False))
 
 
 class OptimizerState:
