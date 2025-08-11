@@ -186,8 +186,8 @@ def load_model_from_base_checkpoint(
         root_dir: Root directory of the model
         model_name: Name of the model
     """
-    model.to_empty(device=device)
     from transformers.models.gemma3.modeling_gemma3 import Gemma3ForConditionalGeneration
+    model.to_empty(device=device)
 
     # HF models set _is_hf_initialized to True after initialization.
     # But because we initialize on meta device, these are erroneously set to True.
@@ -229,8 +229,7 @@ def load_model_from_base_checkpoint(
             model_path, key_mapping=getattr(model, "_checkpoint_conversion_mapping", None)
         ),
     )
-    strict = not (model_state.is_tied_lm_head or model_state.is_peft)
-    model.load_state_dict(model_state_dict, strict=strict)
+    model_state.load_state_dict(model_state_dict)
 
 
 def load_model(
