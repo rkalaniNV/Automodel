@@ -237,6 +237,8 @@ def build_dataloader(
     dist_sampler_kwargs = {
         "shuffle": cfg_dl.get("shuffle", True),
     }
+    if "shuffle" in cfg_dl:
+        del cfg_dl.shuffle
     if device_mesh is not None:
         dist_sampler_kwargs |= {
             "num_replicas": device_mesh["dp"].size(),
