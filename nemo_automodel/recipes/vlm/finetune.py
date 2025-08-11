@@ -137,28 +137,17 @@ def build_model_and_optimizer(
     Returns:
         The instantiated model on the specified device and optimizer.
     """
-    is_meta_device = False
-    init_ctx = nullcontext()
-    if hasattr(cfg_model, "is_meta_device"):
-        is_meta_device = cfg_model.is_meta_device
-        if is_meta_device and isinstance(model_wrapper, NVFSDPManager):
-            raise ValueError("Meta device initialization is not supported with NVFSDPManager")
-        init_ctx = torch.device("meta") if is_meta_device else init_ctx
-        del cfg_model.is_meta_device
-
     with StatefulRNG(seed=seed, ranked=True):
         # Add FP8 config if provided
         kwargs = {}
         if cfg_fp8 is not None:
             kwargs["fp8_config"] = cfg_fp8.instantiate()
 
-        # Instantiate the model in meta device to avoid OOM
-        with init_ctx:
-            model = cfg_model.instantiate(**kwargs)
-            model = _freeze_model(model, cfg_freeze, freeze_embeddings)
-            # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
-            if cfg_peft is not None:
-                apply_lora_to_linear_modules(model, cfg_peft)
+        model = cfg_model.instantiate(**kwargs)
+        model = _freeze_model(model, cfg_freeze, freeze_embeddings)
+        # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
+        if cfg_peft is not None:
+            apply_lora_to_linear_modules(model, cfg_peft)
 
         print_trainable_parameters(model)
 
@@ -173,17 +162,6 @@ def build_model_and_optimizer(
                 return model, optimizer
             else:
                 model = model_wrapper.parallelize(model)
-
-                if is_meta_device:
-                    # Load the weights into the model in parallel.
-                    load_model_from_base_checkpoint(
-                        model,
-                        device,
-                        cfg_peft is not None,
-                        cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
-                        cfg_model.pretrained_model_name_or_path,
-                        getattr(cfg_peft, "lora_A_init", None),
-                    )
         else:
             model = model.to(device)
 
