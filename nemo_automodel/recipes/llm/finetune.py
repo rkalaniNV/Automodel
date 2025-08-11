@@ -793,7 +793,10 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     and (self.device_mesh["cp"].size() > 1 or self.device_mesh["tp"].size() > 1)
                 ):
                     batch["position_ids"] = (
-                        torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(self.model.device)
+                        torch.arange(0, batch["input_ids"].shape[1])
+                        .unsqueeze(0)
+                        .expand(batch["input_ids"].shape[0], -1)
+                        .to(self.model.device)
                     )
 
                 train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels, loss_mask)
