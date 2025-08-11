@@ -18,13 +18,14 @@ import contextlib
 import logging
 import pathlib
 import time
-from typing import Any, Dict
+from functools import partial
+from typing import Any, Dict, Optional, Union
 
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 import wandb
-from torch.distributed.device_mesh import _mesh_resources
+from torch.distributed.device_mesh import DeviceMesh, _mesh_resources
 from torch.utils.data import DataLoader
 from torchao.float8 import precompute_float8_dynamic_scale_for_fsdp
 from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
@@ -472,6 +473,25 @@ def calculate_loss(loss_fn, **kwargs) -> torch.Tensor:
     return loss_fn(**loss_fn_kwargs)
 
 
+def parallelize_for_pp(
+    model: nn.Module,
+    *,
+    world_mesh: DeviceMesh,
+    moe_mesh: Optional[DeviceMesh] = None,
+    pp_enabled: bool = False,
+    dp_axis_names: Union[tuple[str, ...], str] = ("data_parallel",),
+    cp_axis_name: Optional[str] = None,
+    tp_axis_name: Optional[str] = None,
+    ep_axis_name: Optional[str] = None,
+    ep_shard_axis_names: Optional[tuple[str, ...]] = None,
+    model_wrapper: Optional[Any] = None,
+) -> nn.Module:
+    if model_wrapper is not None:
+        if callable(getattr(model_wrapper, "parallelize", None)):
+            model = model_wrapper.parallelize(model)
+    return model
+
+
 # ---------------------------------------------------------------------------
 #  Trainer class – orchestration only
 # ---------------------------------------------------------------------------
@@ -564,6 +584,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             cfg_fp8=self.cfg.get("fp8", None),
             autopipeline=autopipeline,
             loss_fn=self.loss_fn,
+            parallelize_fn=partial(parallelize_for_pp, model_wrapper=self.model_wrapper),
         )
         self.dataloader, self.tokenizer = build_dataloader(
             self.cfg.dataset,
