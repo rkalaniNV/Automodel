@@ -318,6 +318,7 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
               deleted and the method recurses once with
               `use_liger_kernel=False` or `use_sdpa_patching=False`
         """
+        torch_dtype = dtype_from_str(torch_dtype) if torch_dtype != "auto" else torch.bfloat16
 
         def _retry(**override):
             """Internal helper to re-enter this function with patched args."""
@@ -341,6 +342,7 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
                 config,
                 *model_args,
                 attn_implementation=attn_implementation,
+                torch_dtype=torch_dtype,
                 **kwargs,
             )
             cls.__name__ = name
