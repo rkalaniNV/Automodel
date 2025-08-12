@@ -187,6 +187,7 @@ def load_model_from_base_checkpoint(
         model_name: Name of the model
     """
     from transformers.models.gemma3.modeling_gemma3 import Gemma3ForConditionalGeneration
+
     model.to_empty(device=device)
 
     # HF models set _is_hf_initialized to True after initialization.

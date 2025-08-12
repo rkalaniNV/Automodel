@@ -153,7 +153,7 @@ class ModelState:
                 model_state_dict.pop(k)
 
         return model_state_dict
-    
+
     def _set_base_model_state_dict(self, state_dict: dict[str, Any]) -> None:
         set_model_state_dict(self.model, state_dict, options=StateDictOptions(strict=False))
 

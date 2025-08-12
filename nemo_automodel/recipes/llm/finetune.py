@@ -23,7 +23,6 @@ from typing import TYPE_CHECKING, Any, Dict
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-import wandb
 from torch.distributed.device_mesh import _mesh_resources
 from torch.utils.data import DataLoader
 from torchao.float8 import precompute_float8_dynamic_scale_for_fsdp
@@ -31,8 +30,8 @@ from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
 from transformers import AutoTokenizer
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.utils import TRANSFORMERS_CACHE
-from wandb import Settings
 
+import wandb
 from nemo_automodel.components._peft.lora import apply_lora_to_linear_modules
 from nemo_automodel.components.checkpoint.checkpointing import CheckpointingConfig, load_model_from_base_checkpoint
 from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
@@ -54,6 +53,7 @@ from nemo_automodel.components.utils.dist_utils import (
     rescale_gradients,
 )
 from nemo_automodel.recipes.base_recipe import BaseRecipe
+from wandb import Settings
 
 if TYPE_CHECKING:
     from torch.optim import Optimizer
