@@ -1,3 +1,56 @@
+Metadata-Version: 2.4
+Name: nemo-automodel
+Version: 0.2.0rc0
+Summary: NeMo Automodel - Provides Day-0 support for any Hugging Face model leveraging PyTorch native functionalities while providing performance and memory optimized training and inference recipes.
+Author-email: NVIDIA <nemo-toolkit@nvidia.com>
+Maintainer-email: NVIDIA <nemo-toolkit@nvidia.com>
+Project-URL: Homepage, https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/
+Project-URL: Repository, https://github.com/NVIDIA/NeMo-Automodel
+Project-URL: Download, https://github.com/NVIDIA/NeMo-Automodel/releases
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Information Technology
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Classifier: Topic :: Scientific/Engineering :: Image Recognition
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Utilities
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Environment :: Console
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: bitsandbytes==0.45.5; platform_machine == "x86_64" and platform_system != "Darwin"
+Requires-Dist: datasets>=4.0.0
+Requires-Dist: liger-kernel==0.5.8; platform_machine == "x86_64" and platform_system != "Darwin"
+Requires-Dist: pyyaml
+Requires-Dist: torch
+Requires-Dist: torchdata
+Requires-Dist: transformers
+Requires-Dist: wandb
+Requires-Dist: torchao
+Provides-Extra: vlm
+Requires-Dist: pillow; extra == "vlm"
+Requires-Dist: qwen-vl-utils[decord]; extra == "vlm"
+Requires-Dist: transformers==4.53.0; extra == "vlm"
+Requires-Dist: timm==1.0.16; extra == "vlm"
+Requires-Dist: backoff; extra == "vlm"
+Requires-Dist: numpy; extra == "vlm"
+Requires-Dist: numba; extra == "vlm"
+Requires-Dist: torchcodec; extra == "vlm"
+Provides-Extra: fa
+Requires-Dist: flash-attn; extra == "fa"
+Dynamic: license-file
+
 # NVIDIA Documentation Starter Kit
 
 A comprehensive Sphinx documentation template with advanced features for technical documentation, including AI-powered search, multi-environment builds, and custom extensions.

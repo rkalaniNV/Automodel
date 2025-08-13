@@ -1,0 +1,222 @@
+# Cursor Rules for Documentation Review
+
+## Documentation Review Guidelines
+
+You are an AI assistant helping with documentation review before pull requests. Follow these guidelines:
+
+## How to Use
+
+### Automatic Application
+Cursor will now automatically follow these guidelines when reviewing documentation. The AI assistant will apply the review framework and quality standards outlined above to all documentation-related tasks.
+
+### Prompt Templates
+Use the specific prompts listed in the rules for targeted reviews:
+- `/review-docs` for comprehensive content analysis
+- `/verify-code` for technical validation
+- `/check-grammar` for quality assurance
+- `/analyze-structure` for organization review
+- `/check-accessibility` for UX validation
+
+### Quality Standards
+The rules ensure consistent review quality across your team by providing:
+- Standardized review checklists
+- Technical accuracy validation criteria
+- User experience considerations
+- Accessibility requirements
+
+### Context Awareness
+Cursor will consider the broader documentation ecosystem by:
+- Maintaining consistency with existing standards
+- Referencing related documentation sections
+- Ensuring cross-references are accurate
+- Validating against actual implementation
+
+The `.cursorrules` file will help ensure that every documentation review follows the same high standards and leverages Cursor's AI capabilities effectively for thorough pre-PR validation.
+
+### Core Review Areas
+
+1. **Content Analysis**
+   - Review for completeness, accuracy, and clarity
+   - Identify missing information and inconsistencies
+   - Check technical correctness and audience appropriateness
+   - Suggest improvements for explanations and examples
+
+2. **Technical Validation**
+   - Verify code examples: syntax, best practices, imports, error handling
+   - Review API documentation: parameters, return values, error handling, examples
+   - Validate configuration examples: syntax, required params, optional settings
+   - Check build instructions: completeness, prerequisites, cross-platform compatibility
+
+3. **Quality Assurance**
+   - Grammar and spelling review
+   - Style consistency: tone, terminology, formatting
+   - Structure validation: logical flow, hierarchy, navigation
+   - Link verification: internal links, external references
+
+4. **Consistency & Formatting**
+   - Ensure consistent terminology and naming conventions
+   - Verify markdown formatting: headers, lists, code blocks, links
+   - Check visual consistency: images, colors, typography
+
+5. **Accessibility & UX**
+   - Verify accessibility features: alt text, descriptive links, color contrast
+   - Enhance clarity: simplify sentences, add transitions, use active voice
+   - Analyze user journey: information discovery, learning progression
+
+### Review Prompts
+
+When reviewing documentation, use these specific prompts:
+
+**Content Review:**
+```
+/review-docs
+Analyze for: completeness, accuracy, clarity, missing info, inconsistencies
+```
+
+**Technical Validation:**
+```
+/verify-code
+Validate: syntax, best practices, imports, error handling
+```
+
+**API Documentation:**
+```
+/review-api
+Check: parameters, return values, error handling, examples
+```
+
+**Configuration Validation:**
+```
+/validate-config
+Verify: syntax, required params, optional settings, best practices
+```
+
+**Grammar & Style:**
+```
+/check-grammar
+Review: grammar, spelling, punctuation, sentence structure
+```
+
+**Structure Analysis:**
+```
+/analyze-structure
+Review: logical flow, hierarchy, navigation, organization
+```
+
+**Link Validation:**
+```
+/check-links
+Verify: existing content, anchor tags, descriptive text, formatting
+```
+
+**Accessibility:**
+```
+/check-accessibility
+Verify: alt text, descriptive links, color contrast, keyboard nav
+```
+
+**Clarity Enhancement:**
+```
+/improve-clarity
+Enhance: sentence simplicity, transitions, paragraph breaks, active voice
+```
+
+### Quality Standards
+
+**Content Completeness:**
+- All required sections present
+- Examples complete and working
+- Prerequisites clearly stated
+- Troubleshooting section included
+- Related documentation linked
+
+**Technical Accuracy:**
+- Code examples compile and run
+- Configuration examples valid
+- API documentation matches implementation
+- Version information current
+- Dependencies correctly listed
+
+**Quality Standards:**
+- No spelling or grammar errors
+- Consistent formatting throughout
+- Proper use of terminology
+- Clear and concise writing
+- Professional tone maintained
+
+**User Experience:**
+- Logical information flow
+- Easy navigation structure
+- Appropriate level of detail
+- Helpful examples provided
+- Clear call-to-action statements
+
+### Workflow Guidelines
+
+**Review Process:**
+- Start early, review in chunks
+- Combine AI insights with human expertise
+- Maintain context awareness
+- Use version control effectively
+- Reference chat history for consistency
+
+**Efficiency Tips:**
+- Create templates for common review prompts
+- Leverage multi-file analysis capabilities
+- Collaborate by sharing Cursor sessions
+- Use automated checks alongside manual review
+
+**Final Validation:**
+- Build and test documentation locally
+- Validate all links and references
+- Prepare summary for peer review
+- Ensure all checklist items completed
+
+### Documentation-Specific Rules
+
+**For Markdown Files:**
+- Ensure proper header nesting
+- Verify code block formatting
+- Check link validity and formatting
+- Validate image alt text
+- Maintain consistent list formatting
+
+**For Code Examples:**
+- Include necessary imports
+- Follow language-specific best practices
+- Add appropriate error handling
+- Provide clear comments
+- Test compilation/execution
+
+**For API Documentation:**
+- Document all parameters
+- Specify return types and values
+- Include error scenarios
+- Provide usage examples
+- Maintain version consistency
+
+**For Configuration Files:**
+- Validate syntax correctness
+- Document required vs optional parameters
+- Include default values
+- Provide environment-specific examples
+- Add troubleshooting notes
+
+### Context Awareness
+
+When reviewing documentation:
+- Consider the broader documentation ecosystem
+- Maintain consistency with existing standards
+- Reference related documentation sections
+- Ensure cross-references are accurate
+- Validate against actual implementation
+
+### Collaboration Guidelines
+
+- Provide constructive, specific feedback
+- Suggest improvements with explanations
+- Maintain professional tone
+- Focus on actionable recommendations
+- Consider the target audience
+
+Remember: Documentation review is iterative. Use AI capabilities to identify issues, but always apply critical thinking and domain expertise for final decisions. 

@@ -1,0 +1,206 @@
+# GitLab CI/CD configuration for Multi-Build Sphinx documentation
+# Works with existing Makefile that uses DOCS_ENV parameter
+
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  PYTHON_VERSION: "3.11"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  # Base URLs for different environments - will be set dynamically
+  # Note: CI_PAGES_URL is provided by GitLab and works for both public and private instances
+
+cache:
+  paths:
+    - .cache/pip
+    - .venv-docs/
+
+# Test stage - quick test with GA build
+test:docs:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  tags:
+    - pages
+  script:
+    - pip install uv
+    - make docs-env
+    - make docs-publish-ga  # Test with fail-on-warning
+  artifacts:
+    paths:
+      - docs/_build/html/
+    expire_in: 1 hour
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+
+# Build stage - build ALL documentation variants in sequence
+build:docs-all:
+  stage: build
+  image: python:${PYTHON_VERSION}
+  tags:
+    - pages
+  script:
+    - pip install uv
+    - make docs-env
+    
+    # Build each variant to a separate subdirectory
+    - echo "Building GA documentation..."
+    - make docs-html-ga
+    - mkdir -p _build_combined/ga
+    - cp -r docs/_build/html/* _build_combined/ga/
+    
+    - echo "Building Internal documentation..."
+    - make docs-clean  # Clean before next build
+    - make docs-html-internal
+    - mkdir -p _build_combined/internal
+    - cp -r docs/_build/html/* _build_combined/internal/
+    
+    - echo "Building Early Access documentation..."
+    - make docs-clean  # Clean before next build
+    - make docs-html-ea
+    - mkdir -p _build_combined/ea
+    - cp -r docs/_build/html/* _build_combined/ea/
+    
+    # Optional: Build draft version too
+    - echo "Building Draft documentation..."
+    - make docs-clean
+    - make docs-html-draft
+    - mkdir -p _build_combined/draft
+    - cp -r docs/_build/html/* _build_combined/draft/
+    
+    # Create a unified preview structure
+    - mkdir -p _build_combined/preview/{ga,internal,ea,draft}
+    - cp -r _build_combined/ga/* _build_combined/preview/ga/
+    - cp -r _build_combined/internal/* _build_combined/preview/internal/
+    - cp -r _build_combined/ea/* _build_combined/preview/ea/
+    - cp -r _build_combined/draft/* _build_combined/preview/draft/
+    
+    # Create an index page for build selection
+    - |
+      sed -e "s/\${CI_COMMIT_SHORT_SHA}/$CI_COMMIT_SHORT_SHA/g" \
+          -e "s/\${CI_COMMIT_REF_NAME}/$CI_COMMIT_REF_NAME/g" \
+          -e "s/\${CI_PIPELINE_ID}/$CI_PIPELINE_ID/g" \
+          scripts/preview-index-template.html > _build_combined/preview/index.html
+
+  artifacts:
+    name: "docs-all-builds"
+    paths:
+      - _build_combined/
+    expire_in: 1 week
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH =~ /^(develop|staging)$/
+
+# Production deployment - GA docs to main GitLab Pages URL
+pages:
+  stage: deploy
+  tags:
+    - pages
+  dependencies:
+    - build:docs-all
+  script:
+    - mkdir public
+    - cp -r _build_combined/ga/* public/
+    - echo "✅ Deployed GA documentation to GitLab Pages"
+  artifacts:
+    paths:
+      - public
+  environment:
+    name: production
+    url: $CI_PAGES_URL
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Staging deployment - for develop branch
+deploy:staging:
+  stage: deploy
+  tags:
+    - pages
+  dependencies:
+    - build:docs-all
+  script:
+    - mkdir public
+    - cp -r _build_combined/preview/* public/
+    - echo "✅ Deployed staging documentation"
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 week
+  environment:
+    name: staging
+    url: $CI_PAGES_URL/-/staging
+    auto_stop_in: 1 week
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "staging"
+
+# Preview deployment - for merge requests
+deploy:preview:
+  stage: deploy
+  tags:
+    - pages
+  dependencies:
+    - build:docs-all
+  script:
+    - mkdir public
+    - cp -r _build_combined/preview/* public/
+    - echo "✅ Deployed preview documentation"
+    - echo "Available variants - GA, Internal, Early Access, Draft"
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 week
+  environment:
+    name: preview/mr-$CI_MERGE_REQUEST_IID
+    url: $CI_PAGES_URL/-/preview
+    auto_stop_in: 1 week
+    on_stop: stop:preview
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+
+# Cleanup job for preview environments
+stop:preview:
+  stage: deploy
+  tags:
+    - pages
+  script:
+    - echo "🧹 Cleaning up preview environment for MR $CI_MERGE_REQUEST_IID"
+  environment:
+    name: preview/mr-$CI_MERGE_REQUEST_IID
+    action: stop
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+      when: manual
+      allow_failure: true
+
+# Manual deployment of specific variant to a custom environment
+deploy:variant:
+  stage: deploy
+  tags:
+    - pages
+  dependencies:
+    - build:docs-all
+  script:
+    - mkdir public
+    - |
+      if [ "$DOCS_VARIANT" = "ga" ] || [ "$DOCS_VARIANT" = "internal" ] || [ "$DOCS_VARIANT" = "ea" ] || [ "$DOCS_VARIANT" = "draft" ]; then
+        cp -r _build_combined/${DOCS_VARIANT}/* public/
+        echo "✅ Deployed ${DOCS_VARIANT} documentation variant"
+      else
+        echo "❌ Invalid DOCS_VARIANT. Must be one of: ga, internal, ea, draft"
+        exit 1
+      fi
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 week
+  environment:
+    name: docs-$DOCS_VARIANT
+    url: $CI_PAGES_URL/-/$DOCS_VARIANT
+    auto_stop_in: 2 weeks
+  rules:
+    - if: $DOCS_VARIANT
+      when: manual

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Documentation Preview - Multiple Builds</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; 
+            margin: 0; 
+            padding: 40px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 { 
+            color: #333; 
+            text-align: center; 
+            margin-bottom: 30px; 
+            font-size: 2.5em;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+        .build-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .build-option { 
+            display: block; 
+            padding: 25px; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 12px; 
+            text-decoration: none; 
+            color: #333;
+            transition: all 0.3s ease;
+            background: #f9f9f9;
+        }
+        .build-option:hover { 
+            border-color: #667eea; 
+            background: #f0f4ff;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .build-title { 
+            font-size: 1.3em; 
+            font-weight: bold; 
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .build-desc { 
+            color: #666; 
+            line-height: 1.5;
+            font-size: 0.95em;
+        }
+        .build-meta {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 0.85em;
+            color: #888;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            color: #666;
+            font-size: 0.9em;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .badge-public { background: #4caf50; color: white; }
+        .badge-internal { background: #f44336; color: white; }
+        .badge-ea { background: #ff9800; color: white; }
+        .badge-draft { background: #9c27b0; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 Documentation Preview</h1>
+        <p class="subtitle">Choose which build variant to view</p>
+        
+        <div class="build-grid">
+            <a href="ga/index.html" class="build-option">
+                <div class="build-title">
+                    🌍 General Availability
+                    <span class="badge badge-public">Public</span>
+                </div>
+                <div class="build-desc">
+                    Production-ready documentation for released features. 
+                    This is what external users see.
+                </div>
+                <div class="build-meta">
+                    ✅ Public facing • 🚀 Production ready
+                </div>
+            </a>
+            
+            <a href="internal/index.html" class="build-option">
+                <div class="build-title">
+                    🏢 Internal
+                    <span class="badge badge-internal">Internal</span>
+                </div>
+                <div class="build-desc">
+                    Internal documentation with additional developer content, 
+                    architecture details, and internal processes.
+                </div>
+                <div class="build-meta">
+                    🔒 Internal only • 🛠️ Developer focused
+                </div>
+            </a>
+            
+            <a href="ea/index.html" class="build-option">
+                <div class="build-title">
+                    🚀 Early Access
+                    <span class="badge badge-ea">Preview</span>
+                </div>
+                <div class="build-desc">
+                    Documentation for early access features and upcoming releases. 
+                    Subject to change.
+                </div>
+                <div class="build-meta">
+                    ⚠️ Preview features • 🔄 Subject to change
+                </div>
+            </a>
+            
+            <a href="draft/index.html" class="build-option">
+                <div class="build-title">
+                    📝 Draft
+                    <span class="badge badge-draft">Draft</span>
+                </div>
+                <div class="build-desc">
+                    Work-in-progress documentation with draft content, 
+                    placeholders, and experimental features.
+                </div>
+                <div class="build-meta">
+                    🚧 Work in progress • 📋 Draft content
+                </div>
+            </a>
+        </div>
+        
+        <div class="footer">
+            <strong>Build:</strong> ${CI_COMMIT_SHORT_SHA} • 
+            <strong>Branch:</strong> ${CI_COMMIT_REF_NAME} • 
+            <strong>Pipeline:</strong> #${CI_PIPELINE_ID}
+        </div>
+    </div>
+</body>
+</html> 
