@@ -53,6 +53,7 @@ from nemo_automodel.components.utils.dist_utils import (
     reduce_loss,
     rescale_gradients,
 )
+from nemo_automodel.components.utils.model_utils import print_trainable_parameters
 from nemo_automodel.recipes.base_recipe import BaseRecipe
 
 if TYPE_CHECKING:
@@ -130,6 +131,8 @@ def build_model_and_optimizer(
             # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
             if cfg_peft is not None:
                 apply_lora_to_linear_modules(model, cfg_peft)
+
+    print_trainable_parameters(model)
 
     if callable(getattr(model_wrapper, "parallelize", None)):
         # FSDP2 and nvFSDP should already be on the correct device
@@ -493,6 +496,10 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             run = build_wandb(self.cfg)
             logging.info("🚀 View run at {}".format(run.url))
 
+        # Log experiment details on main rank
+        self._log_experiment_details()
+        self._log_library_versions()
+
         # Check if packed_sequence_size > 0 and use HF's flash_attention_2 for attn implementation.
         use_hf_fa2 = self.cfg.get("packed_sequence.packed_sequence_size", 0) > 0
 
@@ -545,6 +552,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         # Build learning rate scheduler
         self.lr_scheduler = build_lr_scheduler(self.cfg.get("lr_scheduler", None), self.optimizer, self.step_scheduler)
 
+        # Log model, parameter counts, norms, optimizer and scheduler
+        self._log_model_and_optimizer_details(self.model, self.optimizer, self.lr_scheduler)
+
         # Build checkpointing config
         restore_from = self.cfg.get("checkpoint.restore_from", None)
         self.checkpoint_config = build_checkpoint_config(
@@ -559,6 +569,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
         # Optionally resume
         self.load_checkpoint(restore_from)
+
+        # Log step scheduler details
+        self._log_step_scheduler_details(self.step_scheduler)
 
     # ------------------ main loop ------------------
     def run_train_validation_loop(self):
