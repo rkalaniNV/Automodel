@@ -22,14 +22,15 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+import wandb
 from torch.distributed.device_mesh import _mesh_resources
 from torch.utils.data import DataLoader
 from torchao.float8 import precompute_float8_dynamic_scale_for_fsdp
 from transformers import AutoProcessor
 from transformers.processing_utils import ProcessorMixin
 from transformers.utils import TRANSFORMERS_CACHE
+from wandb import Settings
 
-import wandb
 from nemo_automodel.components._peft.lora import apply_lora_to_linear_modules
 from nemo_automodel.components.checkpoint.checkpointing import CheckpointingConfig
 from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
@@ -52,7 +53,6 @@ from nemo_automodel.components.utils.dist_utils import (
 )
 from nemo_automodel.components.utils.model_utils import apply_parameter_freezing, print_trainable_parameters
 from nemo_automodel.recipes.base_recipe import BaseRecipe
-from wandb import Settings
 
 if TYPE_CHECKING:
     from torch.optim import Optimizer
