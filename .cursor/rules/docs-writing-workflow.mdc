@@ -1,0 +1,144 @@
+---
+description: Systematic workflow for creating new documentation or significantly revising existing content
+globs:
+alwaysApply: false
+---
+
+Use this rule to systematically plan, write, and validate new documentation content following established patterns and quality standards.
+
+---
+
+## 1. Scope and Plan the Documentation
+
+- [ ] **Define the documentation purpose and audience**:
+  - What specific problem or task does this documentation solve?
+  - Who is the primary audience (developers, operators, end-users)?
+  - What is their assumed skill level and context?
+- [ ] **Determine content scope and boundaries**:
+  - What topics must be covered vs. what can be referenced elsewhere?
+  - What depth of detail is appropriate for the audience?
+  - How does this fit into the broader documentation ecosystem?
+- [ ] **Research existing content and patterns**:
+  - Search for similar documentation in the project using `codebase_search()`
+  - Identify reusable patterns, templates, or structures
+  - Note gaps or outdated content that should be updated
+
+## 2. Design Information Architecture
+
+- [ ] **Choose appropriate content structure**:
+  - Single focused article vs. modular topic cluster
+  - Tutorial/guide vs. reference vs. explanation vs. how-to
+  - Sequential workflow vs. topic-based organization
+- [ ] **Plan navigation and cross-references**:
+  - How will users discover this content?
+  - What related content should be linked?
+  - Where should this content link back to parent topics?
+- [ ] **Design for content maintainability**:
+  - Will this need frequent updates (configuration, API changes)?
+  - Should examples be validated against source code?
+  - Plan for future modularization if content grows
+
+## 3. Create Content Structure and Draft
+
+- [ ] **Set up file structure and navigation**:
+  - Create files with descriptive, URL-friendly names
+  - Add MyST reference targets: `(reference-name)=` at page tops
+  - Set up parent page navigation (grid cards or toctree)
+- [ ] **Draft core content sections**:
+  - Write clear, scannable headings that match user mental models
+  - Include prerequisites, assumptions, and scope upfront
+  - Structure content with logical flow and clear outcomes
+- [ ] **Add code examples and technical details**:
+  - Use concrete, realistic examples over abstract placeholders
+  - Reference `docs-tooling` rule for proper MyST syntax and formatting
+  - Plan for code example validation (see step 5)
+
+## 4. Apply Formatting and Interactive Elements
+
+- [ ] **Format content using MyST syntax** (reference `docs-tooling` rule):
+  - Apply appropriate text formatting and structure
+  - Add code blocks with proper syntax highlighting
+  - Include necessary math, figures, or special formatting
+- [ ] **Add interactive elements strategically**:
+  - Use tabs for alternative approaches (CLI vs. UI, different languages)
+  - Use dropdowns for optional details or long code blocks
+  - Add grid cards for topic navigation on overview pages
+- [ ] **Implement proper cross-referencing**:
+  - Use standard markdown links with reference targets when possible
+  - Add MyST cross-references for complex linking needs
+  - Ensure all internal links use correct syntax and paths
+
+## 5. Validate Technical Accuracy
+
+- [ ] **Verify all technical claims and examples**:
+  - Apply `docs-audit` rule to validate against source code
+  - Test code examples in appropriate environments
+  - Confirm configuration options and default values exist
+- [ ] **Check external dependencies and links**:
+  - Verify external links are current and accessible
+  - Confirm referenced tools, versions, or services are accurate
+  - Update any deprecated or outdated information
+- [ ] **Validate user workflows end-to-end**:
+  - Follow documented procedures from start to finish
+  - Test with fresh environment or different user permissions
+  - Confirm expected outcomes match documented results
+
+## 6. Review for User Experience
+
+- [ ] **Optimize for scannability and findability**:
+  - Use descriptive headings that match user search terms
+  - Break up long paragraphs with lists, examples, or visual elements
+  - Add clear calls-to-action and next steps
+- [ ] **Review accessibility and inclusive language**:
+  - Add alt text to all images and figures
+  - Avoid directional language ("above", "below") and ableist terms
+  - Use clear, jargon-free language appropriate for the audience
+- [ ] **Test navigation and cross-references**:
+  - Verify all internal links work correctly
+  - Confirm grid cards and toctrees render properly
+  - Check that users can find related content easily
+
+## 7. Finalize and Document
+
+- [ ] **Complete final formatting review**:
+  - Ensure consistent style and terminology throughout
+  - Verify MyST syntax renders correctly
+  - Check for proper heading hierarchy and spacing
+- [ ] **Document maintenance needs**:
+  - Note any content requiring periodic validation
+  - Identify dependencies on external systems or APIs
+  - Mark areas for future expansion or improvement
+- [ ] **Plan follow-up validation**:
+  - Schedule `docs-audit` verification for technical claims
+  - Set up user feedback collection if appropriate
+  - Plan periodic review cycles for rapidly changing content
+
+## 8. Quality Assurance Checklist
+
+- [ ] **Content completeness**:
+  - All promised topics are covered adequately
+  - No critical gaps or missing steps in workflows
+  - Appropriate depth for intended audience
+- [ ] **Technical accuracy**:
+  - All code examples tested and verified
+  - Configuration and command syntax confirmed
+  - Version-specific information is current
+- [ ] **Formatting and presentation**:
+  - MyST syntax renders correctly across elements
+  - Interactive elements (tabs, cards, dropdowns) function properly
+  - Cross-references and navigation work as intended
+- [ ] **User experience**:
+  - Content flows logically for the intended user journey
+  - Clear outcomes and success criteria provided
+  - Appropriate balance of detail vs. readability
+
+## Reference Integration
+
+- [ ] **Leverage existing documentation rules**:
+  - Use `docs-tooling` rule for MyST syntax reference and formatting examples
+  - Apply `docs-audit` rule to validate technical accuracy against source code
+  - Consider `docs-modularize-content` rule if content becomes too large
+- [ ] **Follow established patterns**:
+  - Match tone and style of existing documentation
+  - Use consistent terminology and abbreviation conventions
+  - Align with broader documentation architecture and navigation

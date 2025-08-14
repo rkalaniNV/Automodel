@@ -1,0 +1,165 @@
+---
+description: how to break down a given article into a directory with an index page and child articles.
+alwaysApply: false
+---
+
+Use this rule to systematically break down a single large article into a modularized topic cluster with logical organization and proper MyST markdown structure.
+
+---
+
+## 1. Analyze the Current Article Structure
+
+- [ ] **Read and understand the full article scope**:
+  - Identify the main topic and intended audience
+  - Note the logical sections and subsections
+  - Determine the depth and complexity of each section
+- [ ] **Identify natural breakpoints** for modularization:
+  - Standalone procedures or workflows
+  - Distinct concepts that can be referenced independently
+  - Content that serves different user journeys or skill levels
+- [ ] **Map content relationships**:
+  - Which sections build on each other sequentially?
+  - Which sections are independent reference materials?
+  - What content serves as overview vs. detailed implementation?
+
+## 2. Design the Directory Structure
+
+- [ ] **Create logical directory naming**:
+  - Use descriptive, URL-friendly directory names (lowercase, hyphens)
+  - Choose names that reflect the content hierarchy
+  - Ensure the directory name aligns with existing documentation patterns
+- [ ] **Plan the file organization**:
+  ```
+  topic-directory/
+  ├── index.md          # Overview and navigation
+  ├── concept-one.md    # Focused topic
+  ├── concept-two.md    # Focused topic
+  └── reference.md      # Detailed reference material
+  ```
+- [ ] **Define content allocation strategy**:
+  - Index page: high-level overview, navigation, prerequisites
+  - Child pages: focused, actionable content for specific tasks/concepts
+  - Reference pages: detailed specifications, schemas, API details
+
+## 3. Create the Index Page Structure
+
+- [ ] **Write overview content that provides**:
+  - Brief introduction to the topic cluster
+  - Prerequisites or assumed knowledge
+  - High-level workflow or conceptual framework
+  - Links to related documentation outside this cluster
+
+- [ ] **Implement MyST grid tile navigation system**:
+  ```markdown
+  ## Topics
+
+  Brief description of what users can accomplish in this section.
+
+  ::::{grid} 1 2 2 2
+  :gutter: 1 1 1 2
+
+  :::{grid-item-card} {octicon}`icon-name;1.5em;sd-mr-1` Card Title
+  :link: target-reference
+  :link-type: ref
+  Brief description of what this page covers
+  :::
+
+  :::{grid-item-card} {octicon}`icon-name;1.5em;sd-mr-1` Card Title
+  :link: target-reference
+  :link-type: ref
+  Brief description of what this page covers
+  :::
+
+  ::::
+  ```
+
+- [ ] **Add MyST toctree for complete navigation**:
+  ```markdown
+  ```{toctree}
+  :maxdepth: 1
+  :hidden:
+
+  Page Title <filename-without-extension>
+  Page Title <filename-without-extension>
+  ```
+  ```
+
+## 4. Migrate Content to Child Pages
+
+- [ ] **Transfer existing content accurately**:
+  - Only move content that currently exists in the source article
+  - Preserve all technical accuracy and code examples
+  - Maintain existing cross-references and links
+- [ ] **Add proper MyST reference targets**:
+  - Add `(reference-name)=` labels at the top of each child page
+  - Use descriptive reference names that match the content
+  - Ensure grid card links use the correct reference targets
+- [ ] **Preserve content completeness**:
+  - Do not add new information beyond what exists
+  - Do not fill gaps or expand sections during modularization
+  - Mark any obvious gaps for future content development
+
+## 5. Handle Missing or Incomplete Content
+
+- [ ] **Identify content gaps during migration**:
+  - Note sections that reference missing implementation details
+  - Mark areas where code examples may be outdated
+  - Flag concepts that lack sufficient explanation
+- [ ] **Create audit tasks for gaps**:
+  - Add TODO items referencing `docs-info-verification` rule for technical validation
+  - Note areas requiring `docs-audit` verification against source code
+  - Document assumptions that need verification
+- [ ] **Example gap handling**:
+  ```markdown
+  <!-- TODO: Verify this configuration option exists in source code -->
+  <!-- Use docs-info-verification rule to validate implementation -->
+  ```
+
+## 6. Update Cross-References and Links
+
+- [ ] **Update internal links within the cluster**:
+  - Convert section references to MyST cross-references
+  - Update relative links to point to new file locations
+  - Ensure all grid card links work correctly
+- [ ] **Maintain external references**:
+  - Preserve links to other documentation sections
+  - Update any documentation that links to the original article
+  - Test that incoming links still work appropriately
+
+## 7. Final Modularization Checklist
+
+- [ ] **Directory structure follows conventions**:
+  - Logical file naming that matches content
+  - Appropriate depth (avoid too many nested levels)
+  - Clear separation of concerns between files
+- [ ] **Index page provides effective navigation**:
+  - Grid tiles accurately represent child content
+  - Toctree includes all child pages
+  - Overview content sets proper expectations
+- [ ] **Child pages are self-contained**:
+  - Each page addresses a specific topic or task
+  - Content flows logically within each page
+  - Appropriate cross-references to related concepts
+- [ ] **Content integrity maintained**:
+  - No information lost during migration
+  - Technical accuracy preserved
+  - Code examples and configurations intact
+- [ ] **MyST markdown properly implemented**:
+  - Reference targets work correctly
+  - Grid system renders properly
+  - Toctree navigation functions as expected
+- [ ] **Quality assurance completed**:
+  - All links tested and functional
+  - Content flows logically across the cluster
+  - No orphaned sections or broken references
+
+## 8. Post-Modularization Actions
+
+- [ ] **Document the modularization**:
+  - Note what was moved and why
+  - Identify any content requiring future audit or expansion
+  - Update any style guides or content inventories
+- [ ] **Schedule follow-up validation**:
+  - Plan `docs-audit` verification for technical claims
+  - Use `docs-info-verification` for implementation details
+  - Review user feedback on new navigation structure

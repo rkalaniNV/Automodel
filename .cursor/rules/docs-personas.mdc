@@ -7,6 +7,8 @@ alwaysApply: false
 
 Our documentation is for enterprise AI products and features consumed by personas like data scientists, machine learning engineers, cluster administrators, and devops professionals. Common tools include: Kubernetes, notebooks, python, AI models.
 
+Common tools include: Kubernetes, PyTorch, CUDA, Hugging Face Transformers, distributed training frameworks, YAML configuration files, GPU clusters, and fine-tuning recipes.
+
 ## Persona-Specific Guidelines
 
 ### For Data Scientists
@@ -17,9 +19,21 @@ Our documentation is for enterprise AI products and features consumed by persona
 - Include metrics for model performance evaluation
 - Document data preprocessing and feature engineering steps
 - Explain hyperparameter tuning approaches
+- Document model validation and benchmarking procedures
+- Include fine-tuning metrics and evaluation frameworks
+- Explain hyperparameter sensitivity analysis
+- Provide examples of model comparison workflows
+- Document compliance and audit requirements for model training
+- Include cost optimization strategies for enterprise training workflows
+- Provide ROI measurement frameworks for fine-tuning projects
 
 ### For Machine Learning Engineers
 - Document model training pipelines completely
+- Document distributed training setup and configuration
+- Include YAML recipe examples with detailed explanations
+- Provide checkpoint management and resumption workflows
+- Explain LoRA and PEFT implementation patterns
+- Document GPU memory optimization techniques
 - Include details on environment setup and dependencies
 - Provide testing and validation methodologies
 - Explain model deployment workflows
@@ -35,6 +49,10 @@ Our documentation is for enterprise AI products and features consumed by persona
 - Document resource allocation recommendations
 - Provide scaling guidelines for different workloads
 - Include backup and disaster recovery procedures
+- Include multi-GPU and multi-node training resource requirements
+- Document SLURM integration for HPC environments
+- Provide CUDA driver and library compatibility guides
+- Include distributed training network configuration
 
 ### For DevOps Professionals
 - Document infrastructure-as-code implementations
@@ -44,6 +62,19 @@ Our documentation is for enterprise AI products and features consumed by persona
 - Include security best practices for deployments
 - Explain high availability configurations
 - Document canary deployment and rollback procedures
+- Document training pipeline CI/CD integration
+- Include containerization strategies for training environments
+- Provide automated recipe validation and testing workflows
+- Explain training infrastructure scaling patterns
+- 
+### For Research Scientists
+- Document experimental methodologies for model architecture research
+- Include reproducibility guidelines for research experiments
+- Provide examples of custom model modifications and extensions
+- Document integration with research tracking tools (Weights & Biases, MLflow)
+- Include guidelines for publishing and sharing fine-tuned models
+- Explain academic benchmarking standards and evaluation protocols
+- Document how to extend NeMo Automodel for novel architectures
 
 ## Writing Style by Persona
 

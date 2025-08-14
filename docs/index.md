@@ -6,15 +6,19 @@ categories: ["getting-started"]
 
 (template-home)=
 
-# {{ product_name }} Documentation
+# NeMo Automodel Documentation
 
-Welcome to the {{ product_name_short }} documentation.
+Welcome. This site helps AI developers fine-tune and scale Hugging Face models using NVIDIA NeMo Automodel.
 
-## Introduction to {{ product_name_short }}
+## What is NeMo Automodel?
 
-Learn about the {{ product_name_short }}, how it works at a high level, and its key features.
+High-level overview and links:
 
-## Featureset Workflows
+- About: introduction, architecture, and why Day‑0 matters
+- Key Features: capabilities, backends, and performance notes
+- Quick Start: install and run your first fine-tune
+
+## Quick Start
 
 ::::{grid} 1 1 1 2
 :gutter: 1 1 1 2
@@ -40,7 +44,7 @@ Available in Early Access.
 
 ::::
 
-## Tutorial Highlights
+## Core Learning Path
 
 ::::{grid} 1 1 1 2
 :gutter: 1 1 1 2
@@ -64,7 +68,7 @@ Hands-on tutorials for Feature Set B workflows
 
 ::::
 
-## Install & Deploy Guides
+## Key Guides
 
 ::::{grid} 1 1 1 2
 :gutter: 1 1 1 2
@@ -146,7 +150,162 @@ CI/CD <admin/cicd/index.md>
 
 ::::{toctree}
 :hidden:
+:caption: API Reference
+:maxdepth: 2
+
+api-docs/index.md
+api-docs/components/index.md
+api-docs/recipes/index.md
+api-docs/cli/index.md
+api-docs/shared/index.md
+::::
+
+::::{toctree}
+:hidden:
 :caption: Reference
 :maxdepth: 2
-reference/index.md
+references/index.md
 ::::
+
+## Reference Documentation
+
+::::{grid} 1 1 1 2
+:gutter: 2 2 2 2
+
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration Reference
+:link: references/configuration-reference
+:link-type: doc
+
+Complete reference for all configuration options and parameters.
+
++++
+{bdg-primary}`Reference`
+:::
+
+:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
+:link: references/cli-reference
+:link-type: doc
+
+Command-line interface commands and usage patterns.
+
++++
+{bdg-info}`CLI`
+:::
+
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` API Documentation
+   :link: api-docs/index
+:link-type: doc
+
+Comprehensive API documentation for all NeMo RL components.
+
++++
+{bdg-warning}`Development`
+:::
+
+:::{grid-item-card} {octicon}`light-bulb;1.5em;sd-mr-1` Core Design and Architecture
+:link: core-design/index
+:link-type: doc
+
+Architectural decisions and technical specifications for framework internals.
+
++++
+{bdg-warning}`Advanced`
+:::
+
+::::
+
+## Research Methodologies
+
+::::{grid} 1 1 1 2
+:gutter: 2 2 2 2
+
+:::{grid-item-card} {octicon}`beaker;1.5em;sd-mr-1` Experimental Design
+:link: advanced/research/experimental-design-validation
+:link-type: doc
+
+Design controlled experiments and research studies with proper experimental methodology for NeMo RL research.
+
++++
+{bdg-info}`Research Methodology`
+:::
+
+:::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Model Evaluation
+:link: advanced/research/model-evaluation-validation
+:link-type: doc
+
+Build comprehensive evaluation frameworks and implement robust model assessment and comparison strategies.
+
++++
+{bdg-info}`Evaluation Framework`
+:::
+
+:::{grid-item-card} {octicon}`chart;1.5em;sd-mr-1` Performance Analysis
+:link: advanced/research/performance-analysis
+:link-type: doc
+
+Analyze model performance and interpret results with statistical rigor and comprehensive metrics.
+
++++
+{bdg-info}`Performance Analysis`
+:::
+
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Custom Algorithms
+:link: advanced/research/custom-algorithms
+:link-type: doc
+
+Develop custom algorithms and extend NeMo RL with new training approaches and methodologies.
+
++++
+{bdg-info}`Algorithm Development`
+:::
+
+:::{grid-item-card} {octicon}`search;1.5em;sd-mr-1` Ablation Studies
+:link: advanced/research/ablation-studies
+:link-type: doc
+
+Conduct systematic ablation studies to understand model components and their contributions.
+
++++
+{bdg-info}`Component Analysis`
+:::
+
+:::{grid-item-card} {octicon}`check-circle;1.5em;sd-mr-1` Reproducible Research
+:link: advanced/research/reproducible-research-validation
+:link-type: doc
+
+Implement deterministic training and environment management for reproducible experiments.
+
++++
+{bdg-info}`Reproducibility`
+:::
+
+::::
+
+## Getting Help
+
+::::{grid} 1 1 1 2
+:gutter: 2 2 2 2
+
+:::{grid-item-card} {octicon}`bug;1.5em;sd-mr-1` Troubleshooting
+:link: guides/troubleshooting
+:link-type: doc
+
+Common issues, error messages, and solutions.
+
++++
+{bdg-warning}`Support`
+:::
+
+:::{grid-item-card} {octicon}`question;1.5em;sd-mr-1` Production Support
+:link: guides/troubleshooting
+:link-type: doc
+
+Deployment guides, monitoring, and production best practices.
+
++++
+{bdg-info}`Production`
+:::
+
+::::
+
+---

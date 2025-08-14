@@ -1,0 +1,233 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Documentation Frontmatter Taxonomy Framework
+
+Every markdown file in `docs/` should have frontmatter following this taxonomy framework at the very top of the page:
+
+## Required Frontmatter Structure
+
+```yaml
+---
+description: "Brief description of the content (1-2 sentences)"
+categories: ["primary-category"]  # Single category (required)
+tags: ["tag1", "tag2", "tag3"]    # 2-8 tags recommended
+personas: ["persona1", "persona2"] # Target audience(s)
+difficulty: "beginner|intermediate|advanced|reference"
+content_type: "tutorial|concept|reference|troubleshooting|example"
+modality: "llm|vlm|omni|universal"
+# only: not ga  # Optional: content gating
+---
+```
+
+## Taxonomy Guidelines
+
+### Categories (Choose ONE - Required)
+
+**Primary functional domains aligned with ML workflows:**
+
+- `getting-started` - Installation, setup, quickstart guides
+- `concepts-architecture` - Core ML concepts, model architectures, fundamentals
+- `model-training` - Fine-tuning workflows, training recipes, optimization
+- `model-evaluation` - Validation, metrics, benchmarking, testing
+- `model-deployment` - Inference, serving, optimization, production
+- `infrastructure-operations` - Distributed training, cluster management, performance tuning
+- `integrations-apis` - External frameworks, API docs, custom integrations
+- `reference` - API documentation, configuration, troubleshooting
+
+### Tags (Select 2-8 - Recommended)
+
+**Training Techniques:**
+- `fine-tuning` - Model fine-tuning workflows
+- `peft` - Parameter-efficient fine-tuning
+- `lora` - LoRA adaptation techniques
+- `quantization` - Model quantization methods
+- `mixed-precision` - FP16/BF16 training
+- `checkpointing` - Model checkpoint management
+- `optimization` - Training optimization techniques
+- `loss-functions` - Custom loss implementations (chunked CE, linear CE)
+
+**Model Types & Architectures:**
+- `llm` - Large Language Models
+- `vlm` - Vision-Language Models
+- `transformer` - Transformer architectures
+- `attention` - Attention mechanisms
+- `multimodal` - Cross-modal models
+- `generative` - Generative models
+
+**Technical Implementation:**
+- `distributed-training` - Multi-GPU/multi-node training
+- `gpu-accelerated` - GPU-specific optimizations
+- `kubernetes` - K8s deployment content
+- `slurm` - HPC/Slurm-related content
+- `docker` - Container-related content
+- `python-api` - Python API usage
+- `yaml-config` - Configuration file management
+- `launcher` - Job submission and cluster launch
+
+**Data & Formats:**
+- `datasets` - Dataset handling and preparation
+- `pytorch` - PyTorch-specific content
+- `huggingface` - Hugging Face integration
+- `cuda` - CUDA-specific content
+- `nemo` - NeMo framework integration
+- `recipes` - Training recipes and configurations
+- `automodel-cli` - CLI tool usage and commands
+- `nvfsdp` - NVIDIA's Fully Sharded Data Parallel
+- `hf-transformers` - Hugging Face Transformers integration
+
+**Workflow Stages:**
+- `data-preparation` - Dataset preprocessing
+- `model-initialization` - Model setup and initialization
+- `training-loop` - Core training processes
+- `validation` - Model validation workflows
+- `inference` - Model inference and serving
+- `monitoring` - Training monitoring and logging
+
+**Performance & Scale:**
+- `large-scale` - Large model training
+- `memory-optimization` - Memory efficiency techniques
+- `batch-processing` - Batch operation techniques
+- `performance-tuning` - Performance optimization
+- `benchmarking` - Performance measurement
+
+### Personas (Select 1+ - Required)
+
+**Target audiences based on user roles:**
+- `researcher-focused` - Research scientists, academic users
+- `mle-focused` - Machine Learning Engineers, implementation details
+- `data-scientist-focused` - Analytics, metrics, model behavior analysis
+- `enterprise-focused` - Production deployment teams, enterprise users
+- `admin-focused` - Infrastructure administrators, cluster management
+- `devops-focused` - Infrastructure, automation, CI/CD
+
+### Difficulty Levels
+
+- `beginner` - New to ML/NeMo Automodel, basic concepts
+- `intermediate` - Some ML experience, familiar with training
+- `advanced` - Expert-level content, complex implementations
+- `reference` - API docs, detailed technical specifications
+
+### Content Types
+
+- `tutorial` - Step-by-step guides and walkthroughs
+- `concept` - Explanatory content and theory
+- `reference` - API/config documentation, specifications
+- `troubleshooting` - Problem-solving guides and debugging
+- `example` - Code samples, recipe demonstrations
+
+### Modality Focus
+
+- `llm` - Large Language Model specific content
+- `vlm` - Vision-Language Model specific content
+- `omni` - Omni-modal/multimodal content
+- `universal` - Applies to all model types
+
+## Example Frontmatter
+
+### Tutorial Example
+```yaml
+---
+description: "Step-by-step guide to fine-tuning Llama 3.2 with LoRA using NeMo Automodel distributed training"
+categories: ["model-training"]
+tags: ["fine-tuning", "lora", "distributed-training", "llm", "yaml-config", "gpu-accelerated"]
+personas: ["mle-focused", "researcher-focused"]
+difficulty: "intermediate"
+content_type: "tutorial"
+modality: "llm"
+---
+```
+
+### Concept Example
+```yaml
+---
+description: "Understanding parameter-efficient fine-tuning techniques and their applications in large language models"
+categories: ["concepts-architecture"]
+tags: ["peft", "lora", "fine-tuning", "optimization", "memory-optimization"]
+personas: ["researcher-focused", "data-scientist-focused"]
+difficulty: "beginner"
+content_type: "concept"
+modality: "universal"
+---
+```
+
+### Reference Example
+```yaml
+---
+description: "Complete API reference for NeMo Automodel training configuration options and parameters"
+categories: ["reference"]
+tags: ["python-api", "yaml-config", "training-loop", "checkpointing"]
+personas: ["mle-focused", "enterprise-focused"]
+difficulty: "reference"
+content_type: "reference"
+modality: "universal"
+---
+```
+
+### Infrastructure Example
+```yaml
+---
+description: "Deploy distributed training on Kubernetes clusters with multi-GPU acceleration and monitoring"
+categories: ["infrastructure-operations"]
+tags: ["kubernetes", "distributed-training", "gpu-accelerated", "monitoring", "docker"]
+personas: ["admin-focused", "devops-focused"]
+difficulty: "advanced"
+content_type: "tutorial"
+modality: "universal"
+---
+```
+
+### Deployment Example
+```yaml
+---
+description: "Optimize inference performance for vision-language models using quantization and CUDA optimizations"
+categories: ["model-deployment"]
+tags: ["inference", "quantization", "vlm", "cuda", "optimization", "performance-tuning"]
+personas: ["enterprise-focused", "mle-focused"]
+difficulty: "advanced"
+content_type: "tutorial"
+modality: "vlm"
+---
+```
+
+## Content Gating Integration
+
+For early access or internal content, add the `only` field:
+
+```yaml
+---
+description: "Advanced multi-node training strategies for large-scale model fine-tuning"
+categories: ["model-training"]
+tags: ["distributed-training", "large-scale", "optimization", "enterprise"]
+personas: ["enterprise-focused", "admin-focused"]
+difficulty: "advanced"
+content_type: "tutorial"
+modality: "universal"
+only: not ga  # Exclude from GA builds
+---
+```
+
+## Benefits
+
+This taxonomy framework provides:
+
+1. **ML-Centric Navigation** - Categories align with machine learning workflows
+2. **Technical Discovery** - Tags enable discovery across training techniques and model types
+3. **Role-Based Content** - Personas serve researchers, engineers, and operators effectively
+4. **Search Optimization** - Rich metadata improves search relevance for ML practitioners
+5. **Training Workflow Support** - Structure accommodates model training lifecycle
+6. **Scalability** - Framework grows with expanding model types and techniques
+
+## Validation
+
+When adding frontmatter, ensure:
+- ✅ Description is 1-2 sentences and informative
+- ✅ Exactly one category is specified
+- ✅ 2-8 relevant tags are selected from ML/training domain
+- ✅ At least one persona is specified
+- ✅ Difficulty and content type are appropriate
+- ✅ Modality focus matches the content (LLM/VLM/Omni/Universal)
+- ✅ Content gating (`only`) is used when needed
+- ✅ Tags focus on ML training, model types, and technical implementation

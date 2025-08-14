@@ -224,7 +224,7 @@ make docs-html
 ```
 
 * The resulting HTML files are generated in a `_build/html` folder under the project `docs/` folder.
-* The generated Python API docs are placed in `apidocs` under the `docs/` folder.
+* The generated Python API docs are placed in `api-docs` under the `docs/` folder.
 
 ### Build Variants
 

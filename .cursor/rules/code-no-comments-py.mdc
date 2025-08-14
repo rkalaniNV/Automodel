@@ -1,0 +1,5 @@
+---
+globs: **/*.py
+alwaysApply: false
+---
+Do not modify or remove existng comments unless the change is directly related to the comment.

@@ -1,0 +1,160 @@
+---
+description: Apply this rule when asked to validate or verify content in documentation
+globs:
+alwaysApply: false
+---
+
+Use this rule to verify that technical documentation accurately reflects the implementation by **reading source code, configurations, and tests**. Do not run or execute examples — only validate through inspection.
+
+---
+
+## 1. Understand the Documentation Scope
+
+- [ ] **Determine the article's scope** by reading the content and traversing up the documentation directory:
+  - Is this about broad application/platform functionality or one specific microservice?
+  - Does it cover a particular API method, SDK example, or configuration?
+  - What is the intended audience (developers, operators, end-users)?
+- [ ] **Identify the project context** by locating key metadata files:
+  - Python: `pyproject.toml`, `setup.py`
+  - Node.js: `package.json`
+  - Go: `go.mod`
+  - Rust: `Cargo.toml`
+  - Java: `pom.xml`, `build.gradle`
+  - C++: `CMakeLists.txt`
+- [ ] **Map the documentation structure** using `list_dir()` and `file_search()` to find:
+  - Source directories (e.g., `src/`, `lib/`, `cmd/`)
+  - Documentation (e.g., `docs/`, `README.md`)
+  - Examples (e.g., `examples/`, `notebooks/`)
+  - Tests (e.g., `tests/`, `__tests__/`, `*_test.py`)
+
+## 2. Identify Concepts Requiring Validation
+
+- [ ] **Catalog each unique concept** mentioned in the documentation:
+  - CLI commands and their arguments
+  - Classes, functions, and their signatures
+  - Configuration settings and environment variables
+  - API routes, parameters, and response formats
+  - Schemas, data structures, and interfaces
+  - Usage patterns and lifecycle behaviors
+  - Dependencies and integrations
+- [ ] **Determine validation sources** for each concept:
+  - Implementation files for classes/functions
+  - Configuration parsers for settings
+  - API definitions or OpenAPI specs
+  - Test files for behavior verification
+  - Schema definitions for data structures
+
+## 3. Locate and Read Source Implementation
+
+- [ ] **Find the actual implementation** using `codebase_search()` or `grep_search()`:
+  - Confirm all documented elements exist in the current codebase
+  - Verify correct names, paths, and arguments
+  - Ensure they are implemented as described (not deprecated or stubbed)
+- [ ] **Validate CLI commands and configuration**:
+  - Check entry points are declared (e.g., `console_scripts`, `bin`, `cmd/`)
+  - Confirm parsing logic matches documented options
+  - Verify default values and validation rules
+- [ ] **For APIs, match documentation to code**:
+  - Routes, methods, and status codes in controller/handler definitions
+  - Request/response schemas and validation logic
+  - Authentication and authorization requirements
+- [ ] **Prioritize service-specific code** (if microservice):
+  - Focus on the service's own implementation
+  - Avoid documenting generalized patterns unless confirmed locally
+
+## 4. Cross-Validate Against Tests
+
+- [ ] **Use test files to verify documented behaviors**:
+  - Look for test functions validating described input/output
+  - Confirm side effects and edge cases match documentation
+  - Verify default values, error cases, and option formats
+- [ ] **Check behavior boundaries and limitations**:
+  - Ensure limitations are either enforced in code or confirmed in tests
+  - Verify error handling matches documented behavior
+  - Confirm performance characteristics if mentioned
+
+## 5. Verify Technical Accuracy
+
+- [ ] **Match signatures and interfaces exactly**:
+  - Function/class signatures as defined in code
+  - Arguments, default values, and return types
+  - Import paths and available objects in code examples
+- [ ] **Validate configuration accuracy**:
+  - Settings are present in config files
+  - Configuration is consumed by the codebase
+  - Parsing and validation logic is correct
+- [ ] **Check environment variable usage**:
+  - Variables are read by code (e.g., `os.getenv()` in Python)
+  - Default values and required vs. optional status
+- [ ] **Identify outdated content**:
+  - Features that have been renamed or removed
+  - Deprecated APIs or configuration options
+  - Legacy code marked as such
+
+## 6. Document Evidence and Findings
+
+- [ ] **For each validated claim, provide evidence links using clear file reference formatting**:
+  - Use the format: **Source**: `relative/path/to/file.py:lineNumbers`
+  - For single lines: `file.py:42`
+  - For line ranges: `file.py:25-35`
+  - For entire sections: `file.py:100-150`
+
+- [ ] **Use consistent evidence citation format**:
+  ```markdown
+  **Source**: `path/to/implementation/file.py:lineNumbers`
+  **Evidence**: Clear description of what the code demonstrates or validates
+  
+  **Source**: `path/to/test/file.py:lineNumbers`
+  **Evidence**: Description of test that proves the behavior
+  ```
+
+- [ ] **Examples of good evidence formatting**:
+  ```markdown
+  ✅ Good:
+  **Source**: `src/nemo_microservices/resources/data_designer.py:45-67`
+  **Evidence**: The preview() method accepts config parameter and returns DataDesignerPreviewResponse
+  
+  ❌ Avoid:
+  **Evidence**: ```45-67:src/nemo_microservices/resources/data_designer.py```
+  (This looks like a code block, not a file reference)
+  ```
+
+- [ ] **Reference multiple sources when validating complex claims**:
+  - Implementation file showing the feature exists
+  - Test file demonstrating the feature works
+  - Configuration schema defining the structure
+  - API specification confirming the interface
+
+- [ ] **Create verification summary with evidence categories**:
+  - ✅ **Validated Claims**: List with supporting file references
+  - ⚠️ **Requires Clarification**: List with explanation of discrepancies  
+  - ❌ **Unverifiable Content**: List with expected vs actual findings
+  - 📋 **Recommendations**: Specific actionable improvements
+
+## 7. Final Validation Checklist
+
+- [ ] **All documentation claims are traceable to code or tests**
+- [ ] **No content is implied or assumed** — everything is backed by evidence
+- [ ] **CLI commands and configuration keys link to their definitions**
+- [ ] **Class and function references are implemented as described**
+- [ ] **Code examples use correct imports and available objects**
+- [ ] **Known limitations and TODOs are clearly marked**
+- [ ] **Evidence links are provided for verification and collaboration**
+- [ ] **Legacy or deprecated features are excluded**
+
+### Evidence Link Best Practices
+
+- [ ] **File references should be immediately scannable**
+  - Use consistent `filename:lines` format without code block formatting
+  - Include enough context in the path to locate the file quickly
+  - Prefer relative paths from repository root for consistency
+
+- [ ] **Evidence descriptions should be specific**
+  - State exactly what the code shows or validates
+  - Connect the evidence directly to the documentation claim
+  - Mention key variable names, method signatures, or configuration keys when relevant
+
+- [ ] **Group related evidence logically**
+  - Implementation evidence first, then tests, then configuration
+  - Use subheadings to organize findings by feature or concept
+  - Link evidence to specific documentation sections being validated

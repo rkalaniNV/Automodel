@@ -111,8 +111,8 @@ myst_heading_anchors = 5  # Generates anchor links for headings up to level 5
 
 # MyST substitutions for reusable variables across documentation
 myst_substitutions = {
-    "product_name": "NeMo Automodel",
-    "product_name_short": "Automodel",
+    "product_name": "NVIDIA NeMo Automodel",
+    "product_name_short": "NeMo Automodel",
     "company": "NVIDIA",
     "version": release,
     "current_year": "2025",
@@ -159,7 +159,7 @@ sys.path.insert(0, os.path.abspath(".."))
 
 # Conditional autodoc2 configuration - only enable if packages exist
 autodoc2_packages_list = [
-    "../replace_me",  # Path to your package relative to conf.py
+    "../nemo_automodel",  # Path to your package relative to conf.py
 ]
 
 # Check if any of the packages actually exist before enabling autodoc2
@@ -175,7 +175,7 @@ if autodoc2_packages:
         extensions.append("autodoc2")
     
     autodoc2_render_plugin = "myst"  # Use MyST for rendering docstrings
-    autodoc2_output_dir = "apidocs"  # Output directory for autodoc2 (relative to docs/)
+    autodoc2_output_dir = "api-docs"  # Output directory for autodoc2 (relative to docs/)
     # This is a workaround that uses the parser located in autodoc2_docstrings_parser.py to allow autodoc2 to
     # render google style docstrings.
     # Related Issue: https://github.com/sphinx-extensions2/sphinx-autodoc2/issues/33

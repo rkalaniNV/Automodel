@@ -5,7 +5,7 @@ categories: ["getting-started"]
 ---
 
 (gs-overview)=
-# Get Started with Product
+# Get Started with NeMo Automodel
 
 Intro section
 

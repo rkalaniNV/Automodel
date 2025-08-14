@@ -1,0 +1,7 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+Identify each action item in the user's response and make a clear to-do list so that we can step through each item separately.
