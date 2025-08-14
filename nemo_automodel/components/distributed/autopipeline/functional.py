@@ -196,9 +196,9 @@ def split_model_into_stages(
     device: torch.device,
     module_names_per_stage: Optional[list[list[str]]] = None,
     layers_per_stage: Optional[int] = None,
-    round_to_pp_multiple: str | None = None,
     patch_inner_model: bool = True,
     patch_causal_lm_model: bool = True,
+    round_to_pp_multiple: str | None = None,
 ) -> tuple[list[PipelineStage], list[nn.Module]]:
     """
     Splits a HuggingFace model for pipeline parallelism.
@@ -441,6 +441,7 @@ def pipeline_model(
     patch_inner_model: bool = True,
     patch_causal_lm_model: bool = True,
     scale_grads: bool = False,
+    round_to_pp_multiple: str | None = None,
 ) -> tuple[_PipelineSchedule, list[torch.nn.Module], bool, bool, list[PipelineStage]]:
     """HF-specific pipeline model splitting."""
     pp_size = world_mesh[pp_axis_name].size()
@@ -457,6 +458,7 @@ def pipeline_model(
         layers_per_stage=layers_per_stage,
         patch_inner_model=patch_inner_model,
         patch_causal_lm_model=patch_causal_lm_model,
+        round_to_pp_multiple=round_to_pp_multiple,
     )
 
     # Apply parallelization if provided

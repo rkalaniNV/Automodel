@@ -13,7 +13,7 @@
 # limitations under the License.
 
 [build-system]
-requires = ["setuptools >= 61.0"]
+requires = ["setuptools >= 61.0", "ninja"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -84,6 +84,23 @@ dependencies = [
 vlm = ["pillow", "qwen-vl-utils[decord]", "transformers==4.53.0","timm==1.0.16","backoff","numpy",
     "numba","torchcodec","mistral_common[opencv]"]
 fa = ["flash-attn"]
+moe = [
+    # also need cudnn (https://developer.nvidia.com/cudnn-downloads?target_os=Linux&target_arch=x86_64&Distribution=Ubuntu&target_version=20.04&target_type=deb_network)
+    # wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb
+    # sudo dpkg -i cuda-keyring_1.1-1_all.deb
+    # sudo apt-get update
+    # sudo apt-get install cudnn-cuda-12
+    "transformer-engine[pytorch]==2.5.0",
+    # Flash-attn version should be selected to satisfy TE requirements
+    # https://github.com/NVIDIA/TransformerEngine/blob/v2.4/transformer_engine/pytorch/attention/dot_product_attention/utils.py#L108
+    "flash-attn==2.7.4.post1",
+    "grouped_gemm",
+]
+deep-ep = [
+    # Requires NVSHMEM to be installed
+    # Follow the guide at https://github.com/deepseek-ai/DeepEP/blob/main/third-party/README.md
+    "deep-ep",
+]
 
 [project.urls]
 Homepage = "https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/"
@@ -114,10 +131,16 @@ dev = ["nvfsdp", "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entr
 
 [tool.uv]
 default-groups = ["build", "docs", "test"]
-no-build-isolation-package = ["flash-attn"]
+no-build-isolation-package = ["transformer-engine-torch", "transformer-engine", "flash-attn", "grouped_gemm", "deep-ep"]
 
 [tool.uv.sources]
-nvfsdp = { git = "https://github.com/NVIDIA-NeMo/nvFSDP.git", rev = "d97136886a65d70f298a4b361571ac75c20198af" }
+grouped_gemm = { git = "https://github.com/fanshiqing/grouped_gemm", rev = "v1.1.4" }
+deep-ep = { git = "https://github.com/deepseek-ai/DeepEP.git" }
+
+# Needed when building from source
+[[tool.uv.dependency-metadata]]
+name = "flash-attn"
+requires-dist = ["torch", "einops", "setuptools", "psutil", "ninja"]
 
 [tool.coverage.paths]
 source = [".", "/workspace", "/home/runner/work/Automodel/Automodel"]
@@ -177,7 +200,7 @@ convention = "google"
 
 
 [tool.ruff.lint.isort]
-known-third-party = ["datasets", "wandb"]
+known-third-party = ["datasets"]
 
 [tool.importlinter]
 root_package = "nemo_automodel"
