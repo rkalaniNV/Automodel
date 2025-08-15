@@ -57,6 +57,7 @@ if __name__ == "__main__":
     parser.add_argument("--nsys-end", type=int, default=-1, help="Iteration to end nsys profiling")
     parser.add_argument("--iters", type=int, default=30, help="Number of iterations")
     parser.add_argument("--use-fake-gate", action="store_true", default=False, help="Use fake gate")
+    parser.add_argument("--iters", type=int, default=10, help="Number of iterations to run")
     args = parser.parse_args()
 
     # Assuming 8 GPUs per node
@@ -180,8 +181,8 @@ if __name__ == "__main__":
     rank = torch.distributed.get_rank()
     torch.distributed.barrier(device_ids=[torch.cuda.current_device()])
 
-    # Training loop over real data
-    for i in range(300):
+    # Training loop over dummy data
+    for i in range(args.iters):
         if i == args.nsys_start and torch.distributed.get_rank() in (0, torch.distributed.get_world_size() - 1):
             print(f"Rank {rank} | Starting nsys profiling")
             torch.cuda.cudart().cudaProfilerStart()
@@ -207,7 +208,7 @@ if __name__ == "__main__":
                     torch.arange(tokens.shape[1], device=tokens.device).unsqueeze(0).expand(tokens.shape[0], -1)
                 )
 
-                # torch.cuda.nvtx.range_push(f"iteration_{i}_ga_step_{_ga_step_idx}")
+                torch.cuda.nvtx.range_push(f"iteration_{i}_ga_step_{_ga_step_idx}")
                 # Run one forward+backward pipeline step
                 targets, losses = (labels, []) if has_last_stage else (None, None)
 
@@ -233,7 +234,7 @@ if __name__ == "__main__":
                     )
                 else:
                     ...
-                # torch.cuda.nvtx.range_pop()
+                torch.cuda.nvtx.range_pop()
 
             with timers("optimizer", log_level=2):
                 optimizer.step()
