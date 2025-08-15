@@ -3,7 +3,8 @@
 This guide shows you how to integrate your own dataset into NeMo Automodel for training.
 You'll learn about **multi-modal datasets** that combine text with images or other modalities. We'll cover how to create custom datasets by implementing the required methods and preprocessing functions, and finally show you how to specify your own data logic using YAML configuration with file paths—allowing you to define custom dataset processing without modifying the main codebase.
 
-## Quick Start Summary
+## Choose Your Dataset Type
+
 | **Type**        |  **Use Case**    | **Example** | **Preprocessor**               | **Section**              |
 | --------------- | ------------------ | -------------- | --------------------------------- | --------------------------- |
 | 🖼️ Multi-modal  | Vision + Language  | MedPix-VQA     | `apply_chat_template`, collate fn | [Jump](#multi-modal-datasets) |
@@ -12,11 +13,12 @@ You'll learn about **multi-modal datasets** that combine text with images or oth
 
 ## Multi-modal Datasets
 
-Multi-modal datasets combine text with other input types (e.g., images, audio, or video) and are essential for training Vision-Language Models (VLMs). These datasets introduce specific challenges such as aligning modalities, batching diverse data types, and formatting prompts for multi-turn, multi-modal dialogue.
+Multi-modal datasets combine text with other input types (e.g., images, audio, or video) and are essential for training Vision Language Models (VLMs). These datasets introduce specific challenges such as aligning modalities, batching diverse data types, and formatting prompts for multi-turn, multi-modal dialogue.
 
 NeMo Automodel supports multi-modal dataset integration through flexible preprocessing, custom formatting, and YAML-based configuration.
 
 ### Typical Types in Multi-modal Datasets
+
 A multi-modal dataset typically contains:
 - **Images, videos, audios** or other non-text modalities.
 - **Textual inputs** such as questions, instructions, or captions.
@@ -29,6 +31,7 @@ These are formatted into structured conversations or instruction-response pairs 
 The [MedPix-VQA](https://huggingface.co/datasets/mmoukouba/MedPix-VQA) dataset is a comprehensive medical Visual Question Answering dataset designed for training and evaluating VQA models in the medical domain. It contains radiological images (from MedPix; well-known medial image dataset) and associated QA pairs used for medical image interpretation.
 
 **Structure**:
+
 - 20,500 total examples
 - Columns: `image_id`, `mode`, `case_id`, `question`, `answer`
 

@@ -1,4 +1,4 @@
-# Run NeMo Automodel on Your Local Workstation
+# Run on Your Local Workstation
 
 NeMo AutoModel supports various methods for launching jobs, allowing you to choose the approach that best fits your workflow and development needs. For setup details, refer to our [Installation Guide](../guides/installation.md).
 

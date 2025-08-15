@@ -1,4 +1,4 @@
-# Parameter-Efficient Fine-Tuning (PEFT) with NeMo Automodel
+# Run Parameter-Efficient Fine-Tuning (PEFT)
 
 ## Introduction
 
@@ -31,8 +31,9 @@ Notebook](https://github.com/NVIDIA/NeMo/blob/main/tutorials/llm/automodel/peft.
 offering hands-on demonstrations for quickly getting started with NeMo
 Automodel. -->
 
-## Run PEFT with NeMo Automodel
-In this guide, we will fine-tune Meta’s `LLaMA 3.2 1B` model on the popular [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) (Stanford Question Answering Dataset).
+## Train LLaMA 3.2 1B on SQuAD Dataset
+
+In this guide, we will run PEFT on Meta’s `LLaMA 3.2 1B` model with the popular [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) (Stanford Question Answering Dataset).
 
 :::{important}
 Before proceeding with this guide, please ensure that you have NeMo Automodel installed on your
@@ -44,7 +45,7 @@ For a complete guide and additional options please consult the Automodel [Instal
 :::
 
 
-### 🔍 LLaMA 3.2 1B Model
+### LLaMA 3.2 1B Model
 **LLaMA** is a family of decoder-only transformer models developed by Meta. The **LLaMA 3.2 1B** variant is a compact, lightweight model ideal for research and edge deployment. Despite its size, it maintains architectural features consistent with its larger siblings:
 
 - **Decoder-only architecture**: Follows a GPT-style, autoregressive design-optimized for generation tasks.
@@ -77,7 +78,7 @@ Some Hugging Face model repositories are **gated**, requiring explicit permissio
 Trying to pull a gated model without an authorized token will trigger a 403 "permission denied" error.
 :::
 
-### 📚 SQuAD Dataset
+### SQuAD Dataset
 Stanford Question Answering Dataset (SQuAD) is a **reading comprehension dataset**, consisting of questions posed by crowdworkers on a set of Wikipedia articles, where the answer to every question is a segment of text, or span, from the corresponding reading passage, or the question might be unanswerable.
 
 There are two major versions:
@@ -136,7 +137,8 @@ The `FinetuneRecipeForNextTokenPrediction` class is one such recipe. It inherits
 The recipe ensures stateless, config-driven orchestration where core components like the model, dataset, and optimizer are configured dynamically using Hydra-style `instantiate()` calls, avoiding hardcoded dependencies.
 :::
 
-### Recipe Config
+### Configure the Recipe
+
 ``` yaml
 # The model section is responsible for configuring the model we want to finetune.
 # Since we want to use the Llama 3 1B model, we pass `meta-llama/Llama-3.2-1B` to the
@@ -237,6 +239,7 @@ those used for training.
 :::
 
 ## Run the Fine-Tune Recipe
+
 Assuming the above `yaml` is saved in a file named `peft_guide.yaml`, you can run the fine-tuning workflow either using the Automodel CLI or by directly invoking the recipe Python script.
 
 ### Automodel CLI
@@ -264,6 +267,7 @@ torchrun --nproc-per-node=8 examples/llm/finetune.py --config peft_guide.yaml
 ```
 
 ### Sample Output
+
 Running the recipe using either the `automodel` app or by directly invoking the recipe script should produce the following log:
 ```
 $ automodel finetune llm -c peft_guide.yaml

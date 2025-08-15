@@ -1,49 +1,71 @@
-(feature-set-b-tutorials-index)=
-# Tutorials
+# Train Vision Language Models (VLM)
 
-This section contains practical tutorials that demonstrate how to use NVIDIA NeMo Curator for various text curation tasks. Each tutorial provides step-by-step guidance for specific use cases.
+Learn how to fine-tune vision language models using NeMo Automodel for multi-modal tasks that combine visual and textual understanding.
 
-(feature-set-b-tutorials-beginner)=
-## Beginner Tutorials
+## Overview
 
-General tutorials focusing on product concepts.
+Vision Language Models (VLMs) enable AI systems to understand and reason about both visual and textual information simultaneously. NeMo Automodel provides comprehensive support for training VLMs with multi-modal datasets, making it easy to build models that can:
 
-::::{grid} 1 1 1 1
-:gutter: 1 1 1 2
+- Answer questions about images (Visual Question Answering)
+- Generate captions for images
+- Understand multi-modal conversations
+- Process medical, scientific, or domain-specific visual content
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Beginner Tutorial
-:link: feature-set-b-tutorials-beginner
-:link-type: ref
-Get started with basic text data processing using NeMo Curator. Learn how to load, clean, and prepare your text data for curation.
+## Multi-Modal Training
+
+::::{grid} 1 1 2 2
+:gutter: 2
+
+:::{grid-item-card} {octicon}`image;1.5em;sd-mr-1` Dataset Integration
+:link: dataset
+:link-type: doc
+:link-alt: Multi-modal dataset guide
+
+Learn how to integrate your own multi-modal datasets combining text with images, audio, or other modalities for VLM training.
 +++
-{bdg-primary}`beginner`
-{bdg-secondary}`text-processing`
-{bdg-secondary}`data-preparation`
+{bdg-primary}`Multi-modal`
+{bdg-secondary}`Custom Data`
 :::
 
-:::{grid-item-card} {octicon}`mortar-board;1.5em;sd-mr-1` Tutorial Series
-:link: feature-set-b-tuts-series-a
-:link-type: ref
-Learn how to generate synthetic data using OpenAI API compatible services and your own deployed LLM.
+:::{grid-item-card} {octicon}`question;1.5em;sd-mr-1` Visual QA Training
+:link: dataset
+:link-type: doc
+:link-alt: Visual question answering
+
+Train models for visual question answering tasks with specialized preprocessing and formatting for VQA datasets.
 +++
-{bdg-secondary}`synthetic-data`
-{bdg-secondary}`openai-api`
-{bdg-secondary}`reward-models`
+{bdg-info}`VQA`
+{bdg-secondary}`Question Answering`
 :::
+
 ::::
 
-(feature-set-b-tutorials-advanced)=
-## Advanced Tutorials
+## Supported Modalities
 
-Use-case driven tutorials focusing on highlighting typical user goals.
+- **Images**: JPEG, PNG, and other standard image formats
+- **Audio**: Speech and audio processing capabilities  
+- **Text**: Natural language instructions, questions, and responses
+- **Multi-turn Conversations**: Complex dialogue scenarios with visual context
 
-Potentially link out to notebook tutorials.
+## Key Features
+
+- **Flexible Data Processing**: Support for various multi-modal dataset formats
+- **Custom Collation Functions**: Specialized batching for diverse data types
+- **Chat Template Integration**: Proper formatting for multi-turn dialogues
+- **PEFT Support**: Efficient fine-tuning with LoRA for large VLMs
+- **Distributed Training**: Scale VLM training across multiple GPUs with FSDP2/nvFSDP
+
+## Example Use Cases
+
+- **Medical VQA**: Train models on medical imaging datasets like MedPix-VQA
+- **Educational Content**: Visual question answering for educational materials
+- **Accessibility**: Image description and analysis for visual accessibility
+- **Scientific Research**: Analysis of scientific figures and diagrams
 
 ```{toctree}
 :maxdepth: 2
 :titlesonly:
 :hidden:
 
-Beginner Tutorial <beginner>
-Series A <series-a/index>
+dataset
 ```

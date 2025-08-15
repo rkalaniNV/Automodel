@@ -8,7 +8,7 @@ This guide shows how to launch NeMo Automodel jobs on Slurm clusters using the `
 - A working Slurm cluster
 - Access to an NVIDIA container image or a local environment with Automodel installed
 
-## Minimal Slurm configuration in YAML
+## Minimal Slurm Configuration in YAML
 
 ```yaml
 slurm:
@@ -24,13 +24,13 @@ slurm:
     - /host/path:/container/path
 ```
 
-## Launch the job
+## Launch the Job
 
 ```bash
 automodel llm finetune -c examples/llm/llama_3_2_1b_squad.yaml --nproc-per-node=2
 ```
 
-## Running from source instead of the container install
+## Execute Training from Source Code
 
 If the command is executed inside a Git repository accessible to Slurm workers, the SBATCH script prioritizes the repository source over the container's preinstalled package.
 
@@ -42,7 +42,7 @@ automodel llm finetune -c examples/llm/llama_3_2_1b_squad.yaml --nproc-per-node=
 
 The job will run using the code in `automodel_test_repo`.
 
-## Next steps
+## Next Steps
 
 - {ref}`get-started-quick-start` for first-time setup
 - LLM SFT guide for end-to-end config and training

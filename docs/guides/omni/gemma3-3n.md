@@ -1,6 +1,6 @@
 # Fine-Tune Gemma 3 and Gemma 3n
 
-This document explains how to fine-tune Gemma 3 and Gemma 3n using NeMo Automodel. It outlines key operations, including initiating SFT and PEFT-LoRA runs and managing experiment configurations using YAML.
+This guide explains how to fine-tune Gemma 3 and Gemma 3n using NeMo Automodel. It outlines key operations, including initiating SFT and PEFT-LoRA runs and managing experiment configurations using YAML.
 
 To set up your environment to run NeMo Automodel, follow the [installation guide](https://github.com/NVIDIA-NeMo/Automodel#-install-nemo-automodel).
 
@@ -218,11 +218,67 @@ peft:
 
 The training loss should look similar to the example below:
 
+```{raw} html
+<div id="training-loss-modal-container" style="cursor: pointer; display: inline-block; border: 2px solid transparent; border-radius: 8px; transition: border-color 0.3s ease;" 
+     onmouseover="this.style.borderColor='#007acc'" 
+     onmouseout="this.style.borderColor='transparent'"
+     onclick="openImageModal('training-loss-modal', 'medpix_peft.jpg', 'Training Loss Curve')">
+```
+
 ```{image} medpix_peft.jpg
 :alt: Training Loss Curve.
 :class: bg-primary
 :width: 400px
 :align: center
+```
+
+```{raw} html
+</div>
+
+<!-- Modal for Training Loss -->
+<div id="training-loss-modal" style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); backdrop-filter: blur(3px);" onclick="closeImageModal('training-loss-modal')">
+    <div style="position: relative; margin: auto; padding: 20px; width: 90%; max-width: 1200px; top: 50%; transform: translateY(-50%);">
+        <span onclick="closeImageModal('training-loss-modal')" style="color: white; float: right; font-size: 28px; font-weight: bold; cursor: pointer; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 50%;">&times;</span>
+        <div style="text-align: center; max-height: 80vh; overflow-y: auto;">
+            <img id="training-loss-modal-img" src="" alt="" style="max-width: 100%; height: auto; border-radius: 8px;">
+            <p id="training-loss-modal-caption" style="color: white; margin-top: 15px; font-size: 16px;"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+function openImageModal(modalId, imgSrc, caption) {
+    const modal = document.getElementById(modalId);
+    const modalImg = document.getElementById(modalId + '-img');
+    const modalCaption = document.getElementById(modalId + '-caption');
+    
+    modal.style.display = 'block';
+    modalImg.src = imgSrc;
+    modalCaption.textContent = caption;
+    
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+}
+
+function closeImageModal(modalId) {
+    const modal = document.getElementById(modalId);
+    modal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const modals = document.querySelectorAll('[id*="-modal"]');
+        modals.forEach(modal => {
+            if (modal.style.display === 'block') {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        });
+    }
+});
+</script>
 ```
 
 
@@ -301,11 +357,33 @@ uv run examples/vlm/generate.py \
 
 Given the following image:
 
+```{raw} html
+<div id="medpix-sample-modal-container" style="cursor: pointer; display: inline-block; border: 2px solid transparent; border-radius: 8px; transition: border-color 0.3s ease;" 
+     onmouseover="this.style.borderColor='#007acc'" 
+     onmouseout="this.style.borderColor='transparent'"
+     onclick="openImageModal('medpix-sample-modal', 'medpix.jpg', 'Sample image from the MedPix dataset')">
+```
+
 ```{image} medpix.jpg
 :alt: Sample image from the MedPix dataset.
 :class: bg-primary
 :width: 200px
 :align: center
+```
+
+```{raw} html
+</div>
+
+<!-- Modal for MedPix Sample -->
+<div id="medpix-sample-modal" style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); backdrop-filter: blur(3px);" onclick="closeImageModal('medpix-sample-modal')">
+    <div style="position: relative; margin: auto; padding: 20px; width: 90%; max-width: 1200px; top: 50%; transform: translateY(-50%);">
+        <span onclick="closeImageModal('medpix-sample-modal')" style="color: white; float: right; font-size: 28px; font-weight: bold; cursor: pointer; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 50%;">&times;</span>
+        <div style="text-align: center; max-height: 80vh; overflow-y: auto;">
+            <img id="medpix-sample-modal-img" src="" alt="" style="max-width: 100%; height: auto; border-radius: 8px;">
+            <p id="medpix-sample-modal-caption" style="color: white; margin-top: 15px; font-size: 16px;"></p>
+        </div>
+    </div>
+</div>
 ```
 
 

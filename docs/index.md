@@ -93,80 +93,6 @@ Connect with external systems and services
 
 ---
 
-::::{toctree}
-:hidden:
-Home <self>
-::::
-
-::::{toctree}
-:hidden:
-:caption: About 
-:maxdepth: 1
-about/index.md
-about/key-features.md
-about/concepts/index.md
-about/release-notes/index.md
-::::
-
-::::{toctree}
-:hidden:
-:caption: Get Started
-:maxdepth: 2
-
-get-started/index.md
-Feature Set A Quickstart <get-started/feature-set-a.md>
-Feature Set B Quickstart <get-started/feature-set-b.md> :only: not ga
-::::
-
-::::{toctree}
-:hidden:
-:caption: (GA) Feature Set A
-:maxdepth: 2
-feature-set-a/index.md
-Tutorials <feature-set-a/tutorials/index.md>
-feature-set-a/category-a/index.md
-::::
-
-::::{toctree}
-:hidden:
-:caption: (EA) Feature Set B
-:maxdepth: 2
-:only: not ga 
-
-feature-set-b/index.md
-Tutorials <feature-set-b/tutorials/index.md>
-feature-set-b/category-a/index.md
-::::
-
-::::{toctree}
-:hidden:
-:caption: Admin
-:maxdepth: 2
-admin/index.md
-Deployment <admin/deployment/index.md>
-Integrations <admin/integrations/index.md>
-CI/CD <admin/cicd/index.md>
-::::
-
-::::{toctree}
-:hidden:
-:caption: API Reference
-:maxdepth: 2
-
-api-docs/index.md
-api-docs/components/index.md
-api-docs/recipes/index.md
-api-docs/cli/index.md
-api-docs/shared/index.md
-::::
-
-::::{toctree}
-:hidden:
-:caption: Reference
-:maxdepth: 2
-references/index.md
-::::
-
 ## Reference Documentation
 
 ::::{grid} 1 1 1 2
@@ -281,7 +207,7 @@ Implement deterministic training and environment management for reproducible exp
 
 ::::
 
-## Getting Help
+## Get Help
 
 ::::{grid} 1 1 1 2
 :gutter: 2 2 2 2
@@ -309,3 +235,81 @@ Deployment guides, monitoring, and production best practices.
 ::::
 
 ---
+
+::::{toctree}
+:hidden:
+Home <self>
+::::
+
+::::{toctree}
+:hidden:
+:caption: About
+:maxdepth: 2
+about/index
+about/key-features
+about/architecture-overview
+about/repository-and-package-guide
+::::
+
+::::{toctree}
+:hidden:
+:caption: Get Started
+:maxdepth: 2
+get-started/index
+get-started/quick-start
+get-started/installation
+get-started/model-selection
+get-started/local-workstation
+::::
+
+::::{toctree}
+:hidden:
+:caption: Guides
+:maxdepth: 2
+guides/index
+guides/llm/index
+guides/vlm/index
+guides/omni/index
+guides/launcher/index
+guides/checkpointing
+::::
+
+::::{toctree}
+:hidden:
+:caption: Learning Resources
+:maxdepth: 2
+learning-resources/index
+learning-resources/tutorials/index
+learning-resources/examples/index
+learning-resources/use-cases/index
+::::
+
+::::{toctree}
+:hidden:
+:caption: Model Coverage
+:maxdepth: 2
+model-coverage/index
+model-coverage/llm
+model-coverage/vlm
+::::
+
+::::{toctree}
+:hidden:
+:caption: API Reference
+:maxdepth: 2
+api-docs/index
+::::
+
+::::{toctree}
+:hidden:
+:caption: Blogs
+:maxdepth: 1
+blogs/index
+::::
+
+::::{toctree}
+:hidden:
+:caption: References
+:maxdepth: 2
+references/index
+::::

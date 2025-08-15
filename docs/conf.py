@@ -117,7 +117,7 @@ myst_substitutions = {
     "version": release,
     "current_year": "2025",
 
-    # Links and contact (replace "update-me" placeholders)
+    # Links and contact (verify URLs when project is published)
     "github_repo": "NVIDIA/NeMo-Automodel",
     "docs_url": "https://docs.nvidia.com/nemo-automodel/",
     "support_email": "nemo-automodel-support@nvidia.com",
@@ -148,10 +148,9 @@ numfig_secnum_depth = 1  # Gives you "Figure 1.1, 1.2, 2.1, etc."
 
 # Suppress expected warnings for conditional content builds
 suppress_warnings = [
-    "toc.not_included",  # Expected when video docs are excluded from GA builds
-    "toc.no_title",      # Expected for helm docs that include external README files
+    "toc.not_included",  # Expected when docs are excluded from GA builds
+    "toc.no_title",      # Expected for docs that include external README files
     "docutils",          # Expected for autodoc2-generated content with regex patterns and complex syntax
-
 ]
 
 # -- Options for Autodoc2 ---------------------------------------------------
@@ -159,7 +158,20 @@ sys.path.insert(0, os.path.abspath(".."))
 
 # Conditional autodoc2 configuration - only enable if packages exist
 autodoc2_packages_list = [
-    "../nemo_automodel",  # Path to your package relative to conf.py
+    # Core component subdirectories - organized by functionality
+    "../nemo_automodel/components/_peft",         # Parameter-efficient fine-tuning (LoRA)
+    "../nemo_automodel/components/_transformers", # Model wrappers and utilities
+    "../nemo_automodel/components/checkpoint",    # Checkpointing functionality
+    "../nemo_automodel/components/config",        # Configuration loading
+    "../nemo_automodel/components/datasets",      # Dataset loaders (llm/, vlm/)
+    "../nemo_automodel/components/distributed",   # Distributed training strategies
+    "../nemo_automodel/components/launcher",      # Job launchers (Slurm)
+    "../nemo_automodel/components/loggers",       # Logging utilities
+    "../nemo_automodel/components/loss",          # Loss functions
+    "../nemo_automodel/components/optim",         # Optimizers and schedulers
+    "../nemo_automodel/components/quantization",  # Model quantization
+    "../nemo_automodel/components/training",      # Training utilities
+    "../nemo_automodel/components/utils",         # General utilities
 ]
 
 # Check if any of the packages actually exist before enabling autodoc2
@@ -169,6 +181,7 @@ for pkg_path in autodoc2_packages_list:
     if os.path.exists(abs_pkg_path):
         autodoc2_packages.append(pkg_path)
 
+
 # Only include autodoc2 in extensions if we have valid packages
 if autodoc2_packages:
     if "autodoc2" not in extensions:
@@ -176,17 +189,25 @@ if autodoc2_packages:
     
     autodoc2_render_plugin = "myst"  # Use MyST for rendering docstrings
     autodoc2_output_dir = "api-docs"  # Output directory for autodoc2 (relative to docs/)
-    # This is a workaround that uses the parser located in autodoc2_docstrings_parser.py to allow autodoc2 to
-    # render google style docstrings.
-    # Related Issue: https://github.com/sphinx-extensions2/sphinx-autodoc2/issues/33
-    # autodoc2_docstring_parser_regexes = [
-    #     (r".*", "docs.autodoc2_docstrings_parser"),
-    # ]
+    
+    # Load and set the custom template content with variable substitution
+    template_path = os.path.join(os.path.dirname(__file__), "_templates", "autodoc2_index.rst")
+    with open(template_path, 'r') as f:
+        template_content = f.read()
+        # Replace template variables
+        autodoc2_index_template = template_content.replace("{{ product_name }}", project)
+    
+    # Don't require __all__ to be defined - document all public members
+    autodoc2_module_all_regexes = []  # Empty list means don't require __all__
+    
+    # Note: autodoc2 with MyST plugin handles Google-style docstrings automatically
+    # For custom docstring parsing, uncomment and configure autodoc2_docstring_parser_regexes if needed
 else:
     # Remove autodoc2 from extensions if no valid packages
     if "autodoc2" in extensions:
         extensions.remove("autodoc2")
     print("INFO: autodoc2 disabled - no valid packages found in autodoc2_packages_list")
+
 
 # -- Options for Napoleon (Google Style Docstrings) -------------------------
 napoleon_google_docstring = True

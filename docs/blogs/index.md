@@ -1,49 +1,69 @@
-(feature-set-b-tutorials-index)=
-# Tutorials
+# NeMo Automodel Blog
 
-This section contains practical tutorials that demonstrate how to use NVIDIA NeMo Curator for various text curation tasks. Each tutorial provides step-by-step guidance for specific use cases.
+Discover the latest developments, insights, and practical applications of NeMo Automodel through our blog posts and technical articles.
 
-(feature-set-b-tutorials-beginner)=
-## Beginner Tutorials
+## Latest Posts
 
-General tutorials focusing on product concepts.
+Stay up-to-date with the newest features, model support, and best practices for fine-tuning with NeMo Automodel.
 
-::::{grid} 1 1 1 1
-:gutter: 1 1 1 2
+::::{grid} 1 1 2 2
+:gutter: 2
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Beginner Tutorial
-:link: feature-set-b-tutorials-beginner
-:link-type: ref
-Get started with basic text data processing using NeMo Curator. Learn how to load, clean, and prepare your text data for curation.
+:::{grid-item-card} {octicon}`star;1.5em;sd-mr-1` Gemma 3n Support
+:link: gemma3n-blog
+:link-type: doc
+:link-alt: Gemma 3n blog post
+
+Learn about NeMo Framework's new support for Google Gemma 3n with efficient multimodal fine-tuning capabilities.
 +++
-{bdg-primary}`beginner`
-{bdg-secondary}`text-processing`
-{bdg-secondary}`data-preparation`
+{bdg-primary}`New`
+{bdg-secondary}`Gemma 3n`
+{bdg-secondary}`Multimodal`
 :::
 
-:::{grid-item-card} {octicon}`mortar-board;1.5em;sd-mr-1` Tutorial Series
-:link: feature-set-b-tuts-series-a
-:link-type: ref
-Learn how to generate synthetic data using OpenAI API compatible services and your own deployed LLM.
+:::{grid-item-card} {octicon}`rss;1.5em;sd-mr-1` More Coming Soon
+:link: #
+:link-type: url
+:link-alt: Future blog posts
+
+Additional blog posts covering new features, tutorials, and best practices will be published regularly.
 +++
-{bdg-secondary}`synthetic-data`
-{bdg-secondary}`openai-api`
-{bdg-secondary}`reward-models`
+{bdg-info}`Coming Soon`
+{bdg-secondary}`Updates`
 :::
+
 ::::
 
-(feature-set-b-tutorials-advanced)=
-## Advanced Tutorials
+## Topics Covered
 
-Use-case driven tutorials focusing on highlighting typical user goals.
+Our blog covers a wide range of topics related to NeMo Automodel and fine-tuning:
 
-Potentially link out to notebook tutorials.
+- **New Model Support**: Announcements and guides for newly supported architectures
+- **Performance Optimizations**: Tips and techniques for efficient training
+- **Use Case Studies**: Real-world applications and success stories
+- **Technical Deep Dives**: In-depth explanations of advanced features
+- **Best Practices**: Recommendations for optimal training workflows
+
+## Featured Content
+
+- **Multimodal Training**: Learn about training vision language and omni-modal models
+- **Distributed Training**: Scaling training across multiple GPUs and nodes
+- **Parameter-Efficient Fine-Tuning**: Achieve great results with minimal resources
+- **Day-0 Model Support**: Use the latest Hugging Face models immediately
+
+## Stay Updated
+
+Keep track of the latest developments in NeMo Automodel by following our blog. We regularly publish content covering:
+
+- New model architecture support
+- Performance improvements and optimizations
+- Tutorial and guide updates
+- Community contributions and use cases
 
 ```{toctree}
 :maxdepth: 2
 :titlesonly:
 :hidden:
 
-Beginner Tutorial <beginner>
-Series A <series-a/index>
+gemma3n-blog
 ```

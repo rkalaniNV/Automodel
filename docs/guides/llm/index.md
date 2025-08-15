@@ -1,49 +1,84 @@
-(feature-set-b-tutorials-index)=
-# Tutorials
+# Train Large Language Models (LLM)
 
-This section contains practical tutorials that demonstrate how to use NVIDIA NeMo Curator for various text curation tasks. Each tutorial provides step-by-step guidance for specific use cases.
+Learn how to fine-tune large language models using NeMo Automodel with both full parameter training and parameter-efficient techniques.
 
-(feature-set-b-tutorials-beginner)=
-## Beginner Tutorials
+## Training Methods
 
-General tutorials focusing on product concepts.
+NeMo Automodel provides flexible approaches for fine-tuning LLMs to meet your specific requirements and computational constraints.
 
-::::{grid} 1 1 1 1
-:gutter: 1 1 1 2
+::::{grid} 1 1 2 2
+:gutter: 2
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Beginner Tutorial
-:link: feature-set-b-tutorials-beginner
-:link-type: ref
-Get started with basic text data processing using NeMo Curator. Learn how to load, clean, and prepare your text data for curation.
+:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Supervised Fine-Tuning (SFT)
+:link: sft
+:link-type: doc
+:link-alt: Full parameter fine-tuning guide
+
+Complete guide to full-parameter fine-tuning for deep model adaptation. Learn when and how to use SFT for maximum performance.
 +++
-{bdg-primary}`beginner`
-{bdg-secondary}`text-processing`
-{bdg-secondary}`data-preparation`
+{bdg-primary}`SFT`
+{bdg-secondary}`Full Training`
 :::
 
-:::{grid-item-card} {octicon}`mortar-board;1.5em;sd-mr-1` Tutorial Series
-:link: feature-set-b-tuts-series-a
-:link-type: ref
-Learn how to generate synthetic data using OpenAI API compatible services and your own deployed LLM.
+:::{grid-item-card} {octicon}`zap;1.5em;sd-mr-1` Parameter-Efficient Fine-Tuning (PEFT)
+:link: peft
+:link-type: doc
+:link-alt: PEFT and LoRA training guide
+
+Efficient fine-tuning using LoRA and other PEFT techniques. Achieve great results with minimal computational resources.
 +++
-{bdg-secondary}`synthetic-data`
-{bdg-secondary}`openai-api`
-{bdg-secondary}`reward-models`
+{bdg-info}`PEFT`
+{bdg-secondary}`LoRA`
 :::
+
 ::::
 
-(feature-set-b-tutorials-advanced)=
-## Advanced Tutorials
+## Data Preparation
 
-Use-case driven tutorials focusing on highlighting typical user goals.
+Learn how to prepare and work with datasets for LLM training, including custom dataset integration and preprocessing.
 
-Potentially link out to notebook tutorials.
+::::{grid} 1 1 2 2
+:gutter: 2
+
+:::{grid-item-card} {octicon}`database;1.5em;sd-mr-1` Dataset Integration
+:link: dataset
+:link-type: doc
+:link-alt: Dataset preparation guide
+
+Learn how to integrate custom datasets and prepare data for training with various formats and preprocessing techniques.
++++
+{bdg-success}`Datasets`
+{bdg-secondary}`Custom Data`
+:::
+
+:::{grid-item-card} {octicon}`list-unordered;1.5em;sd-mr-1` Instruction Datasets
+:link: column-mapped-text-instruction-dataset
+:link-type: doc
+:link-alt: Instruction dataset guide
+
+Working with instruction-following datasets and conversation formats for chat and instruction-tuned models.
++++
+{bdg-warning}`Instructions`
+{bdg-secondary}`Chat Format`
+:::
+
+::::
+
+## Key Features
+
+- **Day-0 Support**: Use any Hugging Face model immediately without conversion
+- **Flexible Training**: Choose between SFT and PEFT based on your needs
+- **Optimized Performance**: Benefit from BF16/FP8 quantization and kernel optimizations
+- **Distributed Training**: Scale from single GPU to multi-node clusters with FSDP2/nvFSDP
+- **Easy Deployment**: Export to vLLM, TensorRT-LLM, and other inference frameworks
 
 ```{toctree}
 :maxdepth: 2
 :titlesonly:
 :hidden:
 
-Beginner Tutorial <beginner>
-Series A <series-a/index>
+sft
+peft
+dataset
+column-mapped-text-instruction-dataset
 ```

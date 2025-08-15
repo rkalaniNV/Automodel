@@ -2,7 +2,8 @@
 
 This guide shows you how to integrate your own dataset into NeMo Automodel for training. You'll learn about two main dataset types: **completion datasets** for language modeling (like [HellaSwag](https://huggingface.co/datasets/rowan/hellaswag)) and **instruction datasets** for question-answering tasks (like [SQuAD](https://huggingface.co/datasets/rajpurkar/squad)). We'll cover how to create custom datasets by implementing the required methods and preprocessing functions, and finally show you how to specify your own data logic using YAML configuration with file paths—allowing you to define custom dataset processing without modifying the main codebase.
 
-## Quick Start Summary
+## Choose Your Dataset Type
+
 | **Type**        |  **Use Case**    | **Example** | **Preprocessor**               | **Section**              |
 | --------------- | ------------------ | -------------- | --------------------------------- | --------------------------- |
 | ✍️ Completion   | Language modeling  | HellaSwag      | `SFTSingleTurnPreprocessor`       | [Jump](#completion-datasets)  |
@@ -11,6 +12,7 @@ This guide shows you how to integrate your own dataset into NeMo Automodel for t
 ## Types of Supported Datasets
 
 NeMo Automodel supports a variety of datasets, depending on the task.
+
 ### Completion Datasets
 
 **Completion datasets** are single text sequences designed for language modeling where the model learns to predict the next token given a context. These datasets typically contain a context (prompt) and a target (completion) that the model should learn to generate.
@@ -24,7 +26,7 @@ The [HellaSwag](https://huggingface.co/datasets/rowan/hellaswag) dataset is a po
 - **Endings**: Multiple possible completions (4 options)
 - **Label**: Index of the correct ending
 
-**Example:**
+**Data Sample:**
 ```
 Context: "A man is sitting at a piano in a large room."
 Endings: [
@@ -150,15 +152,18 @@ This will call `build_my_dataset()` from the specified file with the other keys 
 
 
 ## Packed Sequence Support in NeMo AutoModel
+
 NeMo AutoModel supports **packed sequences**, a technique to optimize training with variable-length sequences (e.g., text) by minimizing padding.
 
 ### What is a Packed Sequence?
+
 Instead of padding each sequence to a fixed length (wasting computation on `[PAD]` tokens), packed sequences:
 - Concatenate short sequences into a single continuous sequence.
 - Separate sequences with special tokens (e.g., `[EOS]`).
 - Track lengths via a "attention mask" to prevent cross-sequence information leakage.
 
 ### Benefits
+
 - Reduces redundant computation on padding tokens leading to faster training.
 - Enables larger effective batch sizes leading to better GPU utilization.
 - Especially useful for language modeling and text datasets.

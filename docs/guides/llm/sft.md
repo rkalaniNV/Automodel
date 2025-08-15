@@ -1,4 +1,4 @@
-# Supervised Fine-Tuning (SFT) with NeMo Automodel
+# Run Supervised Fine-Tuning (SFT)
 
 ## Introduction
 
@@ -32,9 +32,9 @@ which features a [standalone python3
 recipe](https://github.com/NVIDIA-NeMo/Automodel/blob/main/nemo_automodel/recipes/llm/finetune.py),
 offering hands-on demonstrations for quickly getting started with NeMo Automodel. -->
 
-## Run SFT with NeMo Automodel
+## Train LLaMA 3.2 1B on SQuAD Dataset
 
-In this guide, we will run supervised fine-tuning (SFT) on Meta’s `LLaMA 3.2 1B` model with
+In this guide, we will run SFT on Meta’s `LLaMA 3.2 1B` model with
 the popular [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) (Stanford Question Answering Dataset).
 
 :::{important}
@@ -46,10 +46,7 @@ pip3 install nemo-automodel
 For a complete guide and additional options please consult the Automodel [installation guide](../installation.md).
 :::
 
-### Model and Dataset Context
-In this guide, we will fine-tune Meta’s `LLaMA 3.2 1B` model on the popular [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) (Stanford Question Answering Dataset).
-
-#### 🔍 About LLaMA 3.2 1B
+#### LLaMA 3.2 1B Model
 **LLaMA** is a family of decoder-only transformer models developed by Meta. The **LLaMA 3.2 1B** variant is a compact, lightweight model ideal for research and edge deployment. Despite its size, it maintains architectural features consistent with its larger siblings:
 
 - **Decoder-only architecture**: Follows a GPT-style, autoregressive design—optimized for generation tasks.
@@ -80,7 +77,7 @@ Some Hugging Face model repositories are **gated**, you must explicitly request 
  :::
 
 
-#### 📚 About SQuAD
+#### SQuAD Dataset
 Stanford Question Answering Dataset (SQuAD) is a **reading comprehension dataset**, consisting of questions posed by crowdworkers on a set of Wikipedia articles, where the answer to every question is a segment of text, or span, from the corresponding reading passage, or the question might be unanswerable.
 
 There are two major versions:
@@ -138,7 +135,8 @@ The `FinetuneRecipeForNextTokenPrediction` class is one such recipe. It inherits
 The recipe ensures stateless, config-driven orchestration where core components like the model, dataset, and optimizer are configured dynamically using Hydra-style `instantiate()` calls, avoiding hardcoded dependencies.
 :::
 
-### Recipe Config
+### Configure the Recipe
+
 ``` yaml
 # The model section is responsible for configuring the model we want to finetune.
 # Since we want to use the Llama 3 1B model, we pass `meta-llama/Llama-3.2-1B` to the
@@ -230,6 +228,7 @@ those used for training.
 :::
 
 ## Run the Fine-Tune Recipe
+
 Assuming the above `yaml` is saved in a file named `sft_guide.yaml`, you can run the fine-tuning workflow either using the Automodel CLI or by directly invoking the recipe Python script.
 
 ### Automodel CLI
@@ -259,6 +258,7 @@ torchrun --nproc-per-node=8 examples/llm/finetune.py --config sft_guide.yaml
 ```
 
 ### Sample Output
+
 Running the recipe using either the `automodel` app or by directly invoking the recipe script should produce
 the following log:
 ```

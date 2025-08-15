@@ -1,106 +1,222 @@
 (get-started-quick-start)=
 # Quick Start
 
-Follow these steps to fine-tune a Hugging Face model with NeMo Automodel.
+Get up and running with NeMo Automodel in minutes. This guide shows you how to fine-tune your first model using both CLI and Python approaches.
 
 ## Prerequisites
 
-- Python 3.10+
-- NVIDIA GPU with a recent CUDA toolkit
-- PyTorch with CUDA installed
+- **Python**: 3.9+
+- **GPU**: NVIDIA GPU with 8GB+ memory
+- **CUDA**: CUDA Toolkit 11.8+ or 12.x
+- **PyTorch**: 2.0+ with CUDA support
+- **Storage**: ~5GB for model and checkpoints
 
-## Steps
+## Installation
 
-1. Instantiate a Hugging Face model with Automodel
-2. Prepare your dataset (HF `datasets` works well)
-3. Choose PEFT (e.g., LoRA) or full-parameter SFT
-4. Configure parallelism (DDP or FSDP2) and training hyperparameters
-5. Launch training and export for inference when done
-
-## Run a Recipe with torchrun
+Install NeMo Automodel from source:
 
 ```bash
-torchrun --nproc-per-node=2 nemo_automodel/recipes/llm/finetune.py -c examples/llm/llama_3_2_1b_squad.yaml
+git clone https://github.com/NVIDIA/NeMo-Automodel.git
+cd NeMo-Automodel
+pip install -e .
 ```
 
-## Or use the automodel CLI
+For other installation options, see the {doc}`../guides/installation`.
+
+## Approach 1: CLI (Recommended)
+
+The fastest way to get started is with the `automodel` CLI:
+
+### Single GPU Training
 
 ```bash
-automodel llm finetune -c examples/llm/llama_3_2_1b_squad.yaml --nproc-per-node=2
+automodel finetune llm -c examples/llm/llama_3_2_1b_squad.yaml
 ```
 
-## Example: LoRA or full-parameter SFT
+### Multi-GPU Training
 
-::: {dropdown} Python example
-:icon: code-square
+```bash
+automodel finetune llm -c examples/llm/llama_3_2_1b_squad.yaml --nproc-per-node=2
+```
+
+The CLI automatically:
+
+- Downloads the Llama 3.2 1B model from Hugging Face
+- Loads the SQuAD dataset for question-answering fine-tuning
+- Configures FSDP2 for efficient distributed training
+- Saves checkpoints and final model
+
+## Approach 2: Python Recipe
+
+For more control, use the Python recipe directly:
+
+```bash
+# Single GPU
+python recipes/llm/finetune.py --config examples/llm/llama_3_2_1b_squad.yaml
+
+# Multi-GPU with torchrun
+torchrun --nproc-per-node=2 recipes/llm/finetune.py --config examples/llm/llama_3_2_1b_squad.yaml
+```
+
+## Understanding the Configuration
+
+The example uses a YAML configuration file that defines all training parameters:
+
+::::{dropdown} Key configuration sections
+:icon: gear
+
+```yaml
+# Training schedule
+step_scheduler:
+  grad_acc_steps: 4
+  num_epochs: 1
+  ckpt_every_steps: 1000
+
+# Model setup with NeMo optimizations
+model:
+  _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
+  pretrained_model_name_or_path: meta-llama/Llama-3.2-1B
+  torch_dtype: torch.bfloat16
+  use_liger_kernel: true
+
+# Distributed training strategy
+distributed:
+  _target_: nemo_automodel.components.distributed.fsdp2.FSDP2Manager
+  dp_size: none  # Auto-detect
+  tp_size: 1
+
+# Dataset configuration
+dataset:
+  _target_: nemo_automodel.components.datasets.llm.squad.make_squad_dataset
+  dataset_name: rajpurkar/squad
+  split: train
+
+# Optimizer settings
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 1.0e-5
+  weight_decay: 0
+```
+::::
+
+## Python API Usage
+
+For programmatic access, use the core NeMo Automodel APIs:
+
+::::{dropdown} Python example
+:icon: code
 
 ```python
-from datasets import load_dataset
+import torch
+from nemo_automodel import NeMoAutoModelForCausalLM
+from nemo_automodel.components.datasets.llm.squad import make_squad_dataset
+from nemo_automodel.components.distributed.fsdp2 import FSDP2Manager
+from nemo_automodel.components._peft.lora import PeftConfig
 
-# Prepare data
-dataset = load_dataset("rajpurkar/squad", split="train")
-dataset = dataset.map(formatting_prompts_func)
-
-# Launch a fine-tuning run (illustrative API)
-llm.api.finetune(
-    # Model & PEFT scheme
-    model=llm.HFAutoModelForCausalLM(model_id),
-
-    # Setting peft=None will run full-parameter SFT
-    peft=llm.peft.LoRA(
-        target_modules=["*_proj", "linear_qkv"],  # regex-based selector
-        dim=32,
-    ),
-
-    # Data
-    data=llm.HFDatasetDataModule(dataset),
-
-    # Optimizer
-    optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
-
-    # Trainer
-    trainer=nl.Trainer(
-        devices=args.devices,
-        max_steps=args.max_steps,
-        strategy=args.strategy,  # choices: [None, "ddp", FSDP2Strategy]
-    ),
+# Load model with NeMo optimizations
+model = NeMoAutoModelForCausalLM.from_pretrained(
+    "meta-llama/Llama-3.2-1B",
+    torch_dtype=torch.bfloat16,
+    use_liger_kernel=True,
+    attn_implementation="flash_attention_2"
 )
+
+# Setup PEFT for memory-efficient training (optional)
+peft_config = PeftConfig(
+    dim=8,
+    alpha=32,
+    include_modules=["*.q_proj", "*.v_proj", "*.k_proj", "*.o_proj"]
+)
+model = peft_config.apply(model)
+
+# Configure distributed training
+dist_manager = FSDP2Manager(dp_size=None, tp_size=1)
+model = dist_manager.wrap_model(model)
+
+# Load dataset
+dataset = make_squad_dataset("rajpurkar/squad", "train")
+
+# Setup optimizer
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+
+# Training loop (simplified)
+for batch in dataset:
+    optimizer.zero_grad()
+    outputs = model(**batch)
+    loss = outputs.loss
+    loss.backward()
+    optimizer.step()
 ```
-:::
+::::
 
-## Switch to Megatron-Core for peak throughput
+## Try Different Models and Tasks
 
-Minimal changes enable the high-throughput Megatron-Core backend when available:
+### Vision Language Models
 
-::: {dropdown} Code diff (illustrative)
-:icon: code-square
+Fine-tune multimodal models for image understanding:
 
-```python
-# Model class
-# Automodel
-model = llm.HFAutoModelForCausalLM(model_id)
-# Megatron-Core
-model = llm.LlamaModel(Llama32Config1B())
-
-# Optimizer module
-# Automodel
-optim = fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5))
-# Megatron-Core
-optim = MegatronOptimizerModule(config=opt_config)
-
-# Trainer strategy
-# Automodel
-strategy = args.strategy  # [None, "ddp", "fsdp2"]
-# Megatron-Core
-strategy = nl.MegatronStrategy(ddp="pytorch")
+```bash
+automodel finetune vlm -c examples/vlm/gemma_3_vl_4b_medpix.yaml
 ```
-:::
 
-## Next steps
+### PEFT with LoRA
 
-- Read the {ref}`about-overview` for architecture and context
-- Explore {ref}`about-key-features` for capabilities and performance notes
+Memory-efficient training with LoRA adapters:
 
-## Extending Automodel
+```bash
+automodel finetune llm -c examples/llm/llama_3_2_1b_hellaswag_peft.yaml
+```
 
-Today, Automodel supports `AutoModelForCausalLM` for text generation. To add support for another task (for example, Seq2Seq LM), create a subclass similar to `HFAutoModelForCausalLM` and adapt initialization, configuration, training/validation steps, save/load routines, checkpoint handling, and provide a compatible data module for your dataset and batching needs.
+### Different Model Architectures
+
+Try other supported models:
+
+```bash
+# Qwen models
+automodel finetune llm -c examples/llm/qwen_3_0p6b_hellaswag.yaml
+
+# Or use any Hugging Face model by modifying the config:
+# pretrained_model_name_or_path: microsoft/DialoGPT-medium
+```
+
+## What Happens During Training
+
+When you run the command, NeMo Automodel:
+
+1. **Downloads model**: Fetches Llama 3.2 1B from Hugging Face Hub
+2. **Loads dataset**: Downloads and preprocesses SQuAD dataset
+3. **Applies optimizations**: Enables Liger kernels and Flash Attention 2
+4. **Configures distributed training**: Sets up FSDP2 for multi-GPU
+5. **Starts training**: Runs supervised fine-tuning with gradient accumulation
+6. **Saves checkpoints**: Periodic saves during training
+7. **Exports model**: Final model ready for inference
+
+## Expected Output
+
+You should see output like:
+
+```console
+INFO: Loading model meta-llama/Llama-3.2-1B...
+INFO: Applying Liger kernel optimizations...
+INFO: Loading SQuAD dataset...
+INFO: Starting training with FSDP2...
+Epoch 1/1: 100%|████████| 1000/1000 [05:23<00:00, 3.09it/s, loss=0.82]
+INFO: Training completed. Model saved to checkpoints/
+```
+
+## Next Steps
+
+Now that you've run your first training job:
+
+1. **Explore configurations**: See {doc}`../references/yaml-configuration-reference` for all options
+2. **Try advanced features**: Learn about {doc}`../guides/launcher/slurm` for cluster training
+3. **Understand the architecture**: Read {doc}`../about/architecture-overview`
+4. **Scale up**: Try larger models and datasets
+5. **Get help**: Check {doc}`../references/troubleshooting-reference` for common issues
+
+## Learn More
+
+- {doc}`../about/index` - Platform overview and key features
+- {doc}`../guides/llm/sft` - Deep dive into LLM fine-tuning
+- {doc}`../guides/vlm/index` - Vision-language model training
+- {doc}`../model-coverage/index` - Supported model architectures

@@ -31,11 +31,67 @@ Check out our [tutorial](https://github.com/NVIDIA-NeMo/Automodel/blob/main/docs
 During the first hundred optimization steps we observed suspiciously large gradients.
 However, after a few iterations it quickly stabilizes. While the run remains numerically stable after this "warm-up," overall convergence still lags behind Gemma 3. We continue to investigate the source of this discrepancy.
 
+```{raw} html
+<div id="blog-training-loss-modal-container" style="cursor: pointer; display: inline-block; border: 2px solid transparent; border-radius: 8px; transition: border-color 0.3s ease;" 
+     onmouseover="this.style.borderColor='#007acc'" 
+     onmouseout="this.style.borderColor='transparent'"
+     onclick="openImageModal('blog-training-loss-modal', 'omni/medpix_peft.jpg', 'Training Loss Curve')">
+```
+
 ```{image} omni/medpix_peft.jpg
 :alt: Training Loss Curve.
 :class: bg-primary
 :width: 400px
 :align: center
+```
+
+```{raw} html
+</div>
+
+<!-- Modal for Blog Training Loss -->
+<div id="blog-training-loss-modal" style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); backdrop-filter: blur(3px);" onclick="closeImageModal('blog-training-loss-modal')">
+    <div style="position: relative; margin: auto; padding: 20px; width: 90%; max-width: 1200px; top: 50%; transform: translateY(-50%);">
+        <span onclick="closeImageModal('blog-training-loss-modal')" style="color: white; float: right; font-size: 28px; font-weight: bold; cursor: pointer; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 50%;">&times;</span>
+        <div style="text-align: center; max-height: 80vh; overflow-y: auto;">
+            <img id="blog-training-loss-modal-img" src="" alt="" style="max-width: 100%; height: auto; border-radius: 8px;">
+            <p id="blog-training-loss-modal-caption" style="color: white; margin-top: 15px; font-size: 16px;"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+function openImageModal(modalId, imgSrc, caption) {
+    const modal = document.getElementById(modalId);
+    const modalImg = document.getElementById(modalId + '-img');
+    const modalCaption = document.getElementById(modalId + '-caption');
+    
+    modal.style.display = 'block';
+    modalImg.src = imgSrc;
+    modalCaption.textContent = caption;
+    
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+}
+
+function closeImageModal(modalId) {
+    const modal = document.getElementById(modalId);
+    modal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const modals = document.querySelectorAll('[id*="-modal"]');
+        modals.forEach(modal => {
+            if (modal.style.display === 'block') {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        });
+    }
+});
+</script>
 ```
 
 Our preliminary benchmark on vision and audio capabilities shows some gaps between Gemma 3n and existing alternatives. We will follow up with more concrete results later.

@@ -14,7 +14,8 @@ It supports two data sources out-of-the-box and optionally streams them so they 
 2. **Hugging Face Hub** - point to any dataset repo (`org/dataset`) that contains the required columns.
 
 ---
-## Quickstart
+## Quick Start
+
 The fastest way to sanity-check the loader is to point it at an existing Hugging Face dataset and print the first sample. This section provides a minimal, runnable example to help you quickly try out the dataset.
 
 ```python
@@ -81,6 +82,7 @@ print(local_ds[0].keys())   # {'question', 'answer'}
 ```
 
 You can configure the dataset entirely from your recipe YAML.  For example:
+
 ```yaml
 dataset:
   _target_: nemo_automodel.components.datasets.llm.column_mapped_text_instruction_dataset.ColumnMappedTextInstructionDataset
@@ -160,6 +162,7 @@ dataset:
 ```
 
 ### Advanced Options
+
 | Arg                     | Default | Description |
 |-------------------------|---------|-------------|
 | `split`                 | `None`  | Which split to pull from a HF repo (`train`, `validation`, *etc.*). Ignored for local files. |
@@ -169,6 +172,7 @@ dataset:
 
 ---
 ## Tokenisation Paths
+
 This section explains how the dataset tokenizes both inputs and outputs, and how it adapts to different tokenizers.
 `ColumnMappedTextInstructionDataset` automatically picks one of two tokenization
 strategies depending on the capabilities of the provided tokenizer:
@@ -217,4 +221,5 @@ The following section lists important requirements and caveats for correct usage
 
 ---
 ### That’s It!
+
 With the mapping specified, the rest of the NeMo Automodel pipeline (pre-tokenisation, packing, collate-fn, *etc.*) works as usual. 

@@ -1,49 +1,84 @@
-(feature-set-b-tutorials-index)=
-# Tutorials
+# Model Coverage
 
-This section contains practical tutorials that demonstrate how to use NVIDIA NeMo Curator for various text curation tasks. Each tutorial provides step-by-step guidance for specific use cases.
+Comprehensive overview of model architectures and checkpoints supported by NeMo Automodel for fine-tuning and training.
 
-(feature-set-b-tutorials-beginner)=
-## Beginner Tutorials
+## Overview
 
-General tutorials focusing on product concepts.
+NeMo Automodel provides Day-0 support for models from the Hugging Face Hub, enabling immediate fine-tuning without conversion or special setup. Our compatibility spans across multiple model families and architectures, ensuring you can work with the latest models as soon as they're released.
 
-::::{grid} 1 1 1 1
-:gutter: 1 1 1 2
+## Supported Model Types
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Beginner Tutorial
-:link: feature-set-b-tutorials-beginner
-:link-type: ref
-Get started with basic text data processing using NeMo Curator. Learn how to load, clean, and prepare your text data for curation.
+::::{grid} 1 1 2 2
+:gutter: 2
+
+:::{grid-item-card} {octicon}`comment-discussion;1.5em;sd-mr-1` Large Language Models
+:link: llm
+:link-type: doc
+:link-alt: LLM model coverage
+
+Comprehensive support for text generation models including Llama, Mistral, Gemma, Qwen, and many more architectures.
 +++
-{bdg-primary}`beginner`
-{bdg-secondary}`text-processing`
-{bdg-secondary}`data-preparation`
+{bdg-primary}`LLMs`
+{bdg-secondary}`Text Generation`
 :::
 
-:::{grid-item-card} {octicon}`mortar-board;1.5em;sd-mr-1` Tutorial Series
-:link: feature-set-b-tuts-series-a
-:link-type: ref
-Learn how to generate synthetic data using OpenAI API compatible services and your own deployed LLM.
+:::{grid-item-card} {octicon}`image;1.5em;sd-mr-1` Vision Language Models
+:link: vlm
+:link-type: doc
+:link-alt: VLM model coverage
+
+Support for multimodal models that process both text and images for VQA, captioning, and conversation tasks.
 +++
-{bdg-secondary}`synthetic-data`
-{bdg-secondary}`openai-api`
-{bdg-secondary}`reward-models`
+{bdg-info}`VLMs`
+{bdg-secondary}`Multimodal`
 :::
+
 ::::
 
-(feature-set-b-tutorials-advanced)=
-## Advanced Tutorials
+## Key Features
 
-Use-case driven tutorials focusing on highlighting typical user goals.
+- **Day-0 Compatibility**: Use any compatible Hugging Face model immediately
+- **No Conversion Required**: Direct integration with Hugging Face checkpoints
+- **Automatic Detection**: Intelligent model architecture detection and setup
+- **Flexible Training**: Support for both SFT and PEFT across all model types
+- **Optimized Performance**: Built-in optimizations for supported architectures
 
-Potentially link out to notebook tutorials.
+## Architecture Support
+
+NeMo Automodel supports a wide range of model architectures:
+
+### Popular Families
+- **Llama** (Llama 2, Llama 3.1, Llama 3.2)
+- **Mistral** (Mistral 7B, Mixtral)
+- **Gemma** (Gemma 2, Gemma 3n)
+- **Qwen** (Qwen 2.5, Qwen VL)
+- **DeepSeek** (DeepSeek R1, DeepSeek V3)
+
+### Enterprise Models
+- **NVIDIA Nemotron** models
+- **IBM Granite** series
+- **Microsoft Phi** models
+
+## Testing and Validation
+
+All supported models undergo comprehensive testing with:
+- **FSDP2 Distributed Training**: Multi-GPU and multi-node scaling
+- **SFT and PEFT**: Both full and parameter-efficient fine-tuning
+- **Memory Optimization**: FP8 quantization and gradient checkpointing
+- **Performance Benchmarking**: Training speed and convergence validation
+
+## Getting Started
+
+1. **Choose your model** from the Hugging Face Hub
+2. **Verify compatibility** using our model lists
+3. **Set up your configuration** with appropriate settings
+4. **Start training** using NeMo Automodel recipes
 
 ```{toctree}
 :maxdepth: 2
 :titlesonly:
 :hidden:
 
-Beginner Tutorial <beginner>
-Series A <series-a/index>
+llm
+vlm
 ```
