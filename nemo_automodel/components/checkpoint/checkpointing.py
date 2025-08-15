@@ -26,6 +26,7 @@ import torch
 import torch.distributed
 import torch.distributed.checkpoint as dcp
 import torch.nn as nn
+import yaml
 from safetensors import safe_open
 from safetensors.torch import save_file
 
@@ -105,8 +106,13 @@ def save_model(
         ):
             os.makedirs(consolidated_model_path, exist_ok=True)
             # save the config.json file
-            with open(os.path.join(consolidated_model_path, "config.json"), "w") as f:
-                f.write(model.config.to_json_string())
+            if hasattr(model, "config"):
+                with open(os.path.join(consolidated_model_path, "config.json"), "w") as f:
+                    f.write(model.config.to_json_string())
+            # save the generation_config.json file
+            if hasattr(model, "generation_config"):
+                with open(os.path.join(consolidated_model_path, "generation_config.json"), "w") as f:
+                    f.write(model.generation_config.to_json_string())
 
             # save the tokenizer
             if tokenizer is not None:
@@ -327,7 +333,19 @@ def load_optimizer(
     optimizer_state.load_state_dict(reinstated_state_dict)
 
 
-def get_safetensors_index_path(cache_dir: str, repo_id: str) -> str:
+def save_config(config: dict[str, Any], weights_path: str):
+    """
+    Save a config to a weights path.
+
+    Args:
+        config: Config to save
+        weights_path: Path to save config
+    """
+    with open(os.path.join(weights_path, "config.yaml"), "w") as f:
+        yaml.dump(config, f, sort_keys=False, default_flow_style=False)
+
+
+def _get_safetensors_index_path(cache_dir: str, repo_id: str) -> str:
     """
     Return the directory containing the first `model.safetensors.index.json` found for given model.
 
