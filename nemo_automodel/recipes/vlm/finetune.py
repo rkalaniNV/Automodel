@@ -18,7 +18,6 @@ import logging
 import pathlib
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
-from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import torch
 import torch.distributed as dist
@@ -61,11 +60,6 @@ from nemo_automodel.components.utils.dist_utils import (
 )
 from nemo_automodel.components.utils.model_utils import apply_parameter_freezing, print_trainable_parameters
 from nemo_automodel.recipes.base_recipe import BaseRecipe
-
-if TYPE_CHECKING:
-    from torch.optim import Optimizer
-
-    from nemo_automodel.components.distributed.init_utils import DistInfo
 
 if TYPE_CHECKING:
     from torch.optim import Optimizer

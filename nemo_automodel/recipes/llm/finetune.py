@@ -19,8 +19,6 @@ import pathlib
 import time
 from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Dict
-from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Dict
 
 import torch
 import torch.distributed as dist
@@ -38,7 +36,6 @@ from transformers.utils import TRANSFORMERS_CACHE, ContextManagers
 from wandb import Settings
 
 from nemo_automodel.components._peft.lora import apply_lora_to_linear_modules
-from nemo_automodel.components.checkpoint.checkpointing import CheckpointingConfig, load_model_from_base_checkpoint
 from nemo_automodel.components.checkpoint.checkpointing import CheckpointingConfig, load_model_from_base_checkpoint
 from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
 from nemo_automodel.components.datasets.llm.packed_sequence import PackedSequence
@@ -64,11 +61,6 @@ from nemo_automodel.components.utils.dist_utils import (
 )
 from nemo_automodel.components.utils.model_utils import print_trainable_parameters
 from nemo_automodel.recipes.base_recipe import BaseRecipe
-
-if TYPE_CHECKING:
-    from torch.optim import Optimizer
-
-    from nemo_automodel.components.distributed.init_utils import DistInfo
 
 if TYPE_CHECKING:
     from torch.optim import Optimizer
@@ -148,18 +140,6 @@ def build_model_and_optimizer(
             # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
             if cfg_peft is not None:
                 apply_lora_to_linear_modules(model, cfg_peft)
-        # Instantiate the model in meta device to avoid OOM
-        with init_ctx:
-            model = cfg_model.instantiate(**kwargs)
-
-            if freeze_embeddings:
-                logging.info("Freezing embeddings")
-                for m in model.modules():
-                    if isinstance(m, nn.Embedding):
-                        m.weight.requires_grad_(False)
-            # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
-            if cfg_peft is not None:
-                apply_lora_to_linear_modules(model, cfg_peft)
 
     print_trainable_parameters(model)
 
@@ -180,17 +160,6 @@ def build_model_and_optimizer(
 
         else:
             model = model_wrapper.parallelize(model)
-
-            # Load the weights into the model in parallel.
-            if is_meta_device:
-                load_model_from_base_checkpoint(
-                    model,
-                    device,
-                    cfg_peft is not None,
-                    cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
-                    cfg_model.pretrained_model_name_or_path,
-                    getattr(cfg_peft, "lora_A_init", None),
-                )
 
             # Load the weights into the model in parallel.
             if is_meta_device:
@@ -285,8 +254,6 @@ def build_dataloader(
     dist_sampler_kwargs = {
         "shuffle": cfg_dl.get("shuffle", True),
     }
-    if "shuffle" in cfg_dl:
-        del cfg_dl.shuffle
     if "shuffle" in cfg_dl:
         del cfg_dl.shuffle
     if device_mesh is not None:

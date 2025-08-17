@@ -17,7 +17,6 @@
 import glob
 import json
 import logging
-import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,8 +43,6 @@ from nemo_automodel.components.checkpoint.stateful_wrappers import (
 
 if TYPE_CHECKING:
     from peft import PeftConfig
-    from transformers.configuration_utils import PretrainedConfig
-    from transformers.configuration_utils import PretrainedConfig
     from transformers.tokenization_utils import PreTrainedTokenizerBase
 
 
