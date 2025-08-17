@@ -194,7 +194,7 @@ def load_model_from_base_checkpoint(
     """
     from transformers.models.gemma3.modeling_gemma3 import Gemma3ForConditionalGeneration
 
-    model.to_empty(device=device)
+    to_empty_parameters_only(model, device=device)
 
     # HF models set _is_hf_initialized to True after initialization.
     # But because we initialize on meta device, these are erroneously set to True.
@@ -218,7 +218,7 @@ def load_model_from_base_checkpoint(
             )
 
     # init buffer-only modules
-    _rebuild_buffer_only_modules_in_place(model, device, getattr(model, "config", None))
+    # _rebuild_buffer_only_modules_in_place(model, device, getattr(model, "config", None))
 
     # init peft adapters with the scaled weights
     _init_peft_adapters(model, peft_init_method)
@@ -237,6 +237,8 @@ def load_model_from_base_checkpoint(
         ),
     )
     model_state.load_state_dict(model_state_dict)
+    if hasattr(model, "tie_weights") and model_state.is_tied_lm_head:
+        model.tie_weights()
 
 
 def load_model(
@@ -391,6 +393,23 @@ def get_safetensors_index_path(cache_dir: str, repo_id: str) -> str:
             raise FileNotFoundError(f"No snapshot directories found in {snapshots_root}")
 
 
+def to_empty_parameters_only(model: nn.Module, *, device: torch.device, recurse: bool = True) -> nn.Module:
+    """
+    Move parameters to the specified device without copying storage, skipping buffers.
+
+    Mirrors torch.nn.Module.to_empty but applies only to parameters, not buffers.
+
+    Args:
+        model: The module to transform
+        device: Target device
+        recurse: Whether to recurse into child modules
+
+    Returns:
+        The same module instance
+    """
+    return _apply(model, lambda t: torch.empty_like(t, device=device), recurse=recurse)
+
+
 def _save_peft_adapters(
     model_state: ModelState,
     peft_config: "PeftConfig",
@@ -526,3 +545,83 @@ def _init_peft_adapters(model: nn.Module, peft_init_method: str):
                 module.init_lora_weights(peft_init_method)
             except Exception as e:
                 logging.warning(f"Failed to initialize weights for PEFT adapter `{module.__class__.__name__}`: {e}")
+
+
+def _apply(module, fn, recurse=True):
+    from torch.utils._python_dispatch import is_traceable_wrapper_subclass
+
+    if recurse:
+        for child in module.children():
+            _apply(child, fn, recurse=recurse)
+
+    def compute_should_use_set_data(tensor, tensor_applied):
+        if torch._has_compatible_shallow_copy_type(tensor, tensor_applied):
+            # If the new tensor has compatible tensor type as the existing tensor,
+            # the current behavior is to change the tensor in-place using `.data =`,
+            # and the future behavior is to overwrite the existing tensor. However,
+            # changing the current behavior is a BC-breaking change, and we want it
+            # to happen in future releases. So for now we introduce the
+            # `torch.__future__.get_overwrite_module_params_on_conversion()`
+            # global flag to let the user control whether they want the future
+            # behavior of overwriting the existing tensor or not.
+            return not torch.__future__.get_overwrite_module_params_on_conversion()
+        else:
+            return False
+
+    should_use_swap_tensors = torch.__future__.get_swap_module_params_on_conversion()
+
+    for key, param in module._parameters.items():
+        if param is None:
+            continue
+        # Tensors stored in modules are graph leaves, and we don't want to
+        # track autograd history of `param_applied`, so we have to use
+        # `with torch.no_grad():`
+        with torch.no_grad():
+            param_applied = fn(param)
+        p_should_use_set_data = compute_should_use_set_data(param, param_applied)
+
+        # subclasses may have multiple child tensors so we need to use swap_tensors
+        p_should_use_swap_tensors = should_use_swap_tensors or is_traceable_wrapper_subclass(param_applied)
+
+        param_grad = param.grad
+        if p_should_use_swap_tensors:
+            try:
+                if param_grad is not None:
+                    # Accessing param.grad makes its at::Tensor's use_count 2, which will prevent swapping.
+                    # Decrement use count of the gradient by setting to None
+                    param.grad = None
+                param_applied = torch.nn.Parameter(param_applied, requires_grad=param.requires_grad)
+                torch.utils.swap_tensors(param, param_applied)
+            except Exception as e:
+                if param_grad is not None:
+                    param.grad = param_grad
+                raise RuntimeError(f"_apply(): Couldn't swap {module._get_name()}.{key}") from e
+            out_param = param
+        elif p_should_use_set_data:
+            param.data = param_applied
+            out_param = param
+        else:
+            assert isinstance(param, torch.nn.Parameter)
+            assert param.is_leaf
+            out_param = torch.nn.Parameter(param_applied, param.requires_grad)
+            module._parameters[key] = out_param
+
+        if param_grad is not None:
+            with torch.no_grad():
+                grad_applied = fn(param_grad)
+            g_should_use_set_data = compute_should_use_set_data(param_grad, grad_applied)
+            if p_should_use_swap_tensors:
+                grad_applied.requires_grad_(param_grad.requires_grad)
+                try:
+                    torch.utils.swap_tensors(param_grad, grad_applied)
+                except Exception as e:
+                    raise RuntimeError(f"_apply(): Couldn't swap {module._get_name()}.{key}.grad") from e
+                out_param.grad = param_grad
+            elif g_should_use_set_data:
+                assert out_param.grad is not None
+                out_param.grad.data = grad_applied
+            else:
+                assert param_grad.is_leaf
+                out_param.grad = grad_applied.requires_grad_(param_grad.requires_grad)
+
+    return module
