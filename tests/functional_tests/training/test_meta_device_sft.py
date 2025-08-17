@@ -60,13 +60,14 @@ def test_consolidated_llm_checkpoint():
     cfg_path = get_cfg_path()
     if "llm" in cfg_path:
         recipe_cls = FinetuneRecipeForNextTokenPrediction
+        default_cfg_path = Path(__file__).parents[3] / "examples" / "llm" / "llama_3_2_1b_hellaswag.yaml"
     elif "vlm" in cfg_path:
         recipe_cls = FinetuneRecipeForVLM
+        default_cfg_path = Path(__file__).parents[3] / "examples" / "vlm" / "gemma_3_vl_4b_cord_v2.yaml"
     else:
         raise ValueError(f"Unable to infer trainer from config path: {cfg_path}")
 
-    script_path = Path(__file__).parent.resolve()
-    cfg = parse_args_and_load_config(script_path / cfg_path)
+    cfg = parse_args_and_load_config(default_cfg_path)
     cfg.model.is_meta_device = False
     trainer = recipe_cls(cfg)
     trainer.setup()
