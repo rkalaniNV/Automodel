@@ -19,6 +19,8 @@ import pathlib
 import time
 from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Dict
+from contextlib import nullcontext
+from typing import TYPE_CHECKING, Any, Dict
 
 import torch
 import torch.distributed as dist
@@ -37,6 +39,7 @@ from wandb import Settings
 
 from nemo_automodel.components._peft.lora import apply_lora_to_linear_modules
 from nemo_automodel.components.checkpoint.checkpointing import CheckpointingConfig, load_model_from_base_checkpoint
+from nemo_automodel.components.checkpoint.checkpointing import CheckpointingConfig, load_model_from_base_checkpoint
 from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
 from nemo_automodel.components.datasets.llm.packed_sequence import PackedSequence
 from nemo_automodel.components.distributed.cp_utils import make_cp_batch_and_ctx
@@ -49,6 +52,10 @@ from nemo_automodel.components.optim.scheduler import OptimizerParamScheduler
 from nemo_automodel.components.training.rng import StatefulRNG
 from nemo_automodel.components.training.step_scheduler import StepScheduler
 from nemo_automodel.components.training.utils import count_tail_padding
+from nemo_automodel.components.utils.compile_utils import (
+    build_compile_config,
+    compile_model,
+)
 from nemo_automodel.components.utils.dist_utils import (
     clip_gradients,
     get_sync_ctx,
@@ -57,6 +64,11 @@ from nemo_automodel.components.utils.dist_utils import (
 )
 from nemo_automodel.components.utils.model_utils import print_trainable_parameters
 from nemo_automodel.recipes.base_recipe import BaseRecipe
+
+if TYPE_CHECKING:
+    from torch.optim import Optimizer
+
+    from nemo_automodel.components.distributed.init_utils import DistInfo
 
 if TYPE_CHECKING:
     from torch.optim import Optimizer
@@ -81,6 +93,7 @@ def build_model_and_optimizer(
     tp_size=1,
     freeze_embeddings=True,
     cfg_fp8=None,
+    cfg_compile=None,
 ) -> tuple[nn.Module, "Optimizer"]:  # noqa: F821
     """
     Build and initialize a model and optimizer.
@@ -96,6 +109,8 @@ def build_model_and_optimizer(
         seed: Random seed.
         tp_size: Tensor parallel size.
         freeze_embeddings: Whether to freeze embeddings.
+        cfg_fp8: Configuration for FP8.
+        cfg_compile: Configuration for torch.compile.
 
     Returns:
         The instantiated model on the specified device and optimizer.
@@ -121,6 +136,18 @@ def build_model_and_optimizer(
         if cfg_fp8 is not None:
             kwargs["fp8_config"] = cfg_fp8.instantiate()
 
+        # Instantiate the model in meta device to avoid OOM
+        with init_ctx:
+            model = cfg_model.instantiate(**kwargs)
+
+            if freeze_embeddings:
+                logging.info("Freezing embeddings")
+                for m in model.modules():
+                    if isinstance(m, nn.Embedding):
+                        m.weight.requires_grad_(False)
+            # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
+            if cfg_peft is not None:
+                apply_lora_to_linear_modules(model, cfg_peft)
         # Instantiate the model in meta device to avoid OOM
         with init_ctx:
             model = cfg_model.instantiate(**kwargs)
@@ -164,6 +191,17 @@ def build_model_and_optimizer(
                     cfg_model.pretrained_model_name_or_path,
                     getattr(cfg_peft, "lora_A_init", None),
                 )
+
+            # Load the weights into the model in parallel.
+            if is_meta_device:
+                load_model_from_base_checkpoint(
+                    model,
+                    device,
+                    cfg_peft is not None,
+                    cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
+                    cfg_model.pretrained_model_name_or_path,
+                    getattr(cfg_peft, "lora_A_init", None),
+                )
     else:
         model = model.to(device)
 
@@ -173,6 +211,11 @@ def build_model_and_optimizer(
         # TP does not support foreach
         cfg_opt.foreach = False
     optimizer = cfg_opt.instantiate(params=trainable_params)
+
+    # Apply torch.compile if configured
+    if cfg_compile is not None:
+        compile_config = build_compile_config(cfg_compile)
+        model = compile_model(model, compile_config)
 
     return model, optimizer
 
@@ -242,6 +285,8 @@ def build_dataloader(
     dist_sampler_kwargs = {
         "shuffle": cfg_dl.get("shuffle", True),
     }
+    if "shuffle" in cfg_dl:
+        del cfg_dl.shuffle
     if "shuffle" in cfg_dl:
         del cfg_dl.shuffle
     if device_mesh is not None:
@@ -519,6 +564,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             seed=self.cfg.get("seed", 42),
             tp_size=self.cfg.get("distributed.tp_size", 1),
             cfg_fp8=self.cfg.get("fp8", None),
+            cfg_compile=self.cfg.get("compile", None),
         )
         self.loss_fn = build_loss_fn(self.cfg.loss_fn)
         self.dataloader, self.tokenizer = build_dataloader(

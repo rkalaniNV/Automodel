@@ -17,6 +17,7 @@
 import glob
 import json
 import logging
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +44,7 @@ from nemo_automodel.components.checkpoint.stateful_wrappers import (
 
 if TYPE_CHECKING:
     from peft import PeftConfig
+    from transformers.configuration_utils import PretrainedConfig
     from transformers.configuration_utils import PretrainedConfig
     from transformers.tokenization_utils import PreTrainedTokenizerBase
 
@@ -216,9 +218,6 @@ def load_model_from_base_checkpoint(
             logging.warning(
                 "Warning: Model does not have initialize_weights method. Requires custom initialization to be implemented."
             )
-
-    # init buffer-only modules
-    # _rebuild_buffer_only_modules_in_place(model, device, getattr(model, "config", None))
 
     # init peft adapters with the scaled weights
     _init_peft_adapters(model, peft_init_method)
@@ -481,54 +480,19 @@ def _get_automodel_peft_metadata(peft_config: "PeftConfig") -> dict:
 def _extract_target_modules(model: nn.Module) -> list[str]:
     """
     Extract the target modules from the model.
+
+    Note: When torch.compile is used, module names get prefixed with '_orig_mod.'.
+    This function strips those prefixes to get the original module names.
     """
     final_target_modules = set()
     for name, _ in model.named_modules():
         if "lora" in name.lower():
-            final_target_modules.add(name.rsplit(".", 1)[0])
+            # Remove the torch.compile _orig_mod prefix if present
+            target_name = name.rsplit(".", 1)[0]
+            if target_name.startswith("_orig_mod."):
+                target_name = target_name[len("_orig_mod.") :]
+            final_target_modules.add(target_name)
     return sorted(list(final_target_modules))
-
-
-def _rebuild_buffer_only_modules_in_place(
-    model: nn.Module, device: torch.device, model_config: "PretrainedConfig"
-) -> None:
-    """
-    Rebuild submodules that *exclusively* hold buffers (e.g., RotaryEmbedding).
-    These need to be manually reset because HF will only initialize trainable parameters via the initialize_weights call. Buffers
-    are initialized at the time of class instantiation, but because we initialize the model
-    on meta device, these aren't populated.
-
-    The heuristic we use is that the module to be replaced (e.g., RotaryEmbedding) is a leaf-like module
-    that has buffers and no direct parameters. We also assume that the module takes in a config object.
-
-    Args:
-        model: Model to rebuild buffers for
-        device: Device to rebuild buffers on
-        model_config: Model config
-    """
-    if not model_config:
-        logging.warning("Warning: Model config is not available. Skipping buffer rebuild.")
-        return
-
-    for module_name, child in list(model.named_children()):
-        _rebuild_buffer_only_modules_in_place(child, device, model_config)
-
-        # Only consider leaf-like modules that have buffers and no direct parameters
-        buffers = list(child.buffers(recurse=False))
-        if not buffers:
-            continue
-        has_params = any(True for _ in child.parameters(recurse=False))
-        if has_params:
-            continue
-
-        try:
-            module_cls = child.__class__
-            with torch.device(device):
-                new_child = module_cls(config=model_config)
-            setattr(model, module_name, new_child)
-            logging.info(f"Initialized weights for buffer-only module `{module_name}` of type {module_cls.__name__}.")
-        except Exception as e:
-            logging.warning(f"Failed to initialize weights for buffer-only module `{module_name}`: {e}")
 
 
 def _init_peft_adapters(model: nn.Module, peft_init_method: str):
