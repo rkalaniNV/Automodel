@@ -530,7 +530,6 @@ def _apply(module, fn, recurse=True):
             return False
 
     should_use_swap_tensors = torch.__future__.get_swap_module_params_on_conversion()
-
     for key, param in module._parameters.items():
         if param is None:
             continue
