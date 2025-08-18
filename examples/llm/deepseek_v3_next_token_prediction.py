@@ -32,6 +32,7 @@ from nemo_automodel.components.moe.deepseek_v3.model import DeepseekV3ForCausalL
 from nemo_automodel.components.moe.deepseek_v3.parallelizer import parallelize_model
 from nemo_automodel.components.moe.utils import BackendConfig
 from nemo_automodel.components.training.timers import Timers
+from nemo_automodel.components.utils.flops.formulas import deepseekv3
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -116,6 +117,10 @@ if __name__ == "__main__":
         torch.distributed.barrier(device_ids=[torch.cuda.current_device()])
         if rank == 0:
             print(f"Rank {rank} | Config: {config}")
+
+        flops = deepseekv3(config, gbs=args.global_batch_size, seq_len=args.seq_len)
+        tflops = flops / (10**12)
+        print(f"TFLOPs/GPU: {tflops:.6f}")
 
         with torch.device("meta"):
             model = DeepseekV3ForCausalLM(config, backend=backend)
@@ -241,6 +246,14 @@ if __name__ == "__main__":
 
             # Log timing every iteration
             if i % 1 == 0:  # Log every iteration
+                max_iter_time = timers._get_global_min_max_time(
+                    ["iteration"], reset=False, barrier=False, normalizer=1.0
+                )["iteration"][1]
+                if rank == 0:
+                    mfu = tflops / (torch.distributed.get_world_size() * max_iter_time)
+                    mfu = mfu * 2 / 1979.0
+                    print(f"\nMFU: {mfu * 100:.6f}%")
+
                 timers.log(
                     names=["iteration", "optimizer"]
                     + [f"forward_backward_{_ga_step_idx}" for _ga_step_idx in range(ga_steps)],
