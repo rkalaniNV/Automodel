@@ -57,7 +57,6 @@ if __name__ == "__main__":
     parser.add_argument("--nsys-end", type=int, default=-1, help="Iteration to end nsys profiling")
     parser.add_argument("--iters", type=int, default=30, help="Number of iterations")
     parser.add_argument("--use-fake-gate", action="store_true", default=False, help="Use fake gate")
-    parser.add_argument("--iters", type=int, default=10, help="Number of iterations to run")
     args = parser.parse_args()
 
     # Assuming 8 GPUs per node
@@ -66,9 +65,9 @@ if __name__ == "__main__":
     if args.local_batch_size is None:
         args.local_batch_size = args.pp
 
-    assert (
-        args.local_batch_size // args.micro_batch_size >= args.pp
-    ), f"local_batch_size // micro_batch_size must be greater than or equal to pp * 2, but got {args.local_batch_size} // {args.micro_batch_size} < {args.pp} * 2"
+    assert args.local_batch_size // args.micro_batch_size >= args.pp, (
+        f"local_batch_size // micro_batch_size must be greater than or equal to pp * 2, but got {args.local_batch_size} // {args.micro_batch_size} < {args.pp} * 2"
+    )
 
     # Initialize timers
     timers = Timers(log_level=2, log_option="minmax")
