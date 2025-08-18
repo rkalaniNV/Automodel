@@ -185,4 +185,4 @@ See implementations in:
 - `docs/about/index.md` - Component architecture diagram
 - `docs/about/architecture-overview.md` - Layered architecture diagram
 - `docs/guides/omni/gemma3-3n.md` - Training loss and MedPix sample images
-- `docs/blogs/gemma3n-blog.md` - Blog training loss image
+

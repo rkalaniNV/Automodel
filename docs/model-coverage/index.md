@@ -1,6 +1,6 @@
-# Model Coverage
+# About NeMo Automodel Model Coverage
 
-Comprehensive overview of model architectures and checkpoints supported by NeMo Automodel for fine-tuning and training.
+Discover which model architectures and checkpoints you can immediately fine-tune and train with NeMo Automodel.
 
 ## Overview
 

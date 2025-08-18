@@ -1,13 +1,13 @@
 ---
-description: "Complete guide to NeMo Automodel repository and package structure, from high-level organization to detailed module hierarchy and development patterns."
-tags: ["repository", "package", "structure", "development", "components", "architecture"]
-categories: ["architecture", "development"]
+description: "Practical guide to navigating the NeMo Automodel repository and package structure, with detailed module breakdown and development workflows."
+tags: ["repository", "package", "navigation", "development", "modules", "workflow"]
+categories: ["development", "reference"]
 ---
 
 (repository-and-package-guide)=
 # Repository & Package Guide
 
-Comprehensive guide to the NeMo Automodel codebase organization, from repository structure to package internals and development workflows.
+Practical guide to navigating and understanding the NeMo Automodel codebase organization, from finding files to understanding module relationships and contributing effectively.
 
 ## Guide Overview
 
@@ -203,7 +203,7 @@ python -m pytest tests/unit_tests/datasets/
 
 ## Package Structure
 
-NeMo Automodel is organized as a modular Python package with clear separation of concerns and well-defined interfaces between components. The package follows NVIDIA's established patterns for ML frameworks while optimizing for the specific needs of fine-tuning and training workflows.
+This section provides a detailed breakdown of the `nemo_automodel/` package structure to help you navigate and understand the codebase effectively.
 
 ### Complete Package Directory Structure
 
@@ -300,77 +300,199 @@ nemo_automodel/
     └── utils.py                  # Common utility functions
 ```
 
-### Module Details
+### Detailed Module Breakdown
 
-#### Core Components (`components/`)
+#### Model Integration Layer (`_transformers/`)
 
-##### **Model Integration (`_transformers/`)**
-- **Purpose**: Bridge between Hugging Face models and NeMo training infrastructure
-- **Key Classes**: `NeMoAutoModelForCausalLM`, `NeMoAutoModelForImageTextToText`
-- **Features**: Drop-in replacements with optimized kernels and distributed support
-
-##### **Parameter-Efficient Fine-Tuning (`_peft/`)**
-- **Purpose**: LoRA and other PEFT implementations with optimized kernels
-- **Key Components**: LoRA layers, kernel optimizations, module matching
-- **Integration**: Works seamlessly with any supported model architecture
-
-##### **Data Pipeline (`datasets/`)**
-- **LLM Datasets**: Instruction datasets, evaluation benchmarks, packed sequences
-- **VLM Datasets**: Vision-language datasets with specialized preprocessing
-- **Features**: Optimized collation, memory-efficient loading, flexible transforms
-
-##### **Distributed Training (`distributed/`)**
-- **Strategies**: DDP, FSDP2, nvFSDP, tensor parallelism
-- **Features**: Automatic strategy selection, gradient optimization, communication efficiency
-- **Scaling**: Single GPU to multi-node clusters
-
-#### Training Recipes (`recipes/`)
-
-##### **Base Recipe Architecture**
-```python
-class BaseRecipe:
-    def __init__(self, model, dataset, strategy, config):
-        # Common initialization
-    
-    def setup(self):
-        # Environment and component setup
-    
-    def train(self):
-        # Training loop implementation
-    
-    def evaluate(self):
-        # Evaluation logic
-    
-    def checkpoint(self):
-        # State management
+**File Structure:**
+```
+_transformers/
+├── __init__.py
+├── auto_model.py    # Main model wrapper classes
+└── utils.py         # Transformer utilities
 ```
 
-##### **LLM Recipes (`llm/`)**
-- **Fine-tuning**: Full and parameter-efficient fine-tuning
-- **Optimization**: Automatic mixed precision, gradient accumulation
-- **Features**: Model-specific optimizations, memory management
+**Key Classes and Functions:**
+- `NeMoAutoModelForCausalLM` - Language model wrapper
+- `NeMoAutoModelForImageTextToText` - Vision-language model wrapper  
+- `_BaseNeMoAutoModelClass` - Base wrapper functionality
+- `patch_model_with_kernel_optimizations()` - Applies automatic optimizations
 
-##### **VLM Recipes (`vlm/`)**
-- **Vision Language Training**: Multi-modal fine-tuning workflows
-- **Data Handling**: Image-text pair processing, efficient batching
-- **Memory Optimization**: Large model support with gradient checkpointing
+**Usage Patterns:**
+```python
+# Direct model loading
+from nemo_automodel import NeMoAutoModelForCausalLM
+model = NeMoAutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B")
 
-#### Shared Infrastructure
+# With optimization configuration
+model = NeMoAutoModelForCausalLM.from_pretrained(
+    "meta-llama/Llama-3.2-1B",
+    use_liger_kernel=True,
+    attn_implementation="flash_attention_2"
+)
+```
 
-##### **Import Management (`shared/import_utils.py`)**
-- **Safe Imports**: Graceful handling of optional dependencies
-- **Feature Detection**: Runtime capability discovery
-- **Fallbacks**: Alternative implementations when dependencies unavailable
+#### Parameter-Efficient Fine-Tuning (`_peft/`)
 
-##### **Configuration System (`components/config/`)**
-- **YAML-driven**: Human-readable configuration files
-- **Validation**: Schema validation and error reporting
-- **Templating**: Reusable configuration patterns
+**File Structure:**
+```
+_peft/
+├── __init__.py
+├── lora.py           # LoRA implementation with config
+├── lora_kernel.py    # Optimized LoRA kernels
+└── module_matcher.py # Pattern matching for module targeting
+```
 
-##### **CLI Interface (`_cli/`)**
-- **Job Launching**: Simple command-line interface for training
-- **Environment Detection**: Automatic cluster and GPU detection
-- **Configuration**: CLI argument to YAML configuration mapping
+**Key Components:**
+- `PeftConfig` - Configuration for PEFT methods
+- `LoRALayer` - Low-rank adaptation layer implementation
+- `ModuleMatcher` - Flexible module selection patterns
+- Triton-optimized kernels for performance
+
+**Configuration Examples:**
+```yaml
+peft:
+  _target_: nemo_automodel.components._peft.lora.PeftConfig
+  match_all_linear: true
+  dim: 32
+  alpha: 64
+  use_triton: true
+```
+
+#### Data Processing Pipeline (`datasets/`)
+
+**File Structure:**
+```
+datasets/
+├── __init__.py
+├── utils.py          # Common dataset utilities
+├── llm/             # Language model datasets
+│   ├── column_mapped_text_instruction_dataset.py
+│   ├── hellaswag.py
+│   ├── squad.py
+│   ├── packed_sequence.py
+│   ├── mock.py       # Testing datasets
+│   └── mock_packed.py
+└── vlm/             # Vision-language datasets
+    ├── datasets.py   # VLM dataset implementations
+    ├── collate_fns.py # Specialized collation
+    └── utils.py      # VLM utilities
+```
+
+**Dataset Categories:**
+- **Instruction Datasets**: Text-based instruction following
+- **Evaluation Datasets**: Benchmarks like HellaSwag, SQuAD
+- **Packed Sequences**: Memory-efficient sequence packing
+- **VLM Datasets**: Multi-modal image-text datasets
+- **Mock Datasets**: Testing and development datasets
+
+#### Distributed Training Infrastructure (`distributed/`)
+
+**File Structure:**
+```
+distributed/
+├── __init__.py
+├── ddp.py                    # Distributed Data Parallel
+├── fsdp2.py                  # Fully Sharded Data Parallel v2
+├── nvfsdp.py                 # NVIDIA optimized FSDP
+├── optimized_tp_plans.py     # Tensor parallelism plans
+├── parallelizer.py           # Parallelization orchestration
+├── tensor_utils.py           # Tensor operations
+├── grad_utils.py             # Gradient handling
+├── cp_utils.py               # Context parallelism
+└── init_utils.py             # Distributed initialization
+```
+
+**Strategy Selection:**
+```yaml
+# DDP for smaller models
+distributed:
+  _target_: nemo_automodel.components.distributed.ddp.DDPManager
+
+# FSDP2 for larger models  
+distributed:
+  _target_: nemo_automodel.components.distributed.fsdp2.FSDP2Manager
+  
+# nvFSDP for production scaling
+distributed:
+  _target_: nemo_automodel.components.distributed.nvfsdp.NVFSDPManager
+```
+
+#### Advanced Checkpointing (`checkpoint/`)
+
+**File Structure:**
+```
+checkpoint/
+├── __init__.py
+├── checkpointing.py           # Main checkpoint logic
+├── stateful_wrappers.py       # Component state wrappers
+├── _torch_backports.py        # PyTorch compatibility
+└── _backports/               # HuggingFace integrations
+    ├── filesystem.py
+    ├── hf_storage.py
+    ├── consolidate_hf_safetensors.py
+    └── ...
+```
+
+**Checkpoint Formats:**
+- **HuggingFace Format**: Compatible with HF Hub
+- **Distributed Checkpoint (DCP)**: Sharded for large models
+- **Consolidated Format**: Single-file deployment format
+- **SafeTensors**: Secure tensor serialization
+
+#### Training Orchestration (`recipes/`)
+
+**File Structure:**
+```
+recipes/
+├── __init__.py
+├── base_recipe.py    # Abstract base recipe
+├── llm/
+│   └── finetune.py   # LLM fine-tuning workflow
+└── vlm/
+    └── finetune.py   # VLM fine-tuning workflow
+```
+
+**Recipe Inheritance Pattern:**
+```python
+class BaseRecipe:
+    def setup(self): pass
+    def train(self): pass  
+    def evaluate(self): pass
+
+class LLMFinetuneRecipe(BaseRecipe):
+    # LLM-specific implementation
+    
+class VLMFinetuneRecipe(BaseRecipe):
+    # VLM-specific implementation
+```
+
+#### Supporting Infrastructure
+
+**Configuration Management (`config/`):**
+```
+config/
+├── __init__.py
+├── loader.py         # YAML configuration loading
+└── _arg_parser.py    # CLI argument parsing
+```
+
+**Job Launching (`launcher/`):**
+```
+launcher/
+└── slurm/
+    ├── config.py     # SLURM configuration
+    ├── template.py   # Job template generation
+    └── utils.py      # SLURM utilities
+```
+
+**Logging and Monitoring (`loggers/`):**
+```
+loggers/
+├── __init__.py
+├── wandb_utils.py    # Weights & Biases integration
+└── log_utils.py      # General logging utilities
+```
 
 ## Getting Started Paths
 
@@ -433,52 +555,71 @@ Choose your exploration path based on your role and goals:
 
 ::::
 
-### Core Package Structure
-The Automodel source code is available under the [`nemo_automodel`](https://github.com/NVIDIA-NeMo/Automodel/tree/main/nemo_automodel) directory. It is organized into three main directories:
-- [`components/`](https://github.com/NVIDIA-NeMo/Automodel/tree/main/nemo_automodel/components) - Self-contained modules
-- [`recipes/`](https://github.com/NVIDIA-NeMo/Automodel/tree/main/nemo_automodel/recipes) - End-to-end training workflows
-- [`_cli/`](https://github.com/NVIDIA-NeMo/Automodel/tree/main/nemo_automodel/_cli) - Command-line interface
+### Navigation Quick Reference
 
-#### Components Directory
-The `components/` directory contains isolated modules used in training loops. Each component is designed to be dependency-light and reusable without cross-module imports.
+**Finding Files by Function:**
 
-```
-$ tree -L 1 nemo_automodel/components/
+```{list-table}
+:header-rows: 1
+:widths: 30 70
 
-├── _peft/          - Implementations of PEFT methods, such as LoRA.
-├── _transformers/  - Optimized model implementations for Hugging Face models.
-├── checkpoint/     - Checkpoint save and load-related logic.
-├── config/         - Utils to load YAML files and CLI-parsing helpers.
-├── datasets/       - LLM and VLM datasets and utils (collate functions, preprocessing).
-├── distributed/    - Distributed processing primitives (DDP, FSDP2, nvFSDP).
-├── launcher/       - Job launcher for interactive and batch (Slurm, K8s) processing.
-├── loggers/        - Metric/event logging for Weights & Biases and other tools
-├── loss/           - Loss functions (such as cross-entropy and linear cross-entropy, etc.).
-├── optim/          - Optimizers and LR schedulers, including fused or second-order variants.
-├── training/       - Training and fine-tuning utils.
-└── utils/          - Small, dependency-free helpers (seed, profiler, timing, fs).
-```
-
-#### Key Component Features
-- Each component can be used independently in other projects
-- Each component has its own dependencies, without cross-module imports
-- Unit tests are colocated with the component they cover
-
-#### Recipes Directory
-Recipes define **end-to-end workflows** (data → training → eval) for a variety of tasks, combining components into usable pipelines.
-
-```
-$ tree -L 2 nemo_automodel/recipes/
-├── llm
-│   └── finetune.py   - Finetune recipe for LLMs (SFT, PEFT).
-└── vlm
-    └── finetune.py   - Finetune recipe for VLMs (SFT, PEFT).
+* - Looking for...
+  - Check these locations
+* - Model loading/wrapping
+  - `nemo_automodel/components/_transformers/`
+* - PEFT configurations
+  - `nemo_automodel/components/_peft/`  
+* - Dataset implementations
+  - `nemo_automodel/components/datasets/llm/` or `datasets/vlm/`
+* - Distributed training setup
+  - `nemo_automodel/components/distributed/`
+* - Training workflows
+  - `nemo_automodel/recipes/llm/` or `recipes/vlm/`
+* - CLI commands
+  - `nemo_automodel/_cli/app.py`
+* - Configuration loading
+  - `nemo_automodel/components/config/`
+* - Checkpointing logic
+  - `nemo_automodel/components/checkpoint/`
+* - Working examples
+  - `examples/llm/` or `examples/vlm/`
+* - Unit tests
+  - `tests/unit_tests/[component_name]/`
+* - Integration tests
+  - `tests/functional_tests/`
 ```
 
-For configuration examples and running instructions, see {ref}`get-started-quick-start` and the LLM SFT guide.
+### File Naming Conventions
 
-#### CLI Directory
-The `automodel` CLI simplifies job execution across environments. See the Quick Start guide for basic examples and the SLURM launcher guide for cluster usage.
+**Components follow consistent patterns:**
+- `__init__.py` - Package initialization with imports
+- `*.py` - Implementation files with descriptive names
+- `utils.py` - Utility functions for the component
+- `config.py` - Configuration classes (where applicable)
+
+**Common file patterns:**
+- `*_dataset.py` - Dataset implementations
+- `*_utils.py` - Utility functions
+- `test_*.py` - Unit tests (in corresponding test directories)
+
+### Module Import Patterns
+
+**Top-level imports (promoted to package namespace):**
+```python
+from nemo_automodel import NeMoAutoModelForCausalLM
+from nemo_automodel import NeMoAutoModelForImageTextToText
+```
+
+**Component-level imports:**
+```python
+from nemo_automodel.components._peft.lora import PeftConfig
+from nemo_automodel.components.distributed.fsdp2 import FSDP2Manager
+```
+
+**Recipe imports:**
+```python
+from nemo_automodel.recipes.llm.finetune import LLMFinetuneRecipe
+```
 
 ## Development Patterns
 
@@ -580,24 +721,164 @@ distributed:
 
 ## Development Workflow
 
-Understanding the repository structure helps with effective development:
+Understanding the repository structure enables effective development:
 
-1. **Start with Examples**: Use `examples/` to understand expected usage patterns
-2. **Modify Components**: Make changes in `nemo_automodel/components/` for new features
-3. **Update Recipes**: Modify `nemo_automodel/recipes/` for workflow changes
-4. **Add Tests**: Create tests in `tests/` that mirror your changes
-5. **Update Documentation**: Modify `docs/` to reflect new features
-6. **Container Testing**: Use `docker/` for reproducible testing environments
+#### **Step-by-Step Development Process**
+
+1. **📁 Explore Examples First**
+   ```bash
+   # Start with working examples to understand patterns
+   ls examples/llm/  # Review LLM configurations
+   ls examples/vlm/  # Review VLM configurations
+   ```
+
+2. **🔍 Identify Target Component** 
+   ```bash
+   # Find the right component for your change
+   find nemo_automodel/components/ -name "*.py" | grep -i [your_feature]
+   ```
+
+3. **🧪 Run Existing Tests**
+   ```bash
+   # Understand current behavior
+   python -m pytest tests/unit_tests/[component_name]/
+   ```
+
+4. **✏️ Make Changes**
+   ```bash
+   # Edit component files
+   vim nemo_automodel/components/[component]/[file].py
+   ```
+
+5. **🔧 Update Tests**
+   ```bash
+   # Add/modify tests to cover your changes  
+   vim tests/unit_tests/[component]/test_[file].py
+   ```
+
+6. **✅ Validate Changes**
+   ```bash
+   # Run tests to ensure everything works
+   python -m pytest tests/unit_tests/[component]/
+   python -m pytest tests/functional_tests/ -k [relevant_test]
+   ```
+
+#### **Common Development Patterns**
+
+**Adding a New Dataset:**
+1. Implement in `nemo_automodel/components/datasets/llm/` or `datasets/vlm/`
+2. Add unit tests in `tests/unit_tests/datasets/`
+3. Create example configuration in `examples/`
+4. Update documentation
+
+**Adding a New Distributed Strategy:**
+1. Implement in `nemo_automodel/components/distributed/`
+2. Add integration tests in `tests/functional_tests/`
+3. Update recipes to support new strategy
+4. Add performance benchmarks
+
+**Extending PEFT Methods:**
+1. Implement in `nemo_automodel/components/_peft/`
+2. Add kernel optimizations if needed
+3. Create comprehensive tests
+4. Add example configurations
+
+#### **Testing Strategy**
+
+**Unit Tests** - Test individual components:
+```bash
+# Test specific component
+python -m pytest tests/unit_tests/datasets/ -v
+
+# Test with coverage
+python -m pytest tests/unit_tests/datasets/ --cov=nemo_automodel.components.datasets
+```
+
+**Functional Tests** - Test end-to-end workflows:
+```bash
+# Test LLM training workflow
+python -m pytest tests/functional_tests/hf_transformer_llm/
+
+# Test distributed training
+python -m pytest tests/functional_tests/hf_consolidated_fsdp/
+```
+
+**Integration Testing** - Test component interactions:
+```bash
+# Test PEFT + distributed training
+python -m pytest tests/functional_tests/hf_peft/
+```
+
+#### **Documentation Updates**
+
+**API Documentation:**
+- Update docstrings in source files
+- Auto-generated via Sphinx
+
+**User Guides:**
+- Add examples to `docs/guides/`
+- Update tutorials in `docs/tutorials/`
+
+**Configuration Reference:**
+- Update YAML schema documentation
+- Add configuration examples
+
+### Debugging and Troubleshooting
+
+**Common Investigation Paths:**
+
+**Import Issues:**
+```bash
+# Check import dependencies
+python -c "from nemo_automodel.components.distributed.fsdp2 import FSDP2Manager"
+```
+
+**Configuration Problems:**
+```bash
+# Validate YAML configuration
+python -c "from nemo_automodel.components.config.loader import load_config; load_config('your_config.yaml')"
+```
+
+**Component Behavior:**
+```bash
+# Test individual components
+python -m pytest tests/unit_tests/[component]/ -v -s
+```
+
+**Performance Issues:**
+```bash
+# Profile training components
+python -m cProfile -o profile_output.prof your_training_script.py
+```
+
+### Quick Reference Card
+
+#### **File Location Quick Reference**
+- 🏗️ **Architecture decisions**: `docs/about/architecture-overview.md`
+- 📁 **Repository navigation**: `docs/about/repository-and-package-guide.md` (this file)
+- 🚀 **Getting started**: `docs/get-started/`
+- 🧪 **Working examples**: `examples/llm/` and `examples/vlm/`
+- 🔧 **Component source**: `nemo_automodel/components/`
+- 🍳 **Training workflows**: `nemo_automodel/recipes/`
+- ✅ **Testing**: `tests/unit_tests/` and `tests/functional_tests/`
+
+#### **Development Checklist**
+- [ ] Understand the problem by reviewing examples
+- [ ] Identify the correct component to modify
+- [ ] Run existing tests to understand current behavior  
+- [ ] Implement changes following established patterns
+- [ ] Add comprehensive tests for new functionality
+- [ ] Update documentation and examples
+- [ ] Validate changes with integration tests
 
 ## Summary
 
-NeMo Automodel's structure is designed for developer productivity, component reusability, and production scalability. The modular architecture enables rapid prototyping while the well-defined interfaces ensure reliable integration patterns. This structure supports the framework's goal of providing immediate access to new models with enterprise-grade training capabilities.
+This guide provides the practical knowledge needed to navigate, understand, and contribute to the NeMo AutoModel codebase. The repository is structured for developer productivity with clear separation of concerns, comprehensive testing, and detailed documentation.
 
-### Quick Reference
+**Key Navigation Principles:**
+- **Examples first**: Always start with working examples to understand patterns
+- **Component isolation**: Each component can be understood independently
+- **Test-driven**: Tests provide the best documentation of expected behavior
+- **Configuration-driven**: YAML files define behavior, code implements it
 
-- **Repository Overview**: Start with `examples/` and `README.md`
-- **Package Internals**: Explore `nemo_automodel/components/` and `recipes/`
-- **Testing**: Run tests in `tests/` to understand behavior
-- **Documentation**: Comprehensive guides in `docs/`
-- **Development**: Follow patterns in `CONTRIBUTING.md`
-- **Deployment**: Use containers in `docker/` for consistent environments
+The modular structure enables rapid development while maintaining reliability through comprehensive testing and clear interfaces. Whether you're using NeMo AutoModel or contributing to it, this structure supports efficient development workflows and predictable behavior.

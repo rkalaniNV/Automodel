@@ -4,7 +4,7 @@ tags: ["learning", "examples", "tutorials", "use-cases"]
 categories: ["learning"]
 ---
 
-# Learning Resources
+# About Learning Resources
 
 Comprehensive collection of learning materials to help you master NeMo Automodel, from basic examples to advanced use cases and tutorials.
 

@@ -582,69 +582,147 @@ graph TB
 - **Additional Backends**: More inference engine integrations
 - **Advanced Optimizations**: Continued performance improvements
 
-## Package Structure Deep Dive
+## System Integration and Data Flow
 
-### Core Module Organization
+### Training Pipeline Architecture
 
-NeMo Automodel follows a hierarchical modular architecture with clear separation of concerns:
+NeMo AutoModel orchestrates complex training workflows through a well-defined data flow:
 
-```text
-nemo_automodel/
-├── components/           # Modular training components
-│   ├── _transformers/    # HF model integration layer
-│   ├── _peft/           # Parameter-efficient fine-tuning
-│   ├── datasets/        # Data loading and processing
-│   │   ├── llm/         # Language model datasets
-│   │   └── vlm/         # Vision-language datasets
-│   ├── distributed/     # Multi-GPU training strategies
-│   ├── checkpoint/      # Advanced state management
-│   ├── loss/            # Optimized loss functions
-│   ├── training/        # Training utilities & scheduling
-│   ├── launcher/        # Job launching & cluster integration
-│   ├── loggers/         # Monitoring & experiment tracking
-│   ├── optim/          # Optimization algorithms
-│   ├── quantization/    # Model quantization support
-│   └── utils/          # Component-specific utilities
-├── recipes/             # End-to-end training workflows
-│   ├── llm/            # Language model recipes
-│   └── vlm/            # Vision-language model recipes
-├── shared/             # Cross-component utilities
-└── _cli/               # Command-line interface
+```{raw} html
+<div class="clickable-diagram" data-title="Training Pipeline Data Flow">
 ```
 
-### Component Interaction Patterns
+```{mermaid}
+graph TD
+    A[Configuration] --> B[Component Resolution]
+    B --> C[Model Loading]
+    C --> D[Dataset Processing]
+    D --> E[Distributed Setup]
+    E --> F[Training Loop]
+    F --> G[Checkpointing]
+    F --> H[Evaluation]
+    F --> I[Logging]
+    
+    subgraph "Optimization Layer"
+        J[Kernel Optimization]
+        K[Memory Management]
+        L[Communication Optimization]
+    end
+    
+    F --> J
+    F --> K
+    F --> L
+    
+    subgraph "Persistence Layer"
+        M[Model State]
+        N[Optimizer State]
+        O[Training Metadata]
+    end
+    
+    G --> M
+    G --> N
+    G --> O
+```
 
-#### **Dependency Flow**
-1. **Shared Utilities** → Foundation layer used by all components
-2. **Core Components** → Independent, composable building blocks  
-3. **Training Recipes** → Orchestrate components into complete workflows
-4. **CLI Interface** → User-facing entry point for launching workflows
+```{raw} html
+</div>
+```
 
-#### **Import Architecture**
-- **Top-level imports**: Key classes promoted to package namespace (`NeMoAutoModelForCausalLM`, `NeMoAutoModelForImageTextToText`)
-- **Lazy loading**: Submodules imported on-demand for fast startup
-- **Safe imports**: Graceful handling of optional dependencies with fallbacks
-- **Clear interfaces**: Well-defined APIs between components
+### Component Interaction Principles
 
-### Key Design Principles
+#### **Inversion of Control**
+Components don't directly instantiate dependencies; instead, the configuration system injects dependencies at runtime:
 
-#### **Modularity**
-Each component is self-contained with minimal cross-dependencies:
-- **Transformers**: Independent model wrappers with drop-in HF compatibility
-- **PEFT**: Standalone LoRA implementations with optimized kernels
-- **Distributed**: Pluggable parallelization strategies (DDP, FSDP2, nvFSDP)
-- **Datasets**: Reusable data processing pipelines for LLM and VLM
+```python
+# Configuration-driven dependency injection
+model = ConfigNode.instantiate(config.model)  # Creates NeMoAutoModelForCausalLM
+optimizer = ConfigNode.instantiate(config.optimizer, params=model.parameters())
+dataset = ConfigNode.instantiate(config.dataset)
+```
 
-#### **Composability** 
-Components combine seamlessly for custom workflows through well-defined interfaces and standardized configuration patterns.
+#### **Event-Driven Architecture**
+Training loops use hooks and callbacks for extensibility:
 
-#### **Extensibility**
-New components integrate easily by:
-- Inheriting from base classes (`BaseRecipe`, component interfaces)
-- Following established patterns (configuration, checkpointing, logging)
-- Using shared utilities (import management, YAML processing)
-- Maintaining API consistency across the ecosystem
+```python
+class TrainingEventHandler:
+    def on_training_start(self, state): pass
+    def on_batch_start(self, state): pass
+    def on_forward_end(self, state): pass
+    def on_backward_end(self, state): pass
+    def on_step_end(self, state): pass
+```
+
+#### **State Management Patterns**
+Training state flows through well-defined interfaces:
+
+```python
+@dataclass
+class TrainingState:
+    model: nn.Module
+    optimizer: Optimizer
+    step: int
+    epoch: int
+    loss: float
+    metrics: Dict[str, float]
+```
+
+## Architectural Trade-offs and Design Decisions
+
+### Performance vs. Simplicity
+
+**Design Decision**: Automatic optimization with fallback paths
+- **Benefit**: Users get performance improvements without configuration complexity
+- **Trade-off**: More complex internal code paths and testing requirements
+- **Implementation**: Kernel patching with graceful degradation
+
+### Compatibility vs. Innovation
+
+**Design Decision**: Drop-in replacement for Hugging Face APIs
+- **Benefit**: Zero migration cost for existing workflows
+- **Trade-off**: Constrained by upstream API design decisions
+- **Implementation**: Inheritance-based wrapper pattern with optimization injection
+
+### Modularity vs. Integration
+
+**Design Decision**: Component independence with recipe-level orchestration
+- **Benefit**: Reusable components, easier testing, clear interfaces
+- **Trade-off**: More complex configuration and potential performance overhead
+- **Implementation**: Dependency injection through configuration system
+
+## Future Architecture Evolution
+
+### Planned Enhancements
+
+#### **4D Parallelism Support**
+Extension of current 3D parallelism (data, tensor, pipeline) to include context parallelism for extremely long sequences.
+
+#### **Heterogeneous Training**
+Support for mixed hardware setups (different GPU types, CPU offloading strategies).
+
+#### **Dynamic Optimization**
+Runtime adaptation of optimization strategies based on training characteristics and hardware performance.
+
+#### **Pluggable Backends**
+Support for multiple training backends (PyTorch, JAX) through abstraction layers.
+
+### Scalability Roadmap
+
+The architecture is designed to scale across multiple dimensions:
+
+- **Model Size**: From 1B to 1T+ parameters through advanced sharding
+- **Cluster Size**: From single node to thousands of nodes
+- **Data Volume**: Petabyte-scale datasets through streaming and caching
+- **Model Types**: Extension beyond LLM/VLM to audio, video, multimodal
 
 ## Summary
 
-NeMo Automodel's architecture successfully bridges the gap between Hugging Face's model ecosystem and NVIDIA's high-performance training infrastructure. The modular design enables rapid experimentation while the optimized components ensure production-ready performance. This architectural foundation supports the platform's core mission: providing Day-0 access to new models with enterprise-grade training capabilities.
+NeMo AutoModel's architecture successfully bridges the gap between Hugging Face's model ecosystem and NVIDIA's high-performance training infrastructure. The modular design enables rapid experimentation while the optimized components ensure production-ready performance. 
+
+**Key Architectural Strengths:**
+- **Performance**: Automatic optimizations with 2-3x speedup over vanilla PyTorch
+- **Compatibility**: Drop-in replacement for existing Hugging Face workflows  
+- **Scalability**: Single GPU to multi-node clusters with same configuration
+- **Flexibility**: Component-based design enables custom training workflows
+- **Future-proof**: Extensible architecture for emerging model types and hardware
+
+This architectural foundation supports the platform's core mission: providing Day-0 access to new models with enterprise-grade training capabilities while maintaining the simplicity that developers expect.

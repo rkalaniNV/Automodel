@@ -4,7 +4,7 @@ tags: ["training", "guides", "llm", "vlm", "omni", "checkpointing", "launcher"]
 categories: ["training", "deployment"]
 ---
 
-# About NeMo Automodel Training Guides
+# About NeMo Automodel Guides
 
 Master fine-tuning and deployment workflows with comprehensive guides for language models, vision language models, and advanced omni-modal architectures.
 
