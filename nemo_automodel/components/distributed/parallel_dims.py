@@ -56,12 +56,12 @@ def _get_device_type(device_or_backend_type: str) -> str:
 
 @dataclass
 class ParallelDims:
-    dp_replicate_size: int
-    dp_shard_size: int
     cp_size: int
     tp_size: int
-    pp_size: int
     world_size: int
+    dp_replicate_size: int | None = None
+    dp_shard_size: int = 1
+    pp_size: int = 1
     pp_dynamic_shape: bool = False
     ep_size: int = 1
     # When ep is enabled, we can have different dp shard for the MoE module.
@@ -70,9 +70,13 @@ class ParallelDims:
     # for the MoE module.
     dp_shard_with_ep_size: int = -1
 
+    backend: str = "nccl"
+
     mesh: str = field(init=False, default=None)
 
     def __post_init__(self):
+        if self.dp_replicate_size is None:
+            self.dp_replicate_size = self.world_size // (self.dp_shard_size * self.cp_size * self.tp_size)
         if self.pp_size > 1:
             raise ValueError("Pipeline parallelism is not supported yet.")
         if self.ep_size > 1:
@@ -84,6 +88,8 @@ class ParallelDims:
 
         self._validate()
         self.build_mesh_info()
+        self.mesh = self.build_mesh(self.backend)
+        assert self.mesh is not None, "Mesh is not initialized"
 
     def _validate(self):
         dp_replicate, dp_shard, cp, tp, pp, ep, dp_shard_with_ep = (
@@ -137,7 +143,6 @@ class ParallelDims:
 
     def build_mesh(self, device_or_backend_type: str) -> DeviceMesh:
         device_type = _get_device_type(device_or_backend_type)
-
         dims = []
         names = []
         for d, name in zip(
@@ -202,7 +207,6 @@ class ParallelDims:
             mesh[tuple(dp_cp_mesh_dim_names)]._flatten(mesh_dim_name=DimNames.DP_CP)
 
         assert self.mesh is None, "mesh is already set"
-        self.mesh = mesh
         return mesh
 
     def get_rank_in_dim(self, mesh_dim_name: str, global_rank: int) -> int:
