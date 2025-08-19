@@ -780,6 +780,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     loss_buffer.append(local_loss.clone().detach())
                     local_loss.backward()
 
+        if self.pp_enabled:
+            self.model.scale_grads_by_divisor(num_label_tokens)
+
         grad_norm = None
         # Clip gradients **after** any rescaling.
         # TODO(@boxiangw): Fix TP gradient clipping
@@ -822,7 +825,17 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         time_delta = t - self.timestamp
         self.timestamp = t
         tps = num_tokens_in_batch / time_delta
-        reporting_loss = torch.sum(torch.stack(loss_buffer)).item()
+        reporting_loss = torch.sum(torch.stack(loss_buffer))
+        if self.pp_enabled:
+            reporting_loss = reporting_loss / num_label_tokens
+            # Send loss to first rank if pp group rank is 0
+            src_rank = self.device_mesh.mesh.reshape(-1)[-1].item()
+            if self.dist_env.rank == src_rank:
+                torch.distributed.send(reporting_loss, dst=0)
+            elif self.dist_env.is_main:
+                torch.distributed.recv(reporting_loss, src=src_rank)
+
+        reporting_loss = reporting_loss.item()
         # fix reporting_loss, tps across ranks
         return reporting_loss, grad_norm, tps, num_tokens_in_batch, num_label_tokens
 
@@ -897,14 +910,6 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             num_tokens_in_batch: Total number of loss tokens.
             tps: Tokens per second.
         """
-        if self.pp_enabled:
-            # Send loss to first rank if pp group rank is 0
-            src_rank = self.device_mesh.mesh.reshape(-1)[-1].item()
-            if self.dist_env.rank == src_rank:
-                torch.distributed.send(train_loss, dst=0)
-            elif self.dist_env.is_main:
-                torch.distributed.recv(train_loss, src=src_rank)
-
         log_data = {
             "step": self.step_scheduler.step,
             "epoch": self.step_scheduler.epoch,

@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, Un
 import torch
 import torch.nn as nn
 from torch.distributed.device_mesh import DeviceMesh
+from torch.distributed.pipelining.schedules import _PipelineSchedule
 from torch.distributed.pipelining.stage import PipelineStage
 
 from nemo_automodel.components.distributed.autopipeline.functional import pipeline_model
@@ -41,7 +42,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PipelineInfo:
     enabled: bool
-    schedule: Optional[object]
+    schedule: Optional[_PipelineSchedule]
     has_first_stage: bool
     has_last_stage: bool
     model_parts: Optional[list[nn.Module]]
