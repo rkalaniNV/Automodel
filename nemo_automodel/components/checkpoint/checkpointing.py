@@ -106,13 +106,18 @@ def save_model(
         ):
             os.makedirs(consolidated_model_path, exist_ok=True)
             # save the config.json file
-            if hasattr(model, "config"):
+            if isinstance(model, list):
+                model_part = model[0]
+            else:
+                model_part = model
+
+            if hasattr(model_part, "config"):
                 with open(os.path.join(consolidated_model_path, "config.json"), "w") as f:
-                    f.write(model.config.to_json_string())
+                    f.write(model_part.config.to_json_string())
             # save the generation_config.json file
-            if hasattr(model, "generation_config"):
+            if hasattr(model_part, "generation_config"):
                 with open(os.path.join(consolidated_model_path, "generation_config.json"), "w") as f:
-                    f.write(model.generation_config.to_json_string())
+                    f.write(model_part.generation_config.to_json_string())
 
             # save the tokenizer
             if tokenizer is not None:
