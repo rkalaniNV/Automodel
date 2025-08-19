@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 import torch
 import torch.nn as nn
 import wandb
-from torch.distributed.device_mesh import DeviceMesh, _mesh_resources
+from torch.distributed.device_mesh import DeviceMesh
 from torch.utils.data import DataLoader
 from torchao.float8 import precompute_float8_dynamic_scale_for_fsdp
 from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
@@ -42,7 +42,6 @@ from nemo_automodel.components.checkpoint.checkpointing import CheckpointingConf
 from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
 from nemo_automodel.components.datasets.llm.packed_sequence import PackedSequence
 from nemo_automodel.components.distributed.autopipeline.core import AutoPipeline
-from nemo_automodel.components.distributed.autopipeline.hf_utils import init_hf_model_buffers
 from nemo_automodel.components.distributed.cp_utils import make_cp_batch_and_ctx
 from nemo_automodel.components.distributed.init_utils import (
     get_local_rank_preinit,
@@ -167,10 +166,6 @@ def build_model_and_optimizer(
 
     if autopipeline is not None:
         autopipeline.build(model, loss_fn=loss_fn, parallelize_fn=parallelize_fn)
-        autopipeline.materialize(
-            init_buffers_fn=init_hf_model_buffers,
-            init_weights_fn=None,
-        )
         for mp in autopipeline.parts:
             load_model_from_base_checkpoint(
                 mp,

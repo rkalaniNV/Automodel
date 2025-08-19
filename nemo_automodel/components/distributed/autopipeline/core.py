@@ -24,7 +24,6 @@ from torch.distributed.pipelining.stage import PipelineStage
 
 from nemo_automodel.components.distributed.autopipeline.functional import pipeline_model
 from nemo_automodel.components.distributed.autopipeline.hf_utils import (
-    initialize_hf_model_on_meta,
     validate_hf_model_for_pipeline_support,
 )
 from nemo_automodel.components.distributed.autopipeline.training_utils import (
@@ -32,9 +31,6 @@ from nemo_automodel.components.distributed.autopipeline.training_utils import (
     pp_forward_backward_step,
     pp_scale_grads_by_divisor,
 )
-
-if TYPE_CHECKING:
-    from transformers import AutoConfig
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +138,7 @@ class AutoPipeline:
 
     def build(
         self,
-        model_or_config: Union[str, "AutoConfig", nn.Module],
+        model: nn.Module,
         *,
         loss_fn: Optional[Callable] = None,
         parallelize_fn: Optional[ParallelizeFnProtocol] = None,
@@ -151,14 +147,9 @@ class AutoPipeline:
         """Build the pipeline: validate -> init meta -> split -> materialize -> schedule."""
         # 0. Validation
         assert loss_fn is not None, "loss_fn must be provided"
+        assert isinstance(model, nn.Module), "model must be a PyTorch module"
 
-        # If model instance provided, use as-is; else expect a config object with instantiate()
-        if isinstance(model_or_config, nn.Module):
-            model = model_or_config
-        else:
-            # HF hub id
-            model = initialize_hf_model_on_meta(model_or_config, **(initialize_kwargs or {}))
-            validate_hf_model_for_pipeline_support(model)
+        validate_hf_model_for_pipeline_support(model)
 
         pp_schedule_obj, model_parts, pp_has_first_stage, pp_has_last_stage, stages = pipeline_model(
             model,
