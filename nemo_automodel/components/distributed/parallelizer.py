@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import importlib
-import signal
 from contextlib import contextmanager
 from functools import lru_cache
 from types import FunctionType
@@ -24,11 +23,11 @@ from torch import nn
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     checkpoint_wrapper,
 )
-from torch.distributed.device_mesh import DeviceMesh, _mesh_resources
+from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import (
-    CPUOffloadPolicy,
     FSDPModule,
     MixedPrecisionPolicy,
+    OffloadPolicy,
     fully_shard,
 )
 from torch.distributed.tensor.parallel import (
@@ -39,7 +38,6 @@ from torch.distributed.tensor.parallel import (
     parallelize_module,
 )
 from torch.distributed.tensor.placement_types import Replicate, Shard
-from transformers.models.gemma3.modeling_gemma3 import Gemma3ForConditionalGeneration
 
 # Import model-specific tensor parallel plans from the dedicated module
 from nemo_automodel.components.distributed.optimized_tp_plans import PARALLELIZE_FUNCTIONS
@@ -54,30 +52,30 @@ except:
     pass
 
 
-def apply_fsdp_sharding_recursively(
+def apply_fsdp2_sharding_recursively(
     module: nn.Module,
     mesh: DeviceMesh,
     mp_policy: Optional[MixedPrecisionPolicy],
-    offload_policy: Optional[CPUOffloadPolicy] = None,
+    offload_policy: Optional[OffloadPolicy] = None,
 ) -> None:
     """
-    Recursively apply FSDP sharding to modules, with optimizations for ModuleList.
+    Recursively apply FSDP2 sharding to modules, with optimizations for ModuleList.
 
-    This utility function traverses a model hierarchy and applies FSDP sharding
+    This utility function traverses a model hierarchy and applies FSDP2 sharding
     to each module. For ModuleList instances (commonly used for transformer layers),
     it applies an optimization where the last layer doesn't reshard after forward
-    since FSDP will prefetch it immediately.
+    since FSDP2 will prefetch it immediately.
 
     Args:
         module (nn.Module): The module to apply FSDP sharding to.
         mesh (DeviceMesh): The device mesh for FSDP sharding.
         mp_policy (Optional[MixedPrecisionPolicy]): Mixed precision policy for FSDP.
-        offload_policy (Optional[CPUOffloadPolicy]): CPU offload policy for FSDP.
+        offload_policy (Optional[OffloadPolicy]): CPU offload policy for FSDP.
             Defaults to None.
 
     Note:
         This function modifies the module in-place by replacing modules with their
-        FSDP-wrapped versions.
+        FSDP2-subclassed versions.
     """
     if isinstance(module, nn.ModuleList):
         for layer_id, transformer_block in enumerate(module):
@@ -94,7 +92,7 @@ def apply_fsdp_sharding_recursively(
             module[layer_id] = transformer_block
     else:
         for name, sub_module in module.named_children():
-            apply_fsdp_sharding_recursively(sub_module, mesh, mp_policy, offload_policy)
+            apply_fsdp2_sharding_recursively(sub_module, mesh, mp_policy, offload_policy)
 
 
 def get_hf_tp_shard_plan(model):
@@ -116,25 +114,25 @@ def get_hf_tp_shard_plan(model):
     Raises:
         AssertionError: If no TP plan is found
     """
-    model_cls = type(model)
-    if isinstance(model, Gemma3ForConditionalGeneration):
-        inner_model = model.language_model
-        model_prefix = "language_model"
-    else:
-        inner_model = model.model
-        model_prefix = "model"
 
     hf_tp_plan = {}
 
     # model_cls._tp_plan will override model_cls after xxxForCausalLM.post_init() (transformers==4.51.3)
+    model_cls = type(model)
     if hasattr(model_cls, "_tp_plan") and model_cls._tp_plan is not None:
         hf_tp_plan.update(model_cls._tp_plan)
 
     if hasattr(model, "_tp_plan") and model._tp_plan is not None:
         hf_tp_plan.update(model._tp_plan)
 
-    if hasattr(inner_model, "_tp_plan") and inner_model._tp_plan is not None:
-        hf_tp_plan.update({f"{model_prefix}.{k}": v for k, v in inner_model._tp_plan.items()})
+    model_prefix = "model"
+    inner_model_attrs = ("language_model", "model")
+    for attr in inner_model_attrs:
+        if hasattr(getattr(model, attr, None), "_tp_plan"):
+            model_prefix = attr
+            _tp_plan = getattr(getattr(model, attr), "_tp_plan")
+            hf_tp_plan.update({f"{model_prefix}.{k}": v for k, v in _tp_plan.items()})
+            break
 
     assert len(hf_tp_plan) > 0, (
         f"Hugging Face tp plan is not supported for {model_cls}, please set dtensor_cfg.tensor_parallel_size to 1 or provide a custom_parallel_plan. "
@@ -214,21 +212,127 @@ def translate_to_torch_parallel_style(style: str):
         raise ValueError(f"Unknown parallel style: {style}")
 
 
+def validate_tp_mesh(model, tp_mesh):
+    """
+    Validate that attention heads and key value heads are divisible by TP size
+    """
+    if tp_mesh.size() == 1:
+        return  # if tp_mesh.size() == 1, we don't need to validate
+    try:
+        from transformers.models.gemma3.modeling_gemma3 import Gemma3ForConditionalGeneration
+    except ImportError:  # if transformers is not installed, we don't need to validate
+        return
+
+    if isinstance(model, Gemma3ForConditionalGeneration):
+        num_attention_heads = model.config.text_config.num_attention_heads
+        num_key_value_heads = model.config.text_config.num_key_value_heads
+    elif hasattr(model, "config"):
+        num_attention_heads = getattr(model.config, "num_attention_heads", 0)
+        num_key_value_heads = getattr(model.config, "num_key_value_heads", 0)
+    else:
+        num_attention_heads = 0
+        num_key_value_heads = 0
+
+    # TP sharding with enhanced plan generation
+    # Validate that attention heads are divisible by TP size
+    assert num_key_value_heads % tp_mesh.size() == 0, (
+        f"num_key_value_heads ({num_key_value_heads}) must be divisible by TP size ({tp_mesh.size()})"
+    )
+    assert num_attention_heads % tp_mesh.size() == 0, (
+        f"num_attention_heads ({num_attention_heads}) must be divisible by TP size ({tp_mesh.size()})"
+    )
+
+
+def get_lm_ac_layers(model: nn.Module) -> List[nn.Module]:
+    """
+    Returns repeated layer blocks for activation checkpointing
+    """
+    try:
+        from transformers.models.gemma3.modeling_gemma3 import Gemma3ForConditionalGeneration
+    except ImportError:  # if transformers is not installed, we don't need to validate
+        return []
+    if isinstance(model, Gemma3ForConditionalGeneration):
+        return model.language_model.layers
+    elif hasattr(getattr(model, "model", None), "layers"):
+        return model.model.layers
+    else:
+        # TODO: scan model for nn.Sequential or ModuleList and return it
+        return []
+
+
+def _get_parallel_plan(
+    model: nn.Module,
+    sequence_parallel: bool = False,
+    tp_shard_plan: Optional[Union[Dict[str, ParallelStyle], str]] = None,
+) -> Dict[str, ParallelStyle]:
+    """
+    Get the parallel plan for the model.
+    """
+
+    # Generate or use tensor parallel plan
+    model_parallel_plan = None
+    model_cls = type(model)
+
+    # 1. Use custom parallel plan if provided
+    if tp_shard_plan is not None:
+        if isinstance(tp_shard_plan, dict):
+            model_parallel_plan = tp_shard_plan
+            print("Using provided parallel plan (dictionary).")
+        else:
+            try:
+                plan_obj = import_class_from_path(tp_shard_plan)
+                if isinstance(plan_obj, FunctionType):
+                    model_parallel_plan = plan_obj()
+                else:
+                    model_parallel_plan = plan_obj
+                assert isinstance(model_parallel_plan, dict), (
+                    f"Parallel plan must be a dictionary, got {type(model_parallel_plan)}"
+                )
+                print("Using provided parallel plan (from path).")
+            except Exception as e:
+                raise ValueError(
+                    f"Custom parallel plan '{tp_shard_plan}' is not valid. "
+                    f"Please ensure it is one of the following:\n"
+                    "1. A dictionary mapping module names to parallel styles\n"
+                    "2. A path to a dictionary\n"
+                    "3. A path to a function that returns a dictionary\n"
+                    f"Error: {e}"
+                )
+
+    # 2. Use optimized parallel plan based on model type
+    elif model_cls in PARALLELIZE_FUNCTIONS:
+        try:
+            func = PARALLELIZE_FUNCTIONS[model_cls]
+            model_parallel_plan = func(model, sequence_parallel)
+            print("Using optimized parallel plan.")
+        except Exception as e:
+            print(f"Optimized parallel plan is not available: {e}. Falling back to the HF tp plan.")
+            assert not sequence_parallel, "sequence_parallel is not supported in HF tp plan."
+            model_parallel_plan = get_hf_tp_shard_plan(model)
+
+    # 3. Use HF TP plan as fallback
+    else:
+        if model_cls not in PARALLELIZE_FUNCTIONS:
+            print(f"Optimized parallel plan is not supported for {model_cls}. Falling back to the HF tp plan.")
+        assert not sequence_parallel, "sequence_parallel is not supported in HF tp plan."
+        model_parallel_plan = get_hf_tp_shard_plan(model)
+
+    return model_parallel_plan
+
+
 # Taken and modified from torchtitan
 # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py
 def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh,
-    param_dtype: torch.dtype = torch.bfloat16,
     mp_policy: Optional[MixedPrecisionPolicy] = None,
-    offload_policy: Optional[CPUOffloadPolicy] = None,
+    offload_policy: Optional[OffloadPolicy] = None,
     sequence_parallel: bool = False,
     activation_checkpointing: bool = False,
-    cpu_offload: bool = False,
     tp_shard_plan: Optional[Union[Dict[str, ParallelStyle], str]] = None,
-    dp_mesh_name: str = "data_parallel",
-    tp_mesh_name: str = "tensor_parallel",
-    dp_cp_mesh_name: str = "dp_cp",
+    dp_replicate_mesh_name: str = "dp_replicate",
+    dp_shard_cp_mesh_name: str = "dp_shard_cp",
+    tp_mesh_name: str = "tp",
 ):
     """
     Apply parallelisms and activation checkpointing to the model.
@@ -244,23 +348,21 @@ def fsdp2_strategy_parallelize(
     Args:
         model: The model to be parallelized.
         device_mesh (DeviceMesh): The device mesh for distributed training.
-        param_dtype (torch.dtype): Data type for model parameters. Defaults to torch.bfloat16.
         mp_policy (Optional[MixedPrecisionPolicy]): Mixed precision policy for model parallelism.
-        offload_policy (Optional[CPUOffloadPolicy]): The offload policy for FSDP.
+        offload_policy (Optional[OffloadPolicy]): The offload policy for FSDP.
         sequence_parallel (bool): Whether to use sequence parallelism. Defaults to False.
         activation_checkpointing (bool): Whether to use activation checkpointing. Defaults to False.
-        cpu_offload (bool): Whether to enable cpu offloading for FSDP. Defaults to False.
         tp_shard_plan (Optional[Union[Dict[str, ParallelStyle], str]]):
             Custom tensor parallel plan for the model. Can be:
             - A dictionary mapping module names to parallel styles
             - A string path to a dictionary or function that returns a dictionary
             If provided, this takes precedence over automatic plan generation.
-        dp_mesh_name (str): Key name for the data parallel mesh in device_mesh.
-            Defaults to "data_parallel".
-        dp_cp_mesh_name (str): Key name for the data parallel + context parallel mesh in device_mesh.
-            Used when context parallelism is enabled. Defaults to "dp_cp".
+        dp_replicate_mesh_name (str): Key name for the data parallel replicate mesh in device_mesh.
+            Used when data parallel replicate is enabled. Defaults to "dp_replicate".
+        dp_shard_cp_mesh_name (str): Key name for the data parallel shard + context parallel mesh in device_mesh.
+            Used when data parallel shard is enabled. Defaults to "dp_shard_cp".
         tp_mesh_name (str): Key name for the tensor parallel mesh in device_mesh.
-            Defaults to "tensor_parallel".
+            Defaults to "tp".
 
     Returns:
         The parallelized model.
@@ -269,86 +371,15 @@ def fsdp2_strategy_parallelize(
     the model must fit on GPU or CPU memory.
     """
     # Get model layers for later use
-    model_cls = type(model)
-    if isinstance(model, Gemma3ForConditionalGeneration):
-        layers = model.language_model.layers
-        num_attention_heads = model.config.text_config.num_attention_heads
-        num_key_value_heads = model.config.text_config.num_key_value_heads
-    else:
-        layers = model.model.layers
-        num_attention_heads = model.config.num_attention_heads
-        num_key_value_heads = model.config.num_key_value_heads
-
-    # Set FSDP sharding mesh to context parallel mesh if CP > 1, else default to the data parallel mesh.
-    dp_mesh = device_mesh[
-        (
-            dp_cp_mesh_name
-            if dp_cp_mesh_name in _mesh_resources.root_to_flatten_mapping.get(device_mesh, {})
-            else dp_mesh_name
-        )
-    ]
-
-    if dp_mesh.size() > 1:
-        assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
-
     tp_mesh = device_mesh[tp_mesh_name]
 
     # TP sharding with enhanced plan generation
     if tp_mesh.size() > 1:
         # Validate that attention heads are divisible by TP size
-        assert num_key_value_heads % tp_mesh.size() == 0, (
-            f"num_key_value_heads ({num_key_value_heads}) must be divisible by TP size ({tp_mesh.size()})"
-        )
-        assert num_attention_heads % tp_mesh.size() == 0, (
-            f"num_attention_heads ({num_attention_heads}) must be divisible by TP size ({tp_mesh.size()})"
-        )
+        validate_tp_mesh(model, tp_mesh)
 
         # Generate or use tensor parallel plan
-        model_parallel_plan = None
-
-        # 1. Use custom parallel plan if provided
-        if tp_shard_plan is not None:
-            if isinstance(tp_shard_plan, dict):
-                model_parallel_plan = tp_shard_plan
-                print("Using provided parallel plan (dictionary).")
-            else:
-                try:
-                    plan_obj = import_class_from_path(tp_shard_plan)
-                    if isinstance(plan_obj, FunctionType):
-                        model_parallel_plan = plan_obj()
-                    else:
-                        model_parallel_plan = plan_obj
-                    assert isinstance(model_parallel_plan, dict), (
-                        f"Parallel plan must be a dictionary, got {type(model_parallel_plan)}"
-                    )
-                    print("Using provided parallel plan (from path).")
-                except Exception as e:
-                    raise ValueError(
-                        f"Custom parallel plan '{tp_shard_plan}' is not valid. "
-                        f"Please ensure it is one of the following:\n"
-                        "1. A dictionary mapping module names to parallel styles\n"
-                        "2. A path to a dictionary\n"
-                        "3. A path to a function that returns a dictionary\n"
-                        f"Error: {e}"
-                    )
-
-        # 2. Use optimized parallel plan based on model type
-        elif model_cls in PARALLELIZE_FUNCTIONS:
-            try:
-                func = PARALLELIZE_FUNCTIONS[model_cls]
-                model_parallel_plan = func(model, sequence_parallel)
-                print("Using optimized parallel plan.")
-            except Exception as e:
-                print(f"Optimized parallel plan is not available: {e}. Falling back to the HF tp plan.")
-                assert not sequence_parallel, "sequence_parallel is not supported in HF tp plan."
-                model_parallel_plan = get_hf_tp_shard_plan(model)
-
-        # 3. Use HF TP plan as fallback
-        else:
-            if model_cls not in PARALLELIZE_FUNCTIONS:
-                print(f"Optimized parallel plan is not supported for {model_cls}. Falling back to the HF tp plan.")
-            assert not sequence_parallel, "sequence_parallel is not supported in HF tp plan."
-            model_parallel_plan = get_hf_tp_shard_plan(model)
+        model_parallel_plan = _get_parallel_plan(model, sequence_parallel, tp_shard_plan)
 
         # Apply tensor parallelism
         if model_parallel_plan:
@@ -356,6 +387,7 @@ def fsdp2_strategy_parallelize(
 
     # Apply activation checkpointing to MLP layers if requested
     if activation_checkpointing:
+        layers = get_lm_ac_layers(model)
         for i, layer in enumerate(layers):
             if hasattr(layer, "mlp"):
                 layers[i].mlp = checkpoint_wrapper(layer.mlp)
@@ -363,20 +395,19 @@ def fsdp2_strategy_parallelize(
     # Set up mixed precision policy
     if not mp_policy:
         mp_policy = MixedPrecisionPolicy(
-            param_dtype=param_dtype,
+            param_dtype=torch.bfloat16,
             reduce_dtype=torch.float32,
             output_dtype=torch.float32,
         )
 
-    # Set up offload policy
-    if not offload_policy:
-        offload_policy = CPUOffloadPolicy(pin_memory=False) if cpu_offload else None
+    # Set FSDP sharding mesh to context parallel mesh if CP > 1, else default to the data parallel mesh.
+    # if dp_replicate_size > 1, use HSDP, else use FSDP
+    dp_mesh_dim_names = (dp_replicate_mesh_name, dp_shard_cp_mesh_name)
 
-    # FSDP sharding
-    assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
+    dp_mesh = device_mesh[dp_mesh_dim_names]
 
     # Find transformer layers and apply parallelisms
-    apply_fsdp_sharding_recursively(model, dp_mesh, mp_policy, offload_policy)
+    apply_fsdp2_sharding_recursively(model, dp_mesh, mp_policy, offload_policy)
 
     # Apply FSDP to the root model
     # Do not reshard after forward for root model because its parameters
@@ -411,9 +442,9 @@ def nvfsdp_strategy_parallelize(
     keep_fp8_transpose_cache_when_using_custom_fsdp: bool = False,
     nccl_ub: bool = False,
     fsdp_double_buffer: bool = False,
-    dp_mesh_name: str = "data_parallel",
-    cp_mesh_name: str = "context_parallel",
-    tp_mesh_name: str = "tensor_parallel",
+    dp_mesh_name: str = "dp",
+    cp_mesh_name: str = "cp",
+    tp_mesh_name: str = "tp",
 ):
     """
     Apply tensor/data parallelism (nvFSDP) and optional activation-checkpointing to the model.
@@ -492,7 +523,7 @@ def nvfsdp_strategy_parallelize(
     if cp_mesh.size() > 1:
         dp_cp_mesh_name = "dp_cp"
     else:
-        dp_cp_mesh_name = "data_parallel"
+        dp_cp_mesh_name = "dp"
 
     # Import nvFSDP unit modules specified by the user.
     nvfsdp_unit_modules = import_classes_from_paths(nvfsdp_unit_modules)
@@ -524,17 +555,6 @@ def nvfsdp_strategy_parallelize(
     )
 
     return model, optimizer
-
-
-def _destroy_dist_connection() -> None:
-    """
-    Destroy process group.
-    """
-    # Don't allow Ctrl+C to interrupt this handler
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-    if torch.distributed.is_available() and torch.distributed.is_initialized():
-        torch.distributed.destroy_process_group()
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 
 @contextmanager

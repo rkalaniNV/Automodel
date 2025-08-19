@@ -37,13 +37,6 @@ model-coverage/llm.md
 model-coverage/vlm.md
 ```
 
-```{toctree}
-:caption: Blogs
-:hidden:
-
-guides/gemma3n-blog.md
-```
-
 
 <!-- 
 ```{toctree}
@@ -59,6 +52,7 @@ guides/vlm/dataset.md
 guides/checkpointing.md
 guides/llm/dataset.md
 guides/vlm/dataset.md
+guides/llm/column-mapped-text-instruction-dataset.md
 
 apidocs/index.rst
 ```
