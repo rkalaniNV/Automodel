@@ -233,6 +233,7 @@ def load_model_from_base_checkpoint(
         storage_reader=_HuggingFaceStorageReader(
             model_path, key_mapping=getattr(model, "_checkpoint_conversion_mapping", None)
         ),
+        process_group=device_mesh["pp"].get_group() if device_mesh else None,
     )
     model_state.load_state_dict(model_state_dict)
     if hasattr(model, "tie_weights") and model_state.is_tied_lm_head:

@@ -407,9 +407,6 @@ def fsdp2_strategy_parallelize(
     dp_mesh_dim_names = (dp_replicate_mesh_name, dp_shard_cp_mesh_name)
 
     dp_mesh = device_mesh[dp_mesh_dim_names]
-    if dp_mesh.size() <= 1:
-        logger.info("DP mesh size is 1, skipping FSDP sharding")
-        return model
 
     # Find transformer layers and apply parallelisms
     apply_fsdp2_sharding_recursively(model, dp_mesh, mp_policy, offload_policy)

@@ -37,6 +37,7 @@ from nemo_automodel.components.checkpoint.checkpointing import (
 from nemo_automodel.components.config.loader import ConfigNode
 from nemo_automodel.components.optim.scheduler import OptimizerParamScheduler
 from nemo_automodel.components.training.step_scheduler import StepScheduler
+from nemo_automodel.components.distributed.autopipeline.core import AutoPipeline
 
 try:
     import yaml as _yaml
@@ -84,7 +85,14 @@ def is_lr_scheduler(object):
     Returns:
         bool: returns True if object is an OptimizerParamScheduler.
     """
-    return isinstance(object, OptimizerParamScheduler)
+    return isinstance(object, list) and all(isinstance(item, OptimizerParamScheduler) for item in object) and len(object) > 0
+
+
+def is_optimizer(object):
+    """
+    Checks whether object is an optimizer.
+    """
+    return isinstance(object, list) and all(isinstance(item, Optimizer) for item in object) and len(object) > 0
 
 
 class BaseRecipe:
@@ -111,10 +119,11 @@ class BaseRecipe:
             self.__dict__["__state_tracked"] = set()
         # Track stateful objects unless they are validation/eval components.
         should_track = (
-            isinstance(value, (nn.Module, Optimizer))
+            isinstance(value, (nn.Module, Optimizer, AutoPipeline))
             or has_load_restore_state(value)
             or is_tokenizer(value)
             or is_lr_scheduler(value)
+            or is_optimizer(value)
             or isinstance(value, ConfigNode)
         )
 
@@ -158,9 +167,11 @@ class BaseRecipe:
         model, optimizer, scheduler, tokenizer, config = None, None, None, None, None
 
         for key in self.__dict__["__state_tracked"]:
-            if isinstance(getattr(self, key), nn.Module):
+            if isinstance(getattr(self, key), (nn.Module, AutoPipeline)):
                 model = getattr(self, key)
-            elif isinstance(getattr(self, key), Optimizer):
+                if isinstance(model, AutoPipeline):
+                    model = model.parts
+            elif is_optimizer(getattr(self, key)):
                 optimizer = getattr(self, key)
             elif isinstance(getattr(self, key), ConfigNode):
                 config = getattr(self, key)
@@ -206,9 +217,11 @@ class BaseRecipe:
         model, optimizer, scheduler = None, None, None
 
         for key in self.__dict__["__state_tracked"]:
-            if isinstance(getattr(self, key), nn.Module):
+            if isinstance(getattr(self, key), (nn.Module, AutoPipeline)):
                 model = getattr(self, key)
-            elif isinstance(getattr(self, key), Optimizer):
+                if isinstance(model, AutoPipeline):
+                    model = model.parts
+            elif is_optimizer(getattr(self, key)):
                 optimizer = getattr(self, key)
             elif is_lr_scheduler(getattr(self, key)):
                 scheduler = getattr(self, key)
@@ -315,14 +328,14 @@ class BaseRecipe:
 
         # Optimizer
         if optimizer:
-            for line in ("Optimizer:\n" + str(optimizer)).splitlines():
+            for line in ("Optimizer:\n" + str(optimizer[0])).splitlines():
                 logging.info(line)
         else:
             logging.info("Optimizer: <unavailable>")
 
         # LR scheduler
         if lr_scheduler:
-            for line in ("LR scheduler:\n" + str(lr_scheduler)).splitlines():
+            for line in ("LR scheduler:\n" + str(lr_scheduler[0])).splitlines():
                 logging.info(line)
         else:
             logging.info("LR scheduler: <unavailable>")

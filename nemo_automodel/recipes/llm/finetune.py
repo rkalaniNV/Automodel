@@ -224,17 +224,25 @@ def build_model_and_optimizer(
         else:
             model = model.to(device)
 
-        trainable_params = list(filter(lambda x: x.requires_grad, model.parameters()))
         # Apply torch.compile if configured
         if cfg_compile is not None:
             compile_config = build_compile_config(cfg_compile)
             model = compile_model(model, compile_config)
 
-    assert len(trainable_params) > 0, "trainable_params cannot be empty"
     if tp_size > 1:
         # TP does not support foreach
         cfg_opt.foreach = False
-    optimizer = cfg_opt.instantiate(params=trainable_params)
+
+    if hasattr(model, "parts"):
+        optimizer = []
+        for part in model.parts:
+            trainable_params = list(filter(lambda x: x.requires_grad, part.parameters()))
+            assert len(trainable_params) > 0, "trainable_params cannot be empty"
+            optimizer.append(cfg_opt.instantiate(params=trainable_params))
+    else:
+        trainable_params = list(filter(lambda x: x.requires_grad, model.parameters()))
+        assert len(trainable_params) > 0, "trainable_params cannot be empty"
+        optimizer = [cfg_opt.instantiate(params=trainable_params)]
 
     return model, optimizer
 
@@ -417,22 +425,25 @@ def build_lr_scheduler(cfg, optimizer, step_scheduler) -> OptimizerParamSchedule
     total_steps = (total_epochs * epoch_len) // grad_acc_steps
 
     # Extract learning rate from optimizer
-    base_lr = optimizer.param_groups[0]["lr"]
+    base_lrs = [opt.param_groups[0]["lr"] for opt in optimizer]
 
     # Set defaults for scheduler parameters
-    default_kwargs = dict(
-        optimizer=optimizer,
-        init_lr=base_lr * 0.1,  # Start warmup at 10% of base LR
-        max_lr=base_lr,
-        min_lr=base_lr * 0.01,  # End at 1% of base LR
-        lr_warmup_steps=min(1000, total_steps // 10),  # 10% warmup or max 1000 steps
-        lr_decay_steps=total_steps,
-        lr_decay_style="cosine",
-        start_wd=optimizer.param_groups[0].get("weight_decay", 0.0),
-        end_wd=optimizer.param_groups[0].get("weight_decay", 0.0),
-        wd_incr_steps=total_steps,
-        wd_incr_style="constant",
-    )
+    default_kwargs_list = []
+    for base_lr, opt in zip(base_lrs, optimizer):
+        default_kwargs = dict(
+            optimizer=opt,
+            init_lr=base_lr * 0.1,  # Start warmup at 10% of base LR
+            max_lr=base_lr,
+            min_lr=base_lr * 0.01,  # End at 1% of base LR
+            lr_warmup_steps=min(1000, total_steps // 10),  # 10% warmup or max 1000 steps
+            lr_decay_steps=total_steps,
+            lr_decay_style="cosine",
+            start_wd=opt.param_groups[0].get("weight_decay", 0.0),
+            end_wd=opt.param_groups[0].get("weight_decay", 0.0),
+            wd_incr_steps=total_steps,
+            wd_incr_style="constant",
+        )
+        default_kwargs_list.append(default_kwargs)
 
     # Override with user-provided config
     if cfg is not None:
@@ -445,7 +456,7 @@ def build_lr_scheduler(cfg, optimizer, step_scheduler) -> OptimizerParamSchedule
         f"decay_style={default_kwargs['lr_decay_style']}"
     )
 
-    return OptimizerParamScheduler(**default_kwargs)
+    return [OptimizerParamScheduler(**default_kwargs) for default_kwargs in default_kwargs_list]
 
 
 def build_wandb(cfg) -> wandb.Run:
@@ -806,8 +817,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         # Note(nvFSDP): Need to call these functions for nvFSDP if not using latest api
         # self.model.finish_grad_sync()
 
-        self.optimizer.step()
-        self.optimizer.zero_grad()
+        for opt in self.optimizer:
+            opt.step()
+            opt.zero_grad()
 
         # Precompute FP8 scales
         if (
@@ -894,7 +906,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         if self.dist_env.is_main:
             if wandb.run is not None:
                 wandb.log({"val_loss": val_loss, "step": self.step_scheduler.step, "epoch": self.step_scheduler.epoch})
-        current_lr = self.optimizer.param_groups[0]["lr"]
+
+        # assumes all model parts' optimizers have the same learning rate
+        current_lr = self.optimizer[0].param_groups[0]["lr"]
         logging.info(
             "[val] step {} | epoch {} | loss {:.4f} | lr {:.2e}".format(
                 self.step_scheduler.step, self.step_scheduler.epoch, val_loss, current_lr
@@ -918,7 +932,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             "num_tokens_per_step": num_tokens_in_batch,
             "tps": tps,
         }
-        current_lr = self.optimizer.param_groups[0]["lr"]
+        # assumes all model parts' optimizers have the same learning rate
+        current_lr = self.optimizer[0].param_groups[0]["lr"]
         log_data["learning_rate"] = current_lr
 
         if wandb.run is not None:
