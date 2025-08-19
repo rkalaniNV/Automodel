@@ -14,7 +14,7 @@
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, Union
+from typing import Any, Callable, Literal, Optional, Protocol
 
 import torch
 import torch.nn as nn
@@ -28,7 +28,6 @@ from nemo_automodel.components.distributed.autopipeline.hf_utils import (
 )
 from nemo_automodel.components.distributed.autopipeline.training_utils import (
     pp_clip_grad_norm,
-    pp_forward_backward_step,
     pp_scale_grads_by_divisor,
 )
 
@@ -181,28 +180,6 @@ class AutoPipeline:
 
         return self
 
-    def step(
-        self,
-        batch: dict[str, torch.Tensor],
-        labels: torch.Tensor,
-        loss_mask: Optional[torch.Tensor],
-        *,
-        train_ctx: Callable,
-    ) -> torch.Tensor:
-        schedule = self._info.schedule
-        if schedule is None:
-            raise RuntimeError("Autopipeline not built. Call build() first.")
-        return pp_forward_backward_step(
-            schedule,
-            self._info.has_first_stage,
-            self._info.has_last_stage,
-            batch,
-            labels,
-            loss_mask,
-            train_ctx,
-            self.device,
-        )
-
     def scale_grads_by_divisor(self, divisor: int) -> None:
         if self._info.stages is None:
             raise RuntimeError("Autopipeline not built. Call build() first.")
@@ -245,23 +222,6 @@ class AutoPipeline:
     @property
     def device(self) -> torch.device:
         return self._device
-
-    def train(self) -> None:
-        if self._info.model_parts is None:
-            return
-        for mp in self._info.model_parts:
-            mp.train()
-
-    def eval(self) -> None:
-        if self._info.model_parts is None:
-            return
-        for mp in self._info.model_parts:
-            mp.eval()
-
-    def parameters(self) -> list[torch.Tensor]:
-        if self._info.model_parts is None:
-            return []
-        return [p for part in self._info.model_parts for p in part.parameters()]
 
     # -------------------------- Debug utilities --------------------------
     def list_stage_modules(self) -> list[list[str]]:

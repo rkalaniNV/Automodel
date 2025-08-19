@@ -597,9 +597,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         autopipeline_cfg = self.cfg.get("autopipeline", None)
         if self.pp_enabled:
             assert autopipeline_cfg is not None, "AutoPipelineConfig is required when pipeline parallelism is enabled"
-            assert not isinstance(
-                self.model_wrapper, NVFSDPManager
-            ), "NVFSDPManager is not supported when pipeline parallelism is enabled"
+            assert not isinstance(self.model_wrapper, NVFSDPManager), (
+                "NVFSDPManager is not supported when pipeline parallelism is enabled"
+            )
             autopipeline_cfg = autopipeline_cfg.instantiate(
                 world_mesh=self.device_mesh,
                 moe_mesh=None,
@@ -614,6 +614,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 tp_axis_name="tp" if "tp" in self.device_mesh.mesh_dim_names else None,
                 ep_axis_name=None,
                 ep_shard_axis_names=None,
+                pp_batch_size=self.cfg.dataloader.batch_size,
                 device=torch.cuda.current_device(),
                 dtype=torch.bfloat16,
             )
@@ -626,7 +627,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         if self.cfg.get("peft", None) is not None:
             self.peft_config = self.cfg.peft.instantiate()
         self.loss_fn = build_loss_fn(self.cfg.loss_fn)
-        self.model, self.optimizer = build_model_and_optimizer(
+        model, self.optimizer = build_model_and_optimizer(
             self.dist_env.device,
             self.cfg.model,
             self.cfg.optimizer,
@@ -641,6 +642,13 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             loss_fn=self.loss_fn,
             parallelize_fn=partial(parallelize_for_pp, model_wrapper=self.model_wrapper),
         )
+        if isinstance(model, AutoPipeline):
+            self.model_parts = model.parts
+            self.pp = model
+        else:
+            self.model_parts = [model]
+            self.pp = None
+
         self.dataloader, self.tokenizer = build_dataloader(
             self.cfg.dataset,
             self.cfg.dataloader,
@@ -671,7 +679,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         self.lr_scheduler = build_lr_scheduler(self.cfg.get("lr_scheduler", None), self.optimizer, self.step_scheduler)
 
         # Log model, parameter counts, norms, optimizer and scheduler
-        self._log_model_and_optimizer_details(self.model, self.optimizer, self.lr_scheduler)
+        self._log_model_and_optimizer_details(self.model_parts, self.optimizer, self.lr_scheduler)
 
         # Build checkpointing config
         restore_from = self.cfg.get("checkpoint.restore_from", None)
@@ -698,7 +706,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         For each batch, perform a forward pass, compute loss, backpropagate,
         and update model parameters when necessary. Also prints loss every gradient step.
         """
-        self.model.train()
+        for mp in self.model_parts:
+            mp.train()
         self.timestamp = time.perf_counter()
 
         for epoch in self.step_scheduler.epochs:
@@ -721,9 +730,87 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 # Run validation every val_every_steps
                 if self.step_scheduler.is_val_step and self.val_dataloader is not None:
                     self._run_validation_epoch()
-                    self.model.train()
+                    for mp in self.model_parts:
+                        mp.train()
 
     # ------------------ helpers ------------------
+    def _forward_backward_step(
+        self,
+        idx,
+        batch,
+        *,
+        loss_buffer,
+        num_label_tokens,
+        num_batches,
+        is_train: bool = True,
+    ):
+        batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
+        labels = batch.pop("labels")
+
+        if (
+            "position_ids" not in batch
+            and self.device_mesh is not None
+            and (self.device_mesh["cp"].size() > 1 or self.device_mesh["tp"].size() > 1)
+        ):
+            batch["position_ids"] = (
+                torch.arange(0, batch["input_ids"].shape[1])
+                .unsqueeze(0)
+                .expand(batch["input_ids"].shape[0], -1)
+                .to(self.dist_env.device)
+            )
+
+        train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels)
+        if self.pp_enabled:
+            if not is_train:
+                logging.info("Skipping forward pass for validation because pipeline parallelism is enabled")
+                return
+
+            with train_ctx():
+                losses = [] if self.pp.info.has_last_stage else None
+                if self.pp.info.has_last_stage:
+                    masked_labels = labels.clone()
+                    targets = masked_labels
+                else:
+                    targets = None
+
+                input_ids = batch.pop("input_ids")
+                if self.pp.info.has_first_stage:
+                    self.pp.info.schedule.step(input_ids, target=targets, losses=losses, **batch)
+                else:
+                    self.pp.info.schedule.step(target=targets, losses=losses, **batch)
+
+            if self.pp.info.has_last_stage:
+                local_loss = torch.sum(torch.stack(losses))
+            else:
+                local_loss = torch.tensor(0.0, device=self.dist_env.device)
+
+            loss_buffer.append(local_loss.clone().detach())
+        else:
+            model = self.model_parts[0]
+            sync_ctx = get_sync_ctx(model, idx == num_batches - 1) if is_train else nullcontext()
+            with train_ctx(), sync_ctx:
+                if isinstance(self.loss_fn, FusedLinearCrossEntropy):
+                    # use num_logits_to_keep to avoid full logits matrix in memory
+                    out = model(logits_to_keep=1, **batch)
+                    if "hidden_states" not in out:
+                        raise ValueError(
+                            "FusedLinearCrossEntropy requires the model to output hidden states. Set `model.output_hidden_states=True` in the config."
+                        )
+                else:
+                    out = model(**batch)
+
+                local_loss = calculate_loss(
+                    self.loss_fn,
+                    logits=out.logits,
+                    labels=labels,
+                    model=model,
+                    hidden_states=out.hidden_states[-1] if "hidden_states" in out else None,
+                    num_label_tokens=num_label_tokens,
+                )
+                loss_buffer.append(local_loss.clone().detach())
+                if is_train:
+                    local_loss.backward()
+
     def _run_train_optim_step(self, batches, max_grad_norm: Optional[float] = None):
         """Execute a single training step.
 
@@ -741,61 +828,19 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
         num_batches = len(batches)
         for i, batch in enumerate(batches):
-            batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
-            labels = batch.pop("labels")
-
-            loss_mask = batch.pop("loss_mask", None)
-            if loss_mask is None:
-                loss_mask = (labels.detach() != -100).to(torch.int)
-
-            if (
-                "position_ids" not in batch
-                and self.device_mesh is not None
-                and (self.device_mesh["cp"].size() > 1 or self.device_mesh["tp"].size() > 1)
-            ):
-                batch["position_ids"] = (
-                    torch.arange(0, batch["input_ids"].shape[1])
-                    .unsqueeze(0)
-                    .expand(batch["input_ids"].shape[0], -1)
-                    .to(self.model.device)
-                )
-
-            train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels)
-            if self.pp_enabled:
-                local_loss = self.model.step(batch, labels, loss_mask, train_ctx=train_ctx)
-                loss_buffer.append(local_loss.clone().detach())
-            else:
-                with train_ctx(), get_sync_ctx(self.model, i == num_batches - 1):
-                    if isinstance(self.loss_fn, FusedLinearCrossEntropy):
-                        # use num_logits_to_keep to avoid full logits matrix in memory
-                        out = self.model(logits_to_keep=1, **batch)
-                        if "hidden_states" not in out:
-                            raise ValueError(
-                                "FusedLinearCrossEntropy requires the model to output hidden states. Set `model.output_hidden_states=True` in the config."
-                            )
-                    else:
-                        out = self.model(**batch)
-
-                    local_loss = calculate_loss(
-                        self.loss_fn,
-                        logits=out.logits,
-                        labels=labels,
-                        model=self.model,
-                        hidden_states=out.hidden_states[-1] if "hidden_states" in out else None,
-                        num_label_tokens=num_label_tokens,
-                    )
-                    loss_buffer.append(local_loss.clone().detach())
-                    local_loss.backward()
+            self._forward_backward_step(
+                i, batch, loss_buffer=loss_buffer, num_label_tokens=num_label_tokens, num_batches=num_batches
+            )
 
         if self.pp_enabled:
-            self.model.scale_grads_by_divisor(num_label_tokens)
+            self.pp.scale_grads_by_divisor(num_label_tokens)
 
         grad_norm = None
         # Clip gradients **after** any rescaling.
         # TODO(@boxiangw): Fix TP gradient clipping
         if max_grad_norm is not None:
             if self.pp_enabled:
-                grad_norm = self.model.clip_grad_norm(
+                grad_norm = self.pp.clip_grad_norm(
                     max_grad_norm,
                     foreach=True,
                     pp_mesh=(self.device_mesh["pp"] if self.pp_enabled else None),
@@ -804,14 +849,14 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             else:
                 if not self.device_mesh or self.device_mesh["tp"].size() == 1:
                     grad_norm = torch.nn.utils.clip_grad_norm_(
-                        [p for p in self.model.parameters() if p.requires_grad], max_grad_norm
+                        [p for p in self.model_parts[0].parameters() if p.requires_grad], max_grad_norm
                     )
 
             if isinstance(grad_norm, torch.Tensor):
                 grad_norm = grad_norm.item()
 
         # Note(nvFSDP): Need to call these functions for nvFSDP if not using latest api
-        # self.model.finish_grad_sync()
+        # self.model_parts[0].finish_grad_sync()
 
         for opt in self.optimizer:
             opt.step()
@@ -820,14 +865,15 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         # Precompute FP8 scales
         if (
             self.cfg.get("fp8", None) is not None
-            and self.model.precompute_float8_dynamic_scale_for_fsdp
+            and not self.pp_enabled
+            and self.model_parts[0].precompute_float8_dynamic_scale_for_fsdp
             and self.device_mesh["dp_shard"].size() > 1
         ):
-            precompute_float8_dynamic_scale_for_fsdp(self.model)
+            precompute_float8_dynamic_scale_for_fsdp(self.model_parts[0])
 
         # Note(nvFSDP): Need to call these functions for nvFSDP if not using latest api
-        # self.model.install_optimized_model_weights()
-        # self.model.zero_grad_buffer()
+        # self.model_parts[0].install_optimized_model_weights()
+        # self.model_parts[0].zero_grad_buffer()
 
         t = time.perf_counter()
         time_delta = t - self.timestamp
@@ -855,44 +901,25 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             return
 
         with StatefulRNG(seed=1, ranked=True):
-            self.model.eval()
+            for mp in self.model_parts:
+                mp.eval()
 
             total_loss = 0.0
             total_tokens = 0
 
             for batch in self.val_dataloader:
-                batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
-                labels = batch.pop("labels")
-                num_label_tokens = (labels != -100).sum()
+                loss_buffer = []
+                num_label_tokens = (batch["labels"] != -100).sum().item()
+                self._forward_backward_step(
+                    0,
+                    batch,
+                    loss_buffer=loss_buffer,
+                    num_label_tokens=num_label_tokens,
+                    num_batches=1,
+                    is_train=False,
+                )
 
-                if (
-                    self.device_mesh
-                    and "position_ids" not in batch
-                    and (self.device_mesh["cp"].size() > 1 or self.device_mesh["tp"].size() > 1)
-                ):
-                    batch["position_ids"] = (
-                        torch.arange(0, batch["input_ids"].shape[1])
-                        .unsqueeze(0)
-                        .expand(batch["input_ids"].shape[0], -1)
-                        .to(self.model.device)
-                    )
-
-                train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels)
-                with train_ctx():
-                    if isinstance(self.loss_fn, FusedLinearCrossEntropy):
-                        out = self.model(logits_to_keep=1, **batch)
-                    else:
-                        out = self.model(**batch)
-                    local_loss = calculate_loss(
-                        self.loss_fn,
-                        logits=out.logits,
-                        labels=labels,
-                        model=self.model,
-                        hidden_states=out.hidden_states[-1] if "hidden_states" in out else None,
-                        num_label_tokens=num_label_tokens,
-                    )
-
-                total_loss += local_loss.item()
+                total_loss += torch.sum(torch.stack(loss_buffer)).item()
                 total_tokens += num_label_tokens
 
         total_loss = self._dp_allreduce(torch.FloatTensor([total_loss])).item()

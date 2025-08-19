@@ -37,7 +37,6 @@ from nemo_automodel.components.checkpoint.checkpointing import (
 from nemo_automodel.components.config.loader import ConfigNode
 from nemo_automodel.components.optim.scheduler import OptimizerParamScheduler
 from nemo_automodel.components.training.step_scheduler import StepScheduler
-from nemo_automodel.components.distributed.autopipeline.core import AutoPipeline
 
 try:
     import yaml as _yaml
@@ -85,14 +84,29 @@ def is_lr_scheduler(object):
     Returns:
         bool: returns True if object is an OptimizerParamScheduler.
     """
-    return isinstance(object, list) and all(isinstance(item, OptimizerParamScheduler) for item in object) and len(object) > 0
+    return (
+        isinstance(object, list)
+        and all(isinstance(item, OptimizerParamScheduler) for item in object)
+        and len(object) > 0
+    )
 
 
 def is_optimizer(object):
     """
     Checks whether object is an optimizer.
     """
-    return isinstance(object, list) and all(isinstance(item, Optimizer) for item in object) and len(object) > 0
+    return isinstance(object, Optimizer) or (
+        isinstance(object, list) and all(isinstance(item, Optimizer) for item in object) and len(object) > 0
+    )
+
+
+def is_model(object):
+    """
+    Checks whether object is a model.
+    """
+    return isinstance(object, nn.Module) or (
+        isinstance(object, list) and all(isinstance(item, nn.Module) for item in object)
+    )
 
 
 class BaseRecipe:
@@ -119,7 +133,7 @@ class BaseRecipe:
             self.__dict__["__state_tracked"] = set()
         # Track stateful objects unless they are validation/eval components.
         should_track = (
-            isinstance(value, (nn.Module, Optimizer, AutoPipeline))
+            is_model(value)
             or has_load_restore_state(value)
             or is_tokenizer(value)
             or is_lr_scheduler(value)
@@ -167,10 +181,8 @@ class BaseRecipe:
         model, optimizer, scheduler, tokenizer, config = None, None, None, None, None
 
         for key in self.__dict__["__state_tracked"]:
-            if isinstance(getattr(self, key), (nn.Module, AutoPipeline)):
+            if is_model(getattr(self, key)):
                 model = getattr(self, key)
-                if isinstance(model, AutoPipeline):
-                    model = model.parts
             elif is_optimizer(getattr(self, key)):
                 optimizer = getattr(self, key)
             elif isinstance(getattr(self, key), ConfigNode):
@@ -215,12 +227,9 @@ class BaseRecipe:
             print(f"Loading checkpoint from {ckpt_dir}", flush=True)
 
         model, optimizer, scheduler = None, None, None
-
         for key in self.__dict__["__state_tracked"]:
-            if isinstance(getattr(self, key), (nn.Module, AutoPipeline)):
+            if is_model(getattr(self, key)):
                 model = getattr(self, key)
-                if isinstance(model, AutoPipeline):
-                    model = model.parts
             elif is_optimizer(getattr(self, key)):
                 optimizer = getattr(self, key)
             elif is_lr_scheduler(getattr(self, key)):
@@ -309,22 +318,27 @@ class BaseRecipe:
 
     def _log_model_and_optimizer_details(
         self,
-        model: nn.Module | None = None,
+        model: nn.Module | list[nn.Module] | None = None,
         optimizer: Optimizer | None = None,
         lr_scheduler: OptimizerParamScheduler | None = None,
     ):
         """Log model repr, parameter stats, param norm, optimizer and lr scheduler with YAML markers."""
         # Model repr
-        if model:
-            model_str = str(model)
+        if not isinstance(model, list):
+            model = [model]
+
+        for i, m in enumerate(model):
+            if m is None:
+                logging.info(f"Model Part {i}: <unavailable>")
+                continue
+
+            model_str = str(m)
             model_lines = model_str.splitlines()
-            logging.info("Model:")
+            logging.info(f"Model Part {i}:")
             for line in model_lines[:40]:
                 logging.info(line)
             if len(model_lines) > 40:
                 logging.info("...")
-        else:
-            logging.info("Model: <unavailable>")
 
         # Optimizer
         if optimizer:

@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Iterable, Optional
 
 import torch
 from torch.distributed.device_mesh import DeviceMesh
-from torch.distributed.pipelining.schedules import _PipelineSchedule
 from torch.distributed.pipelining.stage import PipelineStage
 from torch.distributed.tensor import DTensor
 
@@ -26,39 +25,6 @@ def validate_batch_shapes(batch: dict[str, Any], *, must_have: Optional[list[str
         for key in must_have:
             if key not in batch:
                 raise ValueError(f"Missing required batch key: {key}")
-
-
-def pp_forward_backward_step(
-    pp_schedule: _PipelineSchedule,
-    pp_has_first_stage: bool,
-    pp_has_last_stage: bool,
-    batch: dict[str, torch.Tensor],
-    labels: torch.Tensor,
-    loss_mask: Optional[torch.Tensor],
-    train_ctx: Callable,
-    device: torch.device,
-) -> torch.Tensor:
-    with train_ctx():
-        losses = [] if pp_has_last_stage else None
-        if pp_has_last_stage:
-            masked_labels = labels.clone()
-            if loss_mask is not None:
-                masked_labels[loss_mask == 0] = -100
-            targets = masked_labels
-        else:
-            targets = None
-
-        input_ids = batch.pop("input_ids")
-        if pp_has_first_stage:
-            pp_schedule.step(input_ids, target=targets, losses=losses, **batch)
-        else:
-            pp_schedule.step(target=targets, losses=losses, **batch)
-
-    if pp_has_last_stage:
-        loss = torch.sum(torch.stack(losses))
-    else:
-        loss = torch.tensor(0.0, device=device)
-    return loss
 
 
 @torch.no_grad()
