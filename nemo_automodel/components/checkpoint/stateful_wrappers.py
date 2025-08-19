@@ -127,7 +127,8 @@ class ModelState:
             self._set_base_model_state_dict(state_dict)
             return
 
-        options = StateDictOptions(strict=False)
+        # Multi-stage PP models have different state dicts for each stage.
+        options = StateDictOptions(strict=False) if len(self.model) > 1 else None
         if self.is_peft:
             _drop_outer_prefix(state_dict, "base_model.model.")
             options = StateDictOptions(strict=False, broadcast_from_rank0=True, full_state_dict=True)
