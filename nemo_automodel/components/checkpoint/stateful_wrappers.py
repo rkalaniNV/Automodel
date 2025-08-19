@@ -106,7 +106,6 @@ class ModelState:
 
         if self.is_tied_lm_head:
             # PP models don't have tied embeddings. Safe to pass in model[0] here.
-            assert len(self.model) == 1, "Checkpoint saving for tied embeddings is not supported for PP models."
             _, lm_head_param_name = _get_lm_head_weight_and_name(self.model[0])
             model_state_dict.pop(lm_head_param_name, None)
 
@@ -139,7 +138,6 @@ class ModelState:
         # To be fully compatible we inject a reference tensor so the key exists.
         if self.is_tied_lm_head and not self.is_peft:
             # PP models don't have tied embeddings. Safe to pass in model[0] here.
-            assert len(self.model) == 1, "Checkpoint loading for tied embeddings is not supported for PP models."
             lm_head_weight, lm_head_param_name = _get_lm_head_weight_and_name(self.model[0])
             if lm_head_param_name not in state_dict:
                 # weight tying guarantees this is identical to the embedding weight
@@ -154,7 +152,6 @@ class ModelState:
         }
         if self.is_tied_lm_head:
             # PP models don't have tied embeddings. Safe to pass in model[0] here.
-            assert len(self.model) == 1, "Checkpoint loading for tied embeddings is not supported for PP models."
             _, lm_head_param_name = _get_lm_head_weight_and_name(self.model[0])
             model_state_dict.pop(lm_head_param_name, None)
         if self.is_peft:
