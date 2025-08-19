@@ -40,6 +40,7 @@ from nemo_automodel.components.datasets.llm.packed_sequence import PackedSequenc
 from nemo_automodel.components.distributed.cp_utils import make_cp_batch_and_ctx
 from nemo_automodel.components.distributed.init_utils import initialize_distributed
 from nemo_automodel.components.distributed.nvfsdp import NVFSDPManager
+from nemo_automodel.components.distributed.parallel_dims import ParallelDims
 from nemo_automodel.components.loggers.log_utils import setup_logging
 from nemo_automodel.components.loggers.wandb_utils import suppress_wandb_log_messages
 from nemo_automodel.components.loss.linear_ce import FusedLinearCrossEntropy
@@ -495,8 +496,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         self.device_mesh = None
         self.model_wrapper = None
         if "distributed" in self.cfg and self.dist_env.world_size > 1:
-            parallel_dims = self.cfg.distributed.parallel_dims.instantiate(world_size=self.dist_env.world_size)
-            self.model_wrapper = self.cfg.distributed.instantiate(parallel_dims=parallel_dims) #world_size=self.dist_env.world_size)
+            parallel_dims = ParallelDims(**self.cfg.distributed.parallel_dims.to_dict(), world_size=self.dist_env.world_size)
+            self.model_wrapper = self.cfg.distributed.instantiate(parallel_dims=parallel_dims)
             self.device_mesh = getattr(self.model_wrapper, "device_mesh", None)
 
         if self.dist_env.is_main and hasattr(self.cfg, "wandb"):
