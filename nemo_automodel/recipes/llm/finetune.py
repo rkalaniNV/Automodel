@@ -20,9 +20,14 @@ import time
 from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+import modelopt.torch.distill as mtd
+import modelopt.torch.opt as mto
 import torch
 import torch.nn as nn
 import wandb
+from modelopt.torch.distill.plugins.huggingface import LMLogitsLoss
+from modelopt.torch.opt.plugins.huggingface import enable_huggingface_checkpointing
+from torch.distributed.device_mesh import _mesh_resources
 from torch.utils.data import DataLoader
 from torchao.float8 import precompute_float8_dynamic_scale_for_fsdp
 from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
@@ -67,6 +72,38 @@ logger = logging.getLogger(__name__)
 # ---------------------------
 
 
+def _teacher_factory(cfg_teacher, **kwargs):
+    logger.info("Instantiating teacher model ...")
+    teacher_model = cfg_teacher.instantiate(**kwargs)
+    logger.info("Teacher model instantiated.")
+
+    return teacher_model
+
+
+def parse_kd_config(kd_config, teacher_kwargs={}):
+    kd_loss_fraction = kd_config.get("kd_loss_fraction", 1.0)
+    kd_loss_temperature = kd_config.get("kd_loss_temperature", 1.0)
+    teacher_config = kd_config.get("teacher_model", None)
+    assert teacher_config is not None, "`teacher_model` missing from YAML kd_config section"
+
+    modelopt_cfg = {}
+    modelopt_cfg["criterion"] = LMLogitsLoss(temperature=kd_loss_temperature, reduction="none")
+    if kd_loss_fraction < 1.0:
+        modelopt_cfg["loss_balancer"] = mtd.StaticLossBalancer(kd_loss_weight=kd_loss_fraction)
+    else:
+        modelopt_cfg["loss_balancer"] = None
+    modelopt_cfg["teacher_model"] = (_teacher_factory, (teacher_config,), teacher_kwargs)
+
+    return modelopt_cfg
+
+
+def kd_reduction_fn(loss: torch.Tensor, mask: torch.Tensor | None) -> torch.Tensor:
+    loss = loss.sum(dim=-1)
+    if mask is not None:
+        loss *= mask.view(-1).to(loss.device)
+    return loss.mean()
+
+
 def build_model_and_optimizer(
     device,
     cfg_model,
@@ -79,6 +116,7 @@ def build_model_and_optimizer(
     freeze_embeddings=True,
     cfg_fp8=None,
     cfg_compile=None,
+    cfg_kd=None,
 ) -> tuple[nn.Module, "Optimizer"]:  # noqa: F821
     """
     Build and initialize a model and optimizer.
@@ -96,6 +134,7 @@ def build_model_and_optimizer(
         freeze_embeddings: Whether to freeze embeddings.
         cfg_fp8: Configuration for FP8.
         cfg_compile: Configuration for torch.compile.
+        cfg_kd: Configuration for knowledge distillation.
 
     Returns:
         The instantiated model on the specified device and optimizer.
@@ -120,6 +159,9 @@ def build_model_and_optimizer(
         # Add FP8 config if provided
         if cfg_fp8 is not None:
             kwargs["fp8_config"] = cfg_fp8.instantiate()
+        if cfg_kd is not None:
+            logging.info("Disabling SDPA patching on student model for KD mode.")
+            cfg_model.use_sdpa_patching = False
 
         # Instantiate the model in meta device to avoid OOM
         with init_ctx:
@@ -133,6 +175,13 @@ def build_model_and_optimizer(
             # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
             if cfg_peft is not None:
                 apply_lora_to_linear_modules(model, cfg_peft)
+
+        # [ModelOpt]: Apply model transformations if required
+        if cfg_kd is not None:
+            modelopt_cfg = parse_kd_config(cfg_kd, teacher_kwargs=kwargs)
+            model = mtd.convert(model, mode=[("kd_loss", modelopt_cfg)])
+            # don't keep KD state
+            mto.ModeloptStateManager(model)._state.pop()
 
     print_trainable_parameters(model)
 
@@ -423,8 +472,11 @@ def calculate_loss(loss_fn, **kwargs) -> torch.Tensor:
         The loss.
     """
     loss_fn_kwargs = {"num_label_tokens": kwargs.pop("num_label_tokens", None)}
+    model = kwargs.pop("model")
+
     if isinstance(loss_fn, FusedLinearCrossEntropy):
-        model = kwargs.pop("model")
+        # Replace labels with -100 where mask is 0 (don't compute loss for these positions)
+        # -100 is the default ignore index in PyTorch's cross entropy loss
         labels = kwargs.pop("labels")
 
         # find the lm_head in the model
@@ -455,6 +507,18 @@ def calculate_loss(loss_fn, **kwargs) -> torch.Tensor:
                 "labels": kwargs.pop("labels"),
             }
         )
+
+    # [ModelOpt]: Compute KD loss if model is a DistillationModel
+    if model.training:
+        # Unwrap
+        while hasattr(model, "module"):
+            model = model.module
+        if hasattr(model, "compute_kd_loss"):
+            kd_loss_kwargs = {"loss_reduction_fn": lambda x: kd_reduction_fn(x, loss_fn_kwargs["mask"])}
+            if model.loss_balancer is not None:
+                kd_loss_kwargs["student_loss"] = loss_fn(**loss_fn_kwargs)
+
+            return model.compute_kd_loss(**kd_loss_kwargs)
 
     return loss_fn(**loss_fn_kwargs)
 
@@ -525,6 +589,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             tp_size=self.cfg.get("distributed.tp_size", 1),
             cfg_fp8=self.cfg.get("fp8", None),
             cfg_compile=self.cfg.get("compile", None),
+            cfg_kd=self.cfg.get("distillation", None),
         )
         self.loss_fn = build_loss_fn(self.cfg.loss_fn)
         self.dataloader, self.tokenizer = build_dataloader(
@@ -807,6 +872,11 @@ def main(config_path=None):
     if config_path is None:
         config_path = pathlib.Path(__file__).parent.resolve() / "llama_3_2_1b_hellaswag.yaml"
     cfg = parse_args_and_load_config(config_path)
+
+    # [ModelOpt]: Enable save/restore functionality
+    if cfg.get("kd_config", None) is not None:
+        enable_huggingface_checkpointing()
+
     trainer = FinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
     trainer.run_train_validation_loop()
