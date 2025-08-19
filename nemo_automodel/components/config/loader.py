@@ -228,6 +228,9 @@ class ConfigNode:
         # Prepare kwargs from config
         config_kwargs = {}
         for k, v in self.__dict__.items():
+            # Do not instantiate kwargs that are already passed via kwargs
+            if k in kwargs:
+                continue
             if k in ("_target_", "raise_on_missing_attr", "_raw_config"):
                 continue
             if k.endswith("_fn"):
