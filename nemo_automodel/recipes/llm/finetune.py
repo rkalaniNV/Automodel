@@ -216,8 +216,9 @@ def build_model_and_optimizer(
                         cfg_model.pretrained_model_name_or_path,
                         getattr(cfg_peft, "lora_A_init", None),
                     )
-        else:
-            model = model.to(device)
+
+        # ensure the model is on device
+        model = model.to(device)
 
         # Apply torch.compile if configured
         if cfg_compile is not None:
