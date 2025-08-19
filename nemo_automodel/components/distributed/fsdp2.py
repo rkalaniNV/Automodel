@@ -54,8 +54,6 @@ class FSDP2Manager:
             reductions, and outputs.
         offload_policy (CPUOffloadPolicy): Policy to offload parameters or optimizer states
             to CPU, if specified.
-        backend (str): Distributed backend to use (e.g., 'nccl' for GPUs or 'gloo' for CPUs).
-        world_size (int): Total number of processes.
 
     Methods:
         __post_init__():
@@ -86,76 +84,13 @@ class FSDP2Manager:
         default=None,
         metadata={"help": "CPUOffloadPolicy to offload parameters/optim states to CPU."},
     )
-    backend: Optional[str] = field(default="nccl", metadata={"help": "Distributed backend, e.g. 'nccl' or 'gloo'."})
-    # world_size: Optional[int] = field(
-    #     default=None,
-    #     # init=False,
-    #     metadata={"help": "Total number of processes."},
-    # )
 
     def __post_init__(self):
         """
         Post-initialization hook that sets up the distributed environment.
         """
-        return self._setup_distributed()
-
-    def _setup_distributed(self):
-        """
-        Initializes the distributed environment.
-
-        - Checks availability and initialization of torch.distributed.
-        - Infers data-parallel and tensor-parallel sizes if not provided.
-        - Builds a device mesh based on the specified mesh shape and dimension names.
-        - Flattens data and context dimensions if context parallelism is enabled.
-
-        Requires the environment variables: RANK, WORLD_SIZE, MASTER_ADDR, MASTER_PORT.
-
-        Raises:
-            RuntimeError: If torch.distributed is not available or not initialized.
-
-        Returns:
-            FSDP2Manager: Instance with the device mesh configured.
-        """
-        if not dist.is_available():
-            raise RuntimeError("torch.distributed not available")
-
-        if not dist.is_initialized():
-            raise RuntimeError("expected torch.distributed to be initialized")
-
-        # if self.tp_size is None or self.tp_size <= 0:
-        #     self.tp_size = 1
-
-        # if self.cp_size is None or self.cp_size <= 0:
-        #     self.cp_size = 1
-
-        # # infer if not provided
-        # if self.dp_size is None or self.dp_size <= 0:
-        #     # Calculate dp_size to ensure dp_size * tp_size * cp_size == world_size
-        #     total_parallel_ranks = self.tp_size * self.cp_size
-        #     if self.world_size % total_parallel_ranks != 0:
-        #         raise ValueError(
-        #             f"world_size ({self.world_size}) must be divisible by (tp_size * cp_size) "
-        #             f"({self.tp_size} * {self.cp_size} = {total_parallel_ranks})"
-        #         )
-        #     self.dp_size = self.world_size // total_parallel_ranks
-
-        # if self.dp_replicate_size is None or self.dp_replicate_size <= 0:
-        #     self.dp_replicate_size = 1
-
-        # # HSDP usecase
-        # # dp_size = dp_replicate_size * dp_shard_size
-        # # dp_shard_size < dp_size since ddp usecase is not supported by FSDP2, need to use DDPManager instead
-        # # TODO(boxiangw): Call DDPManager instead of FSDP2Manager for ddp usecase?
-        # assert self.dp_size % self.dp_replicate_size == 0, "dp_size must be a multiple of dp_replicate_size"
-        # assert self.dp_replicate_size < self.dp_size or self.dp_replicate_size == 1, (
-        #     "dp_replicate_size must be less than dp_size since ddp usecase is not supported by FSDP2"
-        # )
-
-        # self.dp_shard_size = self.dp_size // self.dp_replicate_size
-
-        self.device_mesh = self.parallel_dims.build_mesh(self.backend)
-
-        return self
+        self.device_mesh = self.parallel_dims.mesh
+        assert self.device_mesh is not None, "Device mesh is not initialized1"
 
     def parallelize(self, model, use_hf_tp_plan=False):
         """
@@ -175,7 +110,10 @@ class FSDP2Manager:
         Raises:
             NotImplemented: If the required TP sharding plan is not supported.
         """
-        if self.device_mesh["tp"].size() > 1:
+        if self.device_mesh is None:
+            raise ValueError("Device mesh is not initialized")
+
+        if "tp" in self.device_mesh.mesh_dim_names and self.device_mesh["tp"].size() > 1:
             if use_hf_tp_plan:
                 tp_shard_plan = get_hf_tp_shard_plan(model)
             else:
