@@ -35,8 +35,6 @@ class HellaSwag:
         split="train",
         num_samples_limit=None,
         trust_remote_code=True,
-        shuffle=False,
-        seed=42,
     ):
         """Initialize the HellaSwag dataset wrapper.
 
@@ -55,8 +53,6 @@ class HellaSwag:
         if isinstance(num_samples_limit, int):
             split = f"{split}[:{num_samples_limit}]"
         raw_datasets = load_dataset(path_or_dataset, split=split, trust_remote_code=trust_remote_code)
-        if shuffle:
-            raw_datasets = raw_datasets.shuffle(seed=seed)
         processor = SFTSingleTurnPreprocessor(tokenizer)
         self.dataset = processor.process(raw_datasets, self)
 
