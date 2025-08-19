@@ -347,7 +347,7 @@ def build_dataloader(
         )
 
         # Handle collate_fn instantiation if it's a ConfigNode
-        dl_kwargs = {"dataset": ds, "sampler": sampler}
+        dl_kwargs = {"dataset": ds, "sampler": sampler, "drop_last": True}
         if hasattr(cfg_dl, "collate_fn") and hasattr(cfg_dl.collate_fn, "_target_"):
             collate_cfg = cfg_dl.collate_fn
             dl_kwargs["collate_fn"] = lambda batch: collate_cfg.instantiate(batch=batch)
