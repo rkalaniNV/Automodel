@@ -246,24 +246,7 @@ def init_hf_model_buffers(model: torch.nn.Module, device: torch.device) -> None:
             rotary_owner.rotary_emb.register_buffer("inv_freq", inv_freq, persistent=False)
 
 
-def initialize_hf_model_on_meta(
-    model_id_or_config: Union[str, "AutoConfig"],
-    **kwargs: Any,
-) -> torch.nn.Module:
-    from transformers import AutoConfig, AutoModel
-
-    if isinstance(model_id_or_config, str):
-        cfg = AutoConfig.from_pretrained(model_id_or_config)
-    else:
-        cfg = model_id_or_config
-
-    with torch.device("meta"):
-        model = AutoModel.from_config(cfg, **kwargs)
-
-    return model
-
-
-def validate_hf_model_for_pipeline_support(model: torch.nn.Module, *, raise_on_warnings: bool = False) -> None:
+def validate_hf_model_for_pipeline_support(model: torch.nn.Module) -> None:
     """Validate if a model is compatible with torch.distributed.pipelining."""
     model_name = getattr(getattr(model, "config", object()), "pretrained_model_name_or_path", "Unknown")
     config = getattr(model, "config", None)
@@ -276,18 +259,9 @@ def validate_hf_model_for_pipeline_support(model: torch.nn.Module, *, raise_on_w
                 "tie_word_embeddings=True is not supported for pipelining. Use separate input/output embeddings."
             )
         if getattr(config, "is_encoder_decoder", False):
-            issues.append("Encoder-Decoder models with cross-attention are not supported yet for pipeline parallelism.")
-        model_type = getattr(config, "model_type", "")
-        if model_type in {"albert", "reformer"}:
             issues.append(
-                f"Model type '{model_type}' uses parameter sharing across layers, which breaks stage partitioning."
+                "Encoder-Decoder models with cross-attention are not supported yet for pipeline parallelism."
             )
-        if getattr(config, "use_cache", False) and getattr(config, "gradient_checkpointing", False):
-            msg = "Using both gradient checkpointing and KV-cache with pipeline parallelism may cause unexpected behavior."
-            if raise_on_warnings:
-                issues.append(msg)
-            else:
-                logger.warning(msg)
 
     if issues:
         error_msg = f"Model '{model_name}' is not compatible with pipeline parallelism:\n\n"

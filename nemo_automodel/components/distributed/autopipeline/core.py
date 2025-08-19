@@ -109,26 +109,6 @@ class AutoPipelineConfig:
             raise ValueError("local_batch_size must be divisible by microbatch_size")
 
 
-def materialize_meta_model(
-    model_parts: list[nn.Module],
-    device: torch.device,
-    *,
-    init_buffers_fn: Callable[[nn.Module, torch.device], None] | None = None,
-    init_weights_fn: Callable[[nn.Module, torch.device], None] | None = None,
-) -> None:
-    for mp in model_parts:
-        mp.to_empty(device=device)
-
-        if init_buffers_fn is not None:
-            init_buffers_fn(mp, device)
-
-        if init_weights_fn is not None:
-            init_weights_fn(mp, device)
-
-        mp.train()
-        mp.to(device)
-
-
 class AutoPipeline:
     """Orchestrates pipeline-parallel training on top of torch.distributed.pipelining.
 
@@ -209,22 +189,6 @@ class AutoPipeline:
         self._info.stages = stages
 
         return self
-
-    def materialize(
-        self,
-        *,
-        init_buffers_fn: Callable[[nn.Module, torch.device], None] | None = None,
-        init_weights_fn: Callable[[nn.Module, torch.device], None] | None = None,
-    ) -> None:
-        if self._info.model_parts is None:
-            raise RuntimeError("Autopipeline not built. Call build() first.")
-
-        materialize_meta_model(
-            self._info.model_parts,
-            device=self.device,
-            init_buffers_fn=init_buffers_fn,
-            init_weights_fn=init_weights_fn,
-        )
 
     def step(
         self,
