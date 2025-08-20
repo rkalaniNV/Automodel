@@ -14,7 +14,7 @@
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal, Optional, Protocol
+from typing import Callable, Literal, Optional, Protocol
 
 import torch
 import torch.nn as nn
@@ -90,10 +90,6 @@ class AutoPipelineConfig:
     dtype: Optional[torch.dtype] = None
     scale_grads_in_schedule: bool = False
 
-    # Materialization / weights
-    init_weights: bool = True
-    empty_weights: bool = False
-
     # Visualization
     visualization_font_size_offset: int = 0
 
@@ -141,9 +137,8 @@ class AutoPipeline:
         *,
         loss_fn: Optional[Callable] = None,
         parallelize_fn: Optional[ParallelizeFnProtocol] = None,
-        initialize_kwargs: Optional[dict[str, Any]] = None,
     ):
-        """Build the pipeline: validate -> init meta -> split -> materialize -> schedule."""
+        """Build the pipeline: validate -> init meta -> split -> schedule."""
         # 0. Validation
         assert loss_fn is not None, "loss_fn must be provided"
         assert isinstance(model, nn.Module), "model must be a PyTorch module"
