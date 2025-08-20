@@ -71,8 +71,10 @@ cat llama_3_2_7b_peft.yaml  # If available, or use the following config
 
 **Production PEFT Configuration for 7B Model:**
 
+::::{tab-set}
+::: {tab-item} LLM
 ```yaml
-# Memory-efficient 7B model training
+# Memory-efficient 7B model training (LLM)
 model:
   _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
   pretrained_model_name_or_path: meta-llama/Llama-3.2-7B
@@ -91,7 +93,6 @@ peft:
 distributed:
   _target_: nemo_automodel.components.distributed.fsdp2.FSDP2Manager
   dp_size: none                 # Automatic GPU detection
-  # FSDP2 automatically shards parameters across available GPUs
 
 # Memory-efficient data loading
 dataloader:
@@ -100,6 +101,41 @@ dataloader:
   num_workers: 4
   pin_memory: true
 ```
+:::
+::: {tab-item} VLM
+```yaml
+# Memory-efficient VLM training with PEFT (VLM)
+model:
+  _target_: nemo_automodel.NeMoAutoModelForImageTextToText.from_pretrained
+  pretrained_model_name_or_path: google/gemma-3-4b-it
+  torch_dtype: torch.bfloat16
+
+peft:
+  _target_: nemo_automodel.components._peft.lora.PeftConfig
+  match_all_linear: false
+  include_modules:
+    - "*.language_model.*.self_attn.*"
+    - "*.language_model.*.mlp.*"
+  dim: 16
+  alpha: 32
+  use_triton: true
+
+freeze_config:
+  freeze_embeddings: true
+  freeze_vision_tower: true
+  freeze_language_model: false
+
+dataset:
+  _target_: nemo_automodel.components.datasets.vlm.datasets.make_cord_v2_dataset
+  path_or_dataset: naver-clova-ix/cord-v2
+  split: train
+
+dataloader:
+  batch_size: 1
+  num_workers: 2
+```
+:::
+::::
 
 **Memory Breakdown:**
 - **Base 7B model**: ~14GB (BF16)
@@ -113,15 +149,20 @@ dataloader:
 
 Scale PEFT training across multiple GPUs for even larger models:
 
+::::{tab-set}
+::: {tab-item} LLM
 ```bash
-# Automatically distributes across all available GPUs
+# Automatically distributes across all available GPUs (LLM)
 automodel finetune llm -c llama_3_2_7b_peft.yaml
-
-# What happens with multi-GPU:
-# 1x GPU: Fits 7B model in 12GB
-# 2x GPU: Can train 13B model with PEFT  
-# 4x GPU: Can train 30B+ model with PEFT
 ```
+:::
+::: {tab-item} VLM
+```bash
+# Automatically distributes across all available GPUs (VLM)
+automodel finetune vlm -c memory_efficient_vlm_training.yaml
+```
+:::
+::::
 
 **Advanced Distributed Configuration:**
 
@@ -156,10 +197,20 @@ checkpoint:
 (tutorial-peft-step3-monitoring)=
 ## Step 3: Monitor Memory-Efficient Training
 
+::::{tab-set}
+::: {tab-item} LLM
 ```bash
-# Launch training with memory monitoring
+# Launch training with memory monitoring (LLM)
 automodel finetune llm -c llama_3_2_7b_peft.yaml
 ```
+:::
+::: {tab-item} VLM
+```bash
+# Launch training with memory monitoring (VLM)
+automodel finetune vlm -c memory_efficient_vlm_training.yaml
+```
+:::
+::::
 
 **Training Output You'll See:**
 
@@ -364,7 +415,7 @@ slurm:
 
 **Related Concepts:**
 
-- **[Understanding PEFT](../../about/key-features.md#parameter-efficient-fine-tuning)** - Technical background
+- **{ref}`Understanding PEFT <parameter-efficient-fine-tuning>`** - Technical background
 - **[Model Support](../../model-coverage/llm.md)** - PEFT compatibility across architectures
 
 **API Reference:**

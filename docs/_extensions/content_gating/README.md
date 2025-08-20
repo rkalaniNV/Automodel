@@ -32,26 +32,26 @@ This excludes the entire document when building with the `ga` tag.
 
 **Global condition (entire toctree):**
 ```rst
-::::{toctree}
+```{toctree}
 :only: not ga  
 :hidden:
 :caption: Early Access Features
 
 ea-feature-1.md
 ea-feature-2.md
-::::
+```
 ```
 
 **Per-entry conditions:**
 ```rst
-::::{toctree}
+```{toctree}
 :hidden:
 :caption: Mixed Content
 
 stable-feature.md
 new-feature.md :only: ea
 experimental.md :only: internal
-::::
+```
 ```
 
 ### 3. Grid Card Filtering

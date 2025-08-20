@@ -131,7 +131,7 @@ Comprehensive guide to repository structure, package hierarchy, and development 
 :::
 
 :::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Get Started
-:link: /get-started/index
+:link: ../get-started/index
 :link-type: doc
 :link-alt: Installation and quick start guide
 
@@ -150,7 +150,7 @@ Explore the core components that make NeMo AutoModel powerful and flexible:
 :gutter: 2 2 2 2
 
 :::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Core Components
-:link: /api-docs/index
+:link: ../api-docs/index
 :link-type: doc
 :link-alt: Core training components
 
@@ -161,7 +161,7 @@ Modular components including transformers, PEFT, datasets, distributed training,
 :::
 
 :::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Training Recipes
-:link: /guides/index
+:link: ../guides/index
 :link-type: doc
 :link-alt: End-to-end training workflows
 
@@ -172,7 +172,7 @@ Complete training pipelines for LLM and VLM fine-tuning with configurable workfl
 :::
 
 :::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` Command Line Interface
-:link: /references/cli-command-reference
+:link: ../references/cli-command-reference
 :link-type: doc
 :link-alt: CLI tools and launcher
 
@@ -183,7 +183,7 @@ Powerful CLI for launching distributed training jobs across different environmen
 :::
 
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Shared Utilities
-:link: /api-docs/utils/utils
+:link: ../api-docs/utils/utils
 :link-type: doc
 :link-alt: Common utilities and helpers
 
@@ -322,7 +322,7 @@ Ready to begin training with NeMo AutoModel? Follow these essential resources to
 :gutter: 2
 
 :::{grid-item-card} {octicon}`download;1.5em;sd-mr-1` Installation
-:link: /get-started/installation
+:link: ../get-started/installation
 :link-type: doc
 :link-alt: Complete installation guide
 
@@ -332,7 +332,7 @@ Set up NeMo AutoModel with container, pip, or development installation options.
 :::
 
 :::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quick Start
-:link: /get-started/index
+:link: ../get-started/index
 :link-type: doc
 :link-alt: Hands-on tutorial
 
@@ -342,7 +342,7 @@ Follow the quick start tutorial to fine-tune your first model in minutes.
 :::
 
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Examples
-:link: /learning-resources/examples/index
+:link: ../learning-resources/examples/index
 :link-type: doc
 :link-alt: Working examples
 
@@ -355,13 +355,13 @@ Explore ready-to-run examples for LLM and VLM fine-tuning workflows.
 
 ### Model-Specific Guides
 
-- **[LLM Training](/guides/llm/index)** - Language model fine-tuning with SFT and PEFT
-- **[VLM Training](/guides/vlm/index)** - Vision-language model training workflows  
-- **[Model Coverage](/model-coverage/llm)** - Comprehensive list of supported model architectures
-- **[Distributed Training](/guides/launcher/index)** - Multi-GPU and cluster deployment
+- **[LLM Training](../guides/llm/index)** - Language model fine-tuning with SFT and PEFT
+- **[VLM Training](../guides/vlm/index)** - Vision-language model training workflows  
+- **[Model Coverage](../model-coverage/llm)** - Comprehensive list of supported model architectures
+- **[Distributed Training](../guides/launcher/index)** - Multi-GPU and cluster deployment
 
 ### API Documentation
 
-- **[API Reference](/api-docs/index)** - Complete API documentation for all components
+- **[API Reference](../api-docs/index)** - Complete API documentation for all components
 - **[Configuration Reference](../references/yaml-configuration-reference)** - YAML configuration options
 - **[CLI Reference](../references/cli-command-reference)** - Command-line interface guide

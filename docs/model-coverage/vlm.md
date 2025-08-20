@@ -1,4 +1,4 @@
-# Vision Language Models (VLMs)
+# Vision Language Models
 
 ## Introduction
 
@@ -15,7 +15,7 @@ To run LLMs with NeMo Automodel, use NeMo container version `25.07` or later. If
    pip3 install --upgrade git+git@github.com:NVIDIA-NeMo/Automodel.git
 ```
 
-For other installation options (e.g., uv) please see our [Installation Guide](../guides/installation.md).
+For other installation options (e.g., uv) please see our {doc}`../get-started/installation`.
 
 ## Supported Models
 

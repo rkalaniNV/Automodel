@@ -1,8 +1,6 @@
 (llm-peft-guide)=
-(llm-peft-guide)=
 # Run Parameter-Efficient Fine-Tuning (PEFT)
 
-(peft-introduction)=
 (peft-introduction)=
 ## Introduction
 
@@ -36,7 +34,6 @@ offering hands-on demonstrations for quickly getting started with NeMo
 Automodel. -->
 
 (peft-llama-squad-training)=
-(peft-llama-squad-training)=
 ## Train LLaMA 3.2 1B on SQuAD Dataset
 
 In this guide, we will run PEFT on Meta’s `LLaMA 3.2 1B` model with the popular [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) (Stanford Question Answering Dataset).
@@ -47,7 +44,7 @@ machine. This can be achieved by running:
 ```bash
 pip3 install nemo-automodel
 ```
-For a complete guide and additional options please consult the Automodel [Installation Guide](../installation.md).
+For a complete guide and additional options please consult the Automodel {doc}`../../get-started/installation`.
 :::
 
 
@@ -120,13 +117,11 @@ In this guide, we use the `SQuAD v1.1` dataset, but you can specify your own dat
 :::
 
 (peft-recipe-usage)=
-(peft-recipe-usage)=
 ## Use a Recipe to Fine-Tune the Model
 
 This example demonstrates how to fine-tune a large language model using NVIDIA's NeMo Automodel library.
 Specifically, we use the LLM [finetune recipe](https://github.com/NVIDIA-NeMo/Automodel/blob/main/nemo_automodel/recipes/llm/finetune.py), and in particular, the `FinetuneRecipeForNextTokenPrediction` class to orchestrate the fine-tuning process end-to-end: model loading, dataset preparation, optimizer setup, distributed training, checkpointing, and logging.
 
-(peft-recipe-concept)=
 (peft-recipe-concept)=
 ### What is a Recipe?
 
@@ -147,7 +142,6 @@ The `FinetuneRecipeForNextTokenPrediction` class is one such recipe. It inherits
 The recipe ensures stateless, config-driven orchestration where core components like the model, dataset, and optimizer are configured dynamically using Hydra-style `instantiate()` calls, avoiding hardcoded dependencies.
 :::
 
-(peft-recipe-configuration)=
 (peft-recipe-configuration)=
 ### Configure the Recipe?
 
@@ -251,7 +245,6 @@ those used for training.
 :::
 
 (peft-run-recipe)=
-(peft-run-recipe)=
 ## Run the Fine-Tune Recipe
 
 Assuming the above `yaml` is saved in a file named `peft_guide.yaml`, you can run the fine-tuning workflow either using the Automodel CLI or by directly invoking the recipe Python script.
@@ -322,7 +315,6 @@ checkpoints/epoch_0_step_10/
 
 
 (peft-inference)=
-(peft-inference)=
 ## Run PEFT Inference with NeMo Automodel-Trained Adapters
 
 Inference with adapters is supported through the Hugging Face generate API. To use it, replace the full model path with the path to a PEFT checkpoint, which should include all necessary configuration settings such as model type, adapter type, and base model checkpoint path.
@@ -356,7 +348,6 @@ output = model.generate(**inputs, max_length=100)
 print(tokenizer.decode(output[0], skip_special_tokens=True))
 ```
 
-(peft-publish-hub)=
 (peft-publish-hub)=
 ## Publish PEFT Adapters to Hugging Face Hub
 
@@ -440,7 +431,6 @@ python3 -m lm_eval --model hf \
 This command will run lm_eval on hellaswag using [meta-llama/Llama-3.2-1B](https://huggingface.co/meta-llama/Llama-3.2-1B) and the NeMo Automodel-trained HF
 adapters. -->
 
-(peft-export-vllm)=
 (peft-export-vllm)=
 ## Export to vLLM
 

@@ -15,24 +15,24 @@ Content here
 :::
 
 Toctree with global condition:
-::::{toctree}
+```{toctree}
 :only: not ga
 :hidden:
 :caption: Section Title
 
 document1.md
 document2.md
-::::
+```
 
 Toctree with inline conditions:
-::::{toctree}
+```{toctree}
 :hidden:
 :caption: Section Title
 
 document1.md
 document2.md :only: not ga
 document3.md :only: ea
-::::
+```
 """
 
 import re

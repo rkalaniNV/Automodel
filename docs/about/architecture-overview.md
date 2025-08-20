@@ -75,6 +75,16 @@ modality: "universal"
     height: auto;
     border-radius: 8px;
 }
+
+/* Center mermaid diagrams inside clickable frames and modal */
+.clickable-diagram .mermaid,
+.clickable-diagram .mermaid svg,
+.diagram-modal-content .mermaid,
+.diagram-modal-content .mermaid svg {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
 </style>
 
 <script>
@@ -442,7 +452,7 @@ graph LR
 - **Dynamic Scaling**: Prevents gradient underflow
 :::
 
-:::{grid-item-card} {octicon}`circuit-board;1.5em;sd-mr-1` FP8 Quantization
+:::{grid-item-card} {octicon}`cpu;1.5em;sd-mr-1` FP8 Quantization
 - **Hardware Acceleration**: H100+ GPU optimization
 - **Tensorwise/Rowwise**: Different scaling strategies
 - **torchAO Integration**: Leverages PyTorch native FP8
@@ -503,6 +513,7 @@ graph LR
 ```
 
 ```{mermaid}
+%%{init: {"themeVariables": {"fontSize": "10px", "lineHeight": "14px", "nodePadding": 6}}}%%
 graph TB
     A[Training State] --> B{Checkpoint Format}
     B --> C[HuggingFace Format]

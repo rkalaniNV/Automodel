@@ -8,7 +8,7 @@ content_type: "reference"
 modality: "universal"
 ---
 
-(api-interfaces-reference)=
+(python-api-reference)=
 # Python API Reference
 
 Python API reference for NeMo Automodel's core interfaces, model classes, and component APIs for programmatic usage.
@@ -575,3 +575,5 @@ optimizer = config.optimizer.build(model.parameters())
 - {doc}`cli-command-reference` - Command-line interface
 - {doc}`../api-docs/index` - Complete API documentation
 - {doc}`troubleshooting-reference` - Error handling and debugging
+
+

@@ -30,6 +30,8 @@ As a Research Scientist, you need reproducible experimental frameworks, custom m
 ### NeMo AutoModel Solution
 
 **Custom Architecture Implementation**
+```{dropdown} custom_models/novel_transformer.py
+:open:
 ```python
 # custom_models/novel_transformer.py
 import torch
@@ -133,8 +135,13 @@ class NovelTransformerModel(NeMoAutoModelForCausalLM):
         
         return model
 ```
+```
 
 **Research Configuration**
+::::{tab-set}
+::: {tab-item} LLM
+```{dropdown} research_experiments/novel_architecture_llm.yaml
+:open:
 ```yaml
 # research_experiments/novel_architecture.yaml
 experiment:
@@ -198,6 +205,47 @@ tracking:
   log_activation_statistics: true
   save_attention_visualizations: true
 ```
+```
+:::
+::: {tab-item} VLM
+```{dropdown} research_experiments/novel_architecture_vlm.yaml
+:open:
+```yaml
+# research_experiments/novel_architecture_vlm.yaml
+experiment:
+  name: "vlm_attention_fusion_v1"
+  description: "Investigate attention fusion between vision and text streams"
+
+model:
+  _target_: nemo_automodel.NeMoAutoModelForImageTextToText.from_pretrained
+  pretrained_model_name_or_path: Qwen/Qwen2.5-VL-3B-Instruct
+  torch_dtype: torch.bfloat16
+
+dataset:
+  _target_: nemo_automodel.components.datasets.vlm.datasets.make_cord_v2_dataset
+  path_or_dataset: naver-clova-ix/cord-v2
+  split: train
+
+validation_dataset:
+  _target_: nemo_automodel.components.datasets.vlm.datasets.make_cord_v2_dataset
+  path_or_dataset: naver-clova-ix/cord-v2
+  split: validation
+
+step_scheduler:
+  grad_acc_steps: 8
+  max_steps: 2000
+
+evaluation:
+  metrics: ["token_accuracy", "vision_text_alignment"]
+
+tracking:
+  enabled: true
+  framework: "wandb"
+  project: "vlm_attention_research"
+```
+```
+:::
+::::
 
 ---
 
@@ -208,6 +256,8 @@ tracking:
 ### NeMo AutoModel Solution
 
 **Reproducibility Framework**
+```{dropdown} research/reproducibility_framework.py
+:open:
 ```python
 # research/reproducibility_framework.py
 import os
@@ -384,8 +434,11 @@ reproducer.capture_environment_info()
 benchmark_suite = AcademicBenchmarkSuite()
 results = benchmark_suite.run_comprehensive_evaluation(model, ['glue', 'long_range'])
 ```
+```
 
 **Academic Benchmarking Configuration**
+```{dropdown} research_benchmarking.yaml
+:open:
 ```yaml
 # research_benchmarking.yaml
 academic_evaluation:
@@ -425,6 +478,7 @@ publication_ready:
   significance_annotations: true
   error_bars: true
 ```
+```
 
 ---
 
@@ -435,6 +489,10 @@ publication_ready:
 ### NeMo AutoModel Solution
 
 **Research Tracking Integration**
+::::{tab-set}
+::: {tab-item} Weights & Biases
+```{dropdown} research/experiment_tracker_wandb.py
+:open:
 ```python
 # research/experiment_tracker.py
 import wandb
@@ -600,8 +658,43 @@ tracker.log_research_metadata({
     'methodology': 'Controlled comparison with baseline transformer'
 })
 ```
+```
+:::
+::: {tab-item} MLflow
+```{dropdown} research/experiment_tracker_mlflow.py
+:open:
+```python
+# research/experiment_tracker.py
+import mlflow
+from typing import Dict, Any
+
+class MLflowExperimentTracker:
+    def __init__(self, project_name: str, experiment_name: str):
+        mlflow.set_experiment(project_name)
+        self.run = mlflow.start_run(run_name=experiment_name)
+
+    def log_training_metrics(self, step: int, metrics: Dict[str, float]):
+        for metric_name, value in metrics.items():
+            mlflow.log_metric(metric_name, value, step=step)
+
+    def log_params(self, params: Dict[str, Any]):
+        for k, v in params.items():
+            mlflow.log_param(k, v)
+
+tracker = MLflowExperimentTracker(
+    project_name="novel_attention_research",
+    experiment_name="gated_attention_v1"
+)
+tracker.log_params({"framework": "mlflow", "purpose": "research"})
+```
+```
+:::
+::::
+```
 
 **Research Configuration**
+```{dropdown} research_tracking.yaml
+:open:
 ```yaml
 # research_tracking.yaml
 research_project:
@@ -645,6 +738,7 @@ publication_config:
   statistical_significance_testing: true
   error_bar_visualization: true
 ```
+```
 
 ---
 
@@ -678,9 +772,11 @@ python generate_publication_results.py
 ```
 
 ### Resources
-- {doc}`../../tutorials/custom-architectures` - Custom model development guide
-- {doc}`../../examples/research-experiments` - Research experiment examples
-- Academic benchmarking datasets and protocols
+- [Tutorials](../tutorials/index.md)
+- [Examples](../examples/index.md)
+- [YAML configuration reference](../../references/yaml-configuration-reference.md)
+- [Python API Reference](../../references/python-api-reference.md)
+- [Troubleshooting Reference](../../references/troubleshooting-reference.md)
 
 ---
 

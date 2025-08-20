@@ -4,7 +4,7 @@ tags: ["ai-agents", "lifecycle", "continuous-improvement", "fine-tuning", "feedb
 categories: ["concepts", "architecture"]
 ---
 
-# AI Agent Lifecycle and NeMo Automodel
+# AI Agent Lifecycle
 
 Learn how NeMo Automodel enables continuous improvement and adaptation in AI agent development through the circular AI agent lifecycle.
 
@@ -145,7 +145,7 @@ peft:
 
 ### Multi-Agent Specialization
 
-```mermaid
+```{mermaid}
 graph LR
     A[Base Model] --> B[Customer Service Agent]
     A --> C[Technical Support Agent]
@@ -204,4 +204,4 @@ graph LR
 - {doc}`../guides/llm/peft` - Parameter-efficient fine-tuning techniques
 - {doc}`../guides/llm/sft` - Supervised fine-tuning workflows
 - {doc}`architecture-overview` - NeMo Automodel system architecture
-- {doc}`../learning-resources/tutorials/beginner` - Getting started tutorials
+- {doc}`../learning-resources/tutorials/index` - Getting started tutorials

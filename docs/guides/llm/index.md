@@ -8,9 +8,9 @@ content_type: "concept"
 modality: "llm"
 ---
 
-# Train Large Language Models (LLM)
+# Train Large Language Models
 
-Learn how to fine-tune large language models using NeMo Automodel with both full parameter training and parameter-efficient techniques.
+Learn how to fine-tune Large Language Models (LLMs) using NeMo Automodel with both full parameter training and parameter-efficient techniques.
 
 ## Training Methods
 
@@ -84,7 +84,6 @@ Working with instruction-following datasets and conversation formats for chat an
 
 ```{toctree}
 :maxdepth: 2
-:titlesonly:
 :hidden:
 
 sft

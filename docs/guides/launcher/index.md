@@ -72,7 +72,6 @@ Each environment requires specific configuration:
 
 ```{toctree}
 :maxdepth: 2
-:titlesonly:
 :hidden:
 
 slurm

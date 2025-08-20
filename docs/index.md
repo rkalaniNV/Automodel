@@ -224,10 +224,10 @@ Common issues, error messages, and solutions.
 {bdg-warning}`Support`
 :::
 
-:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` API Interfaces
-:link: references/api-interfaces-reference
+:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Python API Reference
+:link: references/python-api-reference
 :link-type: doc
-:link-alt: API interfaces reference
+:link-alt: Python API reference
 
 Detailed API interface specifications and examples.
 +++
@@ -238,64 +238,69 @@ Detailed API interface specifications and examples.
 
 ---
 
-::::{toctree}
+```{toctree}
 :hidden:
 :caption: About
 :maxdepth: 2
+
 about/index
 about/key-features
 about/ai-agent-lifecycle
 about/architecture-overview
 about/repository-and-package-guide
-::::
+```
 
-::::{toctree}
+```{toctree}
 :hidden:
 :caption: Get Started
 :maxdepth: 2
+
 get-started/index
 get-started/quick-start
 get-started/installation
 get-started/model-selection
 get-started/local-workstation
-::::
+```
 
-::::{toctree}
+```{toctree}
 :hidden:
 :caption: Guides
 :maxdepth: 2
+
 guides/index
 guides/llm/index
 guides/vlm/index
 guides/omni/index
 guides/launcher/index
 guides/checkpointing
-::::
+```
 
-::::{toctree}
+```{toctree}
 :hidden:
 :caption: Learning Resources
 :maxdepth: 3
-learning-resources/index
-learning-resources/examples/index
-learning-resources/tutorials/index
-learning-resources/use-cases/index
-::::
 
-::::{toctree}
+learning-resources/index
+learning-resources/tutorials/index
+learning-resources/examples/index
+learning-resources/use-cases/index
+learning-resources/recipes
+```
+
+```{toctree}
 :hidden:
 :caption: Model Coverage
 :maxdepth: 2
+
 model-coverage/index
 model-coverage/llm
 model-coverage/vlm
-::::
+```
 
-::::{toctree}
+```{toctree}
 :hidden:
-:caption: References
+:caption: API Documentation
 :maxdepth: 2
-references/index
 api-docs/index
 api-docs/_transformers/_transformers
 api-docs/datasets/datasets
@@ -310,4 +315,15 @@ api-docs/launcher/launcher
 api-docs/loggers/loggers
 api-docs/quantization/quantization
 api-docs/utils/utils
-::::
+```
+
+```{toctree}
+:hidden:
+:caption: References
+:maxdepth: 2
+references/index
+references/cli-command-reference
+references/yaml-configuration-reference
+references/python-api-reference
+references/troubleshooting-reference
+```

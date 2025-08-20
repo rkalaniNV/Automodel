@@ -1,6 +1,6 @@
 # Run on Your Local Workstation
 
-NeMo AutoModel supports various methods for launching jobs, allowing you to choose the approach that best fits your workflow and development needs. For setup details, refer to our [Installation Guide](../guides/installation.md).
+NeMo AutoModel supports various methods for launching jobs, allowing you to choose the approach that best fits your workflow and development needs. For setup details, refer to our {doc}`Installation Guide <../get-started/installation>`.
 
 ## Run with Automodel CLI
 
@@ -119,7 +119,7 @@ python nemo_automodel/recipes/llm/finetune.py -c examples/llm/llama_3_2_1b_squad
 torchrun --nproc-per-node=2 nemo_automodel/recipes/llm/finetune.py -c examples/llm/llama_3_2_1b_squad.yaml
 ```
 
-This approach requires that you have already installed NeMo Automodel and its dependencies in your Python environment (see the [installation guide](../guides/installation.md) for details).
+This approach requires that you have already installed NeMo Automodel and its dependencies in your Python environment (see the {doc}`installation guide <../get-started/installation>` for details).
 
 ## Customize Configuration Settings
 

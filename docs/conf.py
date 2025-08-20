@@ -61,6 +61,7 @@ exclude_patterns = [
     "_extensions/README.md",       # Exclude main extensions README
     "_extensions/*/__pycache__",   # Exclude Python cache directories
     "_extensions/*/*/__pycache__", # Exclude nested Python cache directories
+    "api-docs/index.rst",          # Prefer MD version to avoid duplicate doc warning
 ]
 
 # -- Options for Intersphinx -------------------------------------------------
@@ -148,9 +149,11 @@ numfig_secnum_depth = 1  # Gives you "Figure 1.1, 1.2, 2.1, etc."
 
 # Suppress expected warnings for conditional content builds
 suppress_warnings = [
-    "toc.not_included",  # Expected when docs are excluded from GA builds
-    "toc.no_title",      # Expected for docs that include external README files
-    "docutils",          # Expected for autodoc2-generated content with regex patterns and complex syntax
+    "toc.not_included",   # Expected when docs are excluded from GA builds
+    "toc.no_title",       # Expected for docs that include external README files
+    "toc.not_readable",   # Ignore toctree references to placeholder docs in project README
+    "image.not_readable", # Ignore placeholder images in extension READMEs
+    "docutils",           # Expected for autodoc2-generated content with regex patterns and complex syntax
 ]
 
 # -- Options for Autodoc2 ---------------------------------------------------

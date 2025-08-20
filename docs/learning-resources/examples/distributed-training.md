@@ -96,9 +96,11 @@ chmod +x cluster_assessment.sh
 
 Create a production Slurm configuration for NeMo AutoModel:
 
+::::{tab-set}
+::: {tab-item} LLM
 ```yaml
-# enterprise_distributed_training.yaml
-# Production multi-node training configuration
+# enterprise_distributed_training_llm.yaml
+# Production multi-node training configuration (LLM)
 
 model:
   _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
@@ -107,107 +109,71 @@ model:
   attn_implementation: flash_attention_2
   use_liger_kernel: true
 
-# Production distributed strategy
 distributed:
   _target_: nemo_automodel.components.distributed.nvfsdp.NVFSDPManager
-  dp_size: none  # Automatic multi-node distribution
-  # nvFSDP: NVIDIA-optimized FSDP with superior multi-node performance
+  dp_size: none
 
-# Enterprise dataset configuration
 dataset:
   _target_: nemo_automodel.components.datasets.llm.text_instruction_dataset.TextInstructionDataset
   dataset_name: tatsu-lab/alpaca
   split: train
   max_length: 4096
   cache_dir: /shared/datasets/.cache
-  num_workers: 16  # More workers for shared storage
 
-validation_dataset:
-  _target_: nemo_automodel.components.datasets.llm.text_instruction_dataset.TextInstructionDataset
-  dataset_name: tatsu-lab/alpaca
-  split: train
-  max_length: 4096
-  cache_dir: /shared/datasets/.cache
-  num_samples_limit: 1000
-
-# Multi-node optimized training schedule
 step_scheduler:
-  grad_acc_steps: 16        # Large accumulation for multi-node efficiency
+  grad_acc_steps: 16
   max_steps: 5000
-  ckpt_every_steps: 500
-  val_every_steps: 250
-  warmup_steps: 500
 
-# Production dataloader for distributed training
-dataloader:
-  _target_: torchdata.stateful_dataloader.StatefulDataLoader
-  batch_size: 2             # Per-GPU batch size
-  shuffle: true
-  num_workers: 8            # Optimized for shared storage
-  pin_memory: true
-  persistent_workers: true
-  prefetch_factor: 4
-
-validation_dataloader:
-  _target_: torchdata.stateful_dataloader.StatefulDataLoader
-  batch_size: 4
-  shuffle: false
-  num_workers: 4
-
-# Optimizer configuration for distributed training
-optimizer:
-  _target_: torch.optim.AdamW
-  lr: 1e-4
-  weight_decay: 0.01
-  betas: [0.9, 0.95]
-
-# Enterprise checkpoint management
 checkpoint:
   enabled: true
   checkpoint_dir: /shared/checkpoints/enterprise_training
-  model_save_format: safetensors
-  save_consolidated: false   # Sharded saves for distributed training
-  keep_last_n_checkpoints: 5
-  async_save: true          # Non-blocking checkpoint saves
 
-# Built-in Slurm integration
 slurm:
   job_name: "enterprise_llm_training"
-  nodes: 4                          # Multi-node scaling
-  ntasks_per_node: 8                # 8 GPUs per DGX node
-  time: "24:00:00"                  # 24-hour training window
-  account: "ml_research"            # Slurm account for billing
-  partition: "gpu"                  # GPU partition
-  
-  # Enterprise container configuration
-  container_image: "nvcr.io/nvidia/nemo:dev"
-  hf_home: "/shared/models/.cache/huggingface"
-  
-  # Environment and credentials
-  wandb_key: "${WANDB_API_KEY}"
-  hf_token: "${HF_TOKEN}"
-  
-  # Production mount points
-  extra_mounts:
-    - "/shared/datasets:/data"
-    - "/shared/checkpoints:/checkpoints"
-    - "/shared/logs:/logs"
-    - "/shared/configs:/configs"
-
-# Comprehensive monitoring
-wandb:
-  project: enterprise_distributed_training
-  entity: ml_engineering_team
-  name: llama_7b_4node_production
-  tags: ["production", "multi-node", "enterprise", "7b"]
-  notes: "Production distributed training on enterprise cluster"
-
-# Advanced distributed optimizations
-training_optimizations:
-  gradient_clipping: 1.0
-  activation_checkpointing: true
-  use_compile: false        # Disable for multi-node stability
+  nodes: 4
+  ntasks_per_node: 8
+  time: "24:00:00"
+  partition: "gpu"
 ```
+:::
+::: {tab-item} VLM
+```yaml
+# enterprise_distributed_training_vlm.yaml
+# Production multi-node training configuration (VLM)
+
+model:
+  _target_: nemo_automodel.NeMoAutoModelForImageTextToText.from_pretrained
+  pretrained_model_name_or_path: google/gemma-3-4b-it
+  torch_dtype: torch.bfloat16
+
+distributed:
+  _target_: nemo_automodel.components.distributed.nvfsdp.NVFSDPManager
+  dp_size: none
+  tp_size: 1
+  cp_size: 1
+
+dataset:
+  _target_: nemo_automodel.components.datasets.vlm.datasets.make_cord_v2_dataset
+  path_or_dataset: naver-clova-ix/cord-v2
+  split: train
+
+step_scheduler:
+  grad_acc_steps: 8
+  max_steps: 2000
+
+checkpoint:
+  enabled: true
+  checkpoint_dir: /shared/checkpoints/enterprise_vlm
+
+slurm:
+  job_name: "enterprise_vlm_training"
+  nodes: 4
+  ntasks_per_node: 8
+  time: "24:00:00"
+  partition: "gpu"
+```
+:::
+::::
 
 ## Step 3: Production Job Submission and Management
 
@@ -1148,7 +1114,7 @@ This example demonstrates how NeMo AutoModel enables enterprise-scale distribute
 
 - **[Launcher Components](../../api-docs/launcher/launcher.md)** - Job submission and management APIs
 - **[Distributed Training](../../api-docs/distributed/distributed.md)** - Multi-node coordination APIs
-- **[Cluster Setup Guide](../../get-started/installation.md#cluster-installation)** - Environment configuration
+- **[Cluster Setup Guide](../../get-started/installation.md#installation-for-clusters)** - Environment configuration
 
 **Troubleshooting:**
 

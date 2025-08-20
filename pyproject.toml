@@ -100,8 +100,14 @@ docs = [
     "sphinx-autobuild",    # For live doc serving while editing docs
     "sphinx-autodoc2",     # For documenting Python API
     "sphinx-copybutton",   # Adds a copy button for code blocks
+    "sphinx-design",       # For grid layout and design components
     "myst_parser",         # For our markdown docs
     "nvidia-sphinx-theme", # Our NVIDIA theme
+    "sphinxcontrib-mermaid", # For Mermaid diagrams
+    "swagger-plugin-for-sphinx", # For Swagger API documentation
+    "pinecone",            # For AI assistant features
+    "openai",              # For AI assistant features
+    "python-dotenv",       # For environment variable management
 ]
 linting = [
     "pre-commit>=4.2.0",

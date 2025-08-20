@@ -9,14 +9,14 @@ modality: "vlm"
 ---
 
 (vlm-training-overview)=
-# Train Vision Language Models (VLM)
+# Train Vision Language Models
 
-Learn how to fine-tune vision language models using NeMo Automodel for multi-modal tasks that combine visual and textual understanding.
+Learn how to fine-tune Vision Language Models (VLMs) using NeMo Automodel for multi-modal tasks that combine visual and textual understanding.
 
 (vlm-overview)=
 ## Overview
 
-Vision Language Models (VLMs) enable AI systems to understand and reason about both visual and textual information simultaneously. NeMo Automodel provides comprehensive support for training VLMs with multi-modal datasets, making it easy to build models that can:
+Vision Language Models enable AI systems to understand and reason about both visual and textual information simultaneously. NeMo Automodel provides comprehensive support for training VLMs with multi-modal datasets, making it easy to build models that can:
 
 - Answer questions about images (Visual Question Answering)
 - Generate captions for images
@@ -80,7 +80,6 @@ Train models for visual question answering tasks with specialized preprocessing 
 
 ```{toctree}
 :maxdepth: 2
-:titlesonly:
 :hidden:
 
 dataset

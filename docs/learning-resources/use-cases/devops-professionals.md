@@ -30,6 +30,10 @@ As a DevOps Professional, you need automated infrastructure provisioning, robust
 ### NeMo AutoModel Solution
 
 **Terraform Infrastructure Configuration**
+::::{tab-set}
+::: {tab-item} Terraform (AWS EKS)
+```{dropdown} terraform/main.tf
+:open:
 ```hcl
 # terraform/main.tf
 provider "aws" {
@@ -73,30 +77,67 @@ resource "aws_efs_file_system" "checkpoint_storage" {
   }
 }
 ```
+```
+:::
+::: {tab-item} Kubernetes (Helm)
+```{dropdown} helm/values.yaml
+:open:
+```yaml
+# helm/values.yaml
+replicaCount: 1
+resources:
+  limits:
+    nvidia.com/gpu: 4
+    memory: 128Gi
+    cpu: "32"
+  requests:
+    nvidia.com/gpu: 4
+    memory: 64Gi
+    cpu: "16"
+image:
+  repository: nemo-automodel
+  tag: latest
+env:
+  CUDA_VISIBLE_DEVICES: "0,1,2,3"
+volumeMounts:
+  - name: checkpoint-storage
+    mountPath: /checkpoints
+  - name: data-storage
+    mountPath: /data
+command: ["automodel", "finetune", "llm"]
+args: ["-c", "/config/training.yaml"]
+```
+```
+:::
+::::
 
 **Kubernetes Deployment Configuration**
+::::{tab-set}
+::: {tab-item} LLM
+```{dropdown} k8s/llm-deployment.yaml
+:open:
 ```yaml
 # k8s/nemo-training-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nemo-automodel-training
+  name: nemo-automodel-llm
   namespace: ml-training
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nemo-automodel
+      app: nemo-automodel-llm
   template:
     metadata:
       labels:
-        app: nemo-automodel
+        app: nemo-automodel-llm
     spec:
       nodeSelector:
         node-type: gpu
       
       containers:
-      - name: nemo-training
+      - name: nemo-llm
         image: nemo-automodel:latest
         resources:
           requests:
@@ -129,6 +170,63 @@ spec:
         persistentVolumeClaim:
           claimName: data-pvc
 ```
+```
+:::
+::: {tab-item} VLM
+```{dropdown} k8s/vlm-deployment.yaml
+:open:
+```yaml
+# k8s/vlm-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nemo-automodel-vlm
+  namespace: ml-training
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nemo-automodel-vlm
+  template:
+    metadata:
+      labels:
+        app: nemo-automodel-vlm
+    spec:
+      nodeSelector:
+        node-type: gpu
+      containers:
+      - name: nemo-vlm
+        image: nemo-automodel:latest
+        resources:
+          requests:
+            nvidia.com/gpu: 4
+            memory: "64Gi"
+            cpu: "16"
+          limits:
+            nvidia.com/gpu: 4
+            memory: "128Gi"
+            cpu: "32"
+        env:
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0,1,2,3"
+        volumeMounts:
+        - name: checkpoint-storage
+          mountPath: /checkpoints
+        - name: data-storage
+          mountPath: /data
+        command: ["automodel", "finetune", "vlm"]
+        args: ["-c", "/config/training.yaml"]
+      volumes:
+      - name: checkpoint-storage
+        persistentVolumeClaim:
+          claimName: checkpoint-pvc
+      - name: data-storage
+        persistentVolumeClaim:
+          claimName: data-pvc
+```
+```
+:::
+::::
 
 ---
 
@@ -139,6 +237,8 @@ spec:
 ### NeMo AutoModel Solution
 
 **GitHub Actions Workflow**
+```{dropdown} .github/workflows/ml-pipeline.yml
+:open:
 ```yaml
 # .github/workflows/ml-pipeline.yml
 name: ML Training and Deployment Pipeline
@@ -212,6 +312,7 @@ jobs:
       run: |
         kubectl apply -f k8s/production/ --namespace=production
 ```
+```
 
 ---
 
@@ -222,6 +323,8 @@ jobs:
 ### NeMo AutoModel Solution
 
 **Prometheus Configuration**
+```{dropdown} monitoring/prometheus.yaml
+:open:
 ```yaml
 # monitoring/prometheus.yaml
 global:
@@ -241,8 +344,11 @@ alerting:
   - static_configs:
     - targets: ["alertmanager:9093"]
 ```
+```
 
 **Alerting Rules**
+```{dropdown} monitoring/alerts.yml
+:open:
 ```yaml
 # monitoring/alerts.yml
 groups:
@@ -262,6 +368,7 @@ groups:
       severity: critical
     annotations:
       summary: "Training job failed"
+```
 ```
 
 ---
@@ -293,9 +400,11 @@ kubectl apply -f k8s/
 ```
 
 ### Resources
-- {doc}`../../guides/deployment/kubernetes` - Kubernetes deployment guide
-- {doc}`../../examples/infrastructure` - Infrastructure-as-code examples
-- Terraform AWS EKS module documentation
+- [Tutorials](../tutorials/index.md)
+- [Examples](../examples/index.md)
+- [YAML configuration reference](../../references/yaml-configuration-reference.md)
+- [Python API Reference](../../references/python-api-reference.md)
+- [Troubleshooting Reference](../../references/troubleshooting-reference.md)
 
 ---
 

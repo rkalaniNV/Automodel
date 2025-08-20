@@ -30,6 +30,10 @@ As a Machine Learning Engineer, you need robust training pipelines, efficient di
 ### NeMo AutoModel Solution
 
 **Production Training Configuration**
+::::{tab-set}
+::: {tab-item} LLM (PEFT)
+```{dropdown} production_training_pipeline.yaml
+:open:
 ```yaml
 # production_training_pipeline.yaml
 model:
@@ -77,6 +81,84 @@ wandb:
   name: "${WANDB_RUN_NAME:llama_training}"
   tags: ["production", "llama", "peft"]
 ```
+```
+:::
+::: {tab-item} LLM (Non-PEFT)
+```{dropdown} production_training_pipeline_no_peft.yaml
+:open:
+```yaml
+# production_training_pipeline_no_peft.yaml
+model:
+  _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
+  pretrained_model_name_or_path: meta-llama/Llama-3.2-3B
+  torch_dtype: torch.bfloat16
+  attn_implementation: flash_attention_2
+  use_liger_kernel: true
+
+dataset:
+  _target_: nemo_automodel.components.datasets.llm.text_instruction_dataset.TextInstructionDataset
+  data_path: "${DATA_PATH}/train.jsonl"
+  max_length: 2048
+
+step_scheduler:
+  grad_acc_steps: ${GRAD_ACC_STEPS:4}
+  max_steps: ${MAX_STEPS:2000}
+  val_every_steps: ${VAL_EVERY:200}
+  ckpt_every_steps: ${CKPT_EVERY:500}
+
+dataloader:
+  batch_size: ${BATCH_SIZE:4}
+  num_workers: ${NUM_WORKERS:8}
+  pin_memory: true
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: ${LEARNING_RATE:5e-5}
+  weight_decay: ${WEIGHT_DECAY:0.01}
+
+checkpoint:
+  enabled: true
+  checkpoint_dir: "${CHECKPOINT_DIR:./checkpoints}"
+  keep_last_n_checkpoints: 3
+
+wandb:
+  project: "${WANDB_PROJECT:production_training}"
+  name: "${WANDB_RUN_NAME:llama_training}"
+  tags: ["production", "llama"]
+```
+```
+:::
+::: {tab-item} VLM
+```{dropdown} vlm_training_pipeline.yaml
+:open:
+```yaml
+# vlm_training_pipeline.yaml
+model:
+  _target_: nemo_automodel.NeMoAutoModelForImageTextToText.from_pretrained
+  pretrained_model_name_or_path: google/gemma-3-4b-it
+  torch_dtype: torch.bfloat16
+
+dataset:
+  _target_: nemo_automodel.components.datasets.vlm.datasets.make_cord_v2_dataset
+  path_or_dataset: naver-clova-ix/cord-v2
+  split: train
+
+dataloader:
+  _target_: torchdata.stateful_dataloader.StatefulDataLoader
+  batch_size: 1
+  num_workers: 0
+  pin_memory: true
+  collate_fn:
+    _target_: nemo_automodel.components.datasets.vlm.collate_fns.default_collate_fn
+    start_of_response_token: "<start_of_turn>model\n"
+
+step_scheduler:
+  grad_acc_steps: 8
+  max_steps: 1000
+```
+```
+:::
+::::
 
 ---
 
@@ -87,6 +169,10 @@ wandb:
 ### NeMo AutoModel Solution
 
 **Distributed Training Configuration**
+::::{tab-set}
+::: {tab-item} LLM (PEFT)
+```{dropdown} distributed_training.yaml
+:open:
 ```yaml
 # distributed_training.yaml
 model:
@@ -116,6 +202,64 @@ step_scheduler:
   grad_acc_steps: 8
   max_steps: 5000
 ```
+```
+:::
+::: {tab-item} LLM (Non-PEFT)
+```{dropdown} distributed_training_no_peft.yaml
+:open:
+```yaml
+# distributed_training_no_peft.yaml
+model:
+  _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
+  pretrained_model_name_or_path: meta-llama/Llama-3.2-7B
+  torch_dtype: torch.bfloat16
+
+distributed:
+  _target_: nemo_automodel.components.distributed.fsdp2.FSDP2Manager
+  sharding_strategy: "full_shard"
+  mixed_precision: true
+  forward_prefetch: true
+  backward_prefetch: true
+
+dataloader:
+  batch_size: 2
+  num_workers: 4
+  sampler: "distributed"
+
+step_scheduler:
+  grad_acc_steps: 8
+  max_steps: 5000
+```
+```
+:::
+::: {tab-item} VLM
+```{dropdown} vlm_distributed_training.yaml
+:open:
+```yaml
+# vlm_distributed_training.yaml
+model:
+  _target_: nemo_automodel.NeMoAutoModelForImageTextToText.from_pretrained
+  pretrained_model_name_or_path: google/gemma-3-4b-it
+  torch_dtype: torch.bfloat16
+
+distributed:
+  _target_: nemo_automodel.components.distributed.nvfsdp.NVFSDPManager
+  dp_size: none
+  tp_size: 1
+  cp_size: 1
+
+dataloader:
+  batch_size: 1
+  num_workers: 2
+  sampler: "distributed"
+
+step_scheduler:
+  grad_acc_steps: 8
+  max_steps: 1000
+```
+```
+:::
+::::
 
 ---
 
@@ -126,6 +270,8 @@ step_scheduler:
 ### NeMo AutoModel Solution
 
 **Checkpoint Management**
+```{dropdown} checkpoint_management.yaml
+:open:
 ```yaml
 # checkpoint_management.yaml
 checkpoint_management:
@@ -148,6 +294,7 @@ deployment:
 model_registry:
   backend: "mlflow"
   experiment_name: "llama_training"
+```
 ```
 
 ---
@@ -172,9 +319,11 @@ torchrun --nproc_per_node=4 automodel finetune llm -c distributed_training.yaml
 ```
 
 ### Resources
-- {doc}`../../tutorials/multi-gpu-training` - Distributed training techniques
-- {doc}`../../examples/distributed-training` - Distributed training examples
-- {doc}`../../references/yaml-reference` - YAML configuration reference
+- [Tutorials](../tutorials/index.md)
+- [Examples](../examples/index.md)
+- [YAML configuration reference](../../references/yaml-configuration-reference.md)
+- [Python API Reference](../../references/python-api-reference.md)
+- [Troubleshooting Reference](../../references/troubleshooting-reference.md)
 
 ---
 

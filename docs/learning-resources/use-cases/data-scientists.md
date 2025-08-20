@@ -36,6 +36,8 @@ As a Data Scientist, you need rigorous model validation methodologies, comprehen
 ### NeMo AutoModel Solution
 
 **Model Validation Configuration**
+```{dropdown} model_validation.yaml
+:open:
 ```yaml
 # model_validation.yaml
 model_comparison:
@@ -73,8 +75,11 @@ wandb:
   project: model_validation_study
   tags: ["validation", "statistical-analysis", "comparison"]
 ```
+```
 
 **Statistical Validation Framework**
+```{dropdown} model_validator.py
+:open:
 ```python
 # model_validator.py
 import pandas as pd
@@ -124,6 +129,7 @@ class ModelValidator:
 validator = ModelValidator("llama_vs_mistral")
 significance = validator.statistical_significance_test(results_llama, results_mistral)
 ```
+```
 
 ### Validation Outcomes
 - **Statistical Rigor**: 95% confidence intervals and significance testing
@@ -146,6 +152,8 @@ significance = validator.statistical_significance_test(results_llama, results_mi
 ### NeMo AutoModel Solution
 
 **Optimization Configuration**
+```{dropdown} hyperparameter_optimization.yaml
+:open:
 ```yaml
 # hyperparameter_optimization.yaml
 optimization_study:
@@ -193,6 +201,7 @@ wandb:
   project: hyperparameter_optimization
   tags: ["optimization", "bayesian", "sensitivity"]
 ```
+```
 
 ### Optimization Outcomes
 - **Efficient Search**: Bayesian optimization 3x faster than grid search
@@ -215,6 +224,8 @@ wandb:
 ### NeMo AutoModel Solution
 
 **Data Analysis Configuration**
+```{dropdown} data_quality_analysis.yaml
+:open:
 ```yaml
 # data_quality_analysis.yaml
 data_analysis:
@@ -253,8 +264,11 @@ wandb:
   project: data_quality_analysis
   tags: ["data-quality", "preprocessing", "analysis"]
 ```
+```
 
 **Data Quality Framework**
+```{dropdown} data_quality_analyzer.py
+:open:
 ```python
 # data_quality_analyzer.py
 import pandas as pd
@@ -313,6 +327,7 @@ class DataQualityAnalyzer:
 analyzer = DataQualityAnalyzer("dataset_quality_study")
 quality_results = analyzer.analyze_dataset_quality("training_data.txt")
 ```
+```
 
 ### Data Analysis Outcomes
 - **Quality Assessment**: Comprehensive identification of data quality issues
@@ -352,9 +367,11 @@ automodel analyze-data -c data_quality_analysis.yaml
 ```
 
 ### Resources
-- {doc}`../../tutorials/parameter-efficient-fine-tuning` - PEFT optimization techniques
-- {doc}`../../examples/high-performance-text-classification` - Performance benchmarking
-- {doc}`../../references/metrics-reference` - Comprehensive metrics documentation
+- [Tutorials](../tutorials/index.md)
+- [Examples](../examples/index.md)
+- [YAML configuration reference](../../references/yaml-configuration-reference.md)
+- [Python API Reference](../../references/python-api-reference.md)
+- [Troubleshooting Reference](../../references/troubleshooting-reference.md)
 
 ---
 

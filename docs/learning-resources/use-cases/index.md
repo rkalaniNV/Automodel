@@ -165,7 +165,6 @@ Discover how NeMo AutoModel addresses real-world challenges across different tec
 
 ```{toctree}
 :maxdepth: 2
-:titlesonly:
 :hidden:
 
 data-scientists

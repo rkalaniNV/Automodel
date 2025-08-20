@@ -390,6 +390,25 @@ dist_env:
   timeout_minutes: 30  # Increase from default
 ```
 
+(multi-node-issues)=
+### Multi-Node Issues
+
+Common problems in multi-node setups include networking (NCCL, IB), container mounts, and shared storage. Verify:
+- Network reachability between nodes (NCCL env vars, firewall rules)
+- Container runtime configuration and proper mounts on all nodes
+- Shared filesystem access and permissions
+
+See {doc}`../guides/launcher/slurm` for validated cluster options.
+
+(performance-issues)=
+### Performance Issues
+
+If training is slower than expected:
+- Enable NCCL and PyTorch debug logs; check for topology-induced bottlenecks
+- Profile dataloader (workers, pin_memory, prefetch) and storage throughput
+- Validate attention backend and kernel selection (Flash/SDPA/Liger)
+- Measure MFU and GPU utilization; adjust batch size and grad_acc_steps
+
 ### Slurm Integration Issues
 
 #### Container Issues

@@ -120,6 +120,7 @@ Automodel simplifies customization via both Supervised Fine-Tuning (SFT) and Par
 - **Module Targeting**: Flexible pattern matching for layer selection
 - **Freezing Strategies**: Configurable parameter freezing (embeddings, vision towers, etc.)
 
+(parameter-efficient-fine-tuning)=
 ### Ready-to-Use Recipes and Configuration
 
 Automodel offers ready-to-use recipes that define end-to-end workflows (data preparation, training, evaluation) with flexible YAML-based configuration for reproducible experiments.

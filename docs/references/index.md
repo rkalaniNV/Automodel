@@ -46,7 +46,7 @@ Comprehensive YAML configuration schema with all parameters, sections, and examp
 :gutter: 2
 
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Python API
-:link: api-interfaces-reference
+:link: python-api-reference
 :link-type: doc  
 :link-alt: Python API interfaces
 
@@ -90,7 +90,7 @@ Comprehensive troubleshooting guide with common errors, solutions, and debugging
 
 - **{doc}`cli-command-reference`** - Master the `automodel` CLI for efficient workflow management
 - **{doc}`yaml-configuration-reference`** - Understand all configuration options for training customization
-- **{doc}`api-interfaces-reference`** - Access programmatic interfaces for custom implementations
+- **{doc}`python-api-reference`** - Access programmatic interfaces for custom implementations
 
 ### For DevOps and Infrastructure
 
@@ -124,7 +124,7 @@ Comprehensive troubleshooting guide with common errors, solutions, and debugging
   - Training configuration and experimentation
 * - {doc}`troubleshooting-reference`
   - Issue resolution and debugging
-* - {doc}`api-interfaces-reference`
+* - {doc}`python-api-reference`
   - Custom development and integration
 * - {doc}`../api-docs/index`
   - Complete component API reference
@@ -160,4 +160,13 @@ Help improve our reference documentation:
 2. **Submit Examples** - Contribute working configuration examples
 3. **Technical Reviews** - Validate accuracy of technical details
 
-For contribution guidelines, see our [Documentation Standards](../about/repository-and-package-guide.md#documentation-standards).
+For contribution guidelines, see our [Repository & Package Guide](../about/repository-and-package-guide.md).
+
+```{toctree}
+:maxdepth: 2
+
+cli-command-reference
+yaml-configuration-reference
+python-api-reference
+troubleshooting-reference
+```

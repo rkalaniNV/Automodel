@@ -1,4 +1,4 @@
-# Production-Ready Examples
+# Examples
 
 Task-focused examples demonstrating NeMo AutoModel's competitive advantages for AI development teams. Each example solves real production challenges with verified performance improvements.
 
@@ -8,50 +8,50 @@ These examples show how to accomplish common AI training tasks with NeMo AutoMod
 
 ## Training Examples by Task
 
-::::{grid} 1 1 2 2
+:::::{grid} 1 1 2 2
 :gutter: 2
 
-:::{grid-item-card} {octicon}`zap;1.5em;sd-mr-1` High-Performance Text Classification
-:link: #high-performance-text-classification
-:link-type: ref
+::::{grid-item-card} {octicon}`zap;1.5em;sd-mr-1` High-Performance Text Classification
+:link: high-performance-text-classification
+:link-type: doc
 :link-alt: High-performance text classification
 
 Get 2-3x PyTorch speedup with automatic optimizations. Perfect drop-in replacement for HF Trainer workflows.
 +++
-{bdg-primary}`Performance` {bdg-secondary}`45-60 min`
-:::
+{bdg-primary}`LLM`
+::::
 
-:::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Memory-Efficient Large Model Training
-:link: #memory-efficient-training
-:link-type: ref
+::::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Memory-Efficient Large Model Training
+:link: memory-efficient-training
+:link-type: doc
 :link-alt: Memory-efficient large model training
 
 Train 7B+ models on mainstream GPUs using PEFT and distributed strategies. Breakthrough memory limitations.
 +++
-{bdg-success}`Efficiency` {bdg-secondary}`90-120 min`
-:::
+{bdg-info}`LLM`
+::::
 
-:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Multi-Node Distributed Training
-:link: #distributed-training
-:link-type: ref
+::::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Multi-Node Distributed Training
+:link: distributed-training
+:link-type: doc
 :link-alt: Multi-node distributed training
 
 Production Slurm integration for enterprise-scale training. Built-in monitoring and job management.
 +++
-{bdg-warning}`Enterprise` {bdg-secondary}`2-3 hours`
-:::
+{bdg-warning}`Distributed`
+::::
 
-:::{grid-item-card} {octicon}`eye;1.5em;sd-mr-1` Advanced Multi-Modal Fine-Tuning
-:link: #multimodal-finetuning
-:link-type: ref
+::::{grid-item-card} {octicon}`eye;1.5em;sd-mr-1` Advanced Multi-Modal Fine-Tuning
+:link: multimodal-finetuning
+:link-type: doc
 :link-alt: Advanced multi-modal fine-tuning
 
 Vision-language model optimization with custom datasets and experimental techniques for research workflows.
 +++
-{bdg-info}`Research` {bdg-secondary}`3-4 hours`
-:::
-
+{bdg-secondary}`VLM`
 ::::
+
+:::::
 
 ## Real-World Performance Impact
 
@@ -121,28 +121,28 @@ Advanced vision-language model fine-tuning with custom dataset integration and c
 
 **Looking for working configurations you can run immediately?** The repository includes a comprehensive collection of production-ready examples with complete YAML configurations and execution scripts.
 
-::::{grid} 1 1 2 2
+:::::{grid} 1 1 2 2
 :gutter: 2
 
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` LLM Fine-Tuning Examples
+::::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` LLM Fine-Tuning Examples
 :link: https://github.com/NVIDIA/NeMo-Automodel/tree/main/examples/llm
 :link-alt: LLM examples directory
 
 **8 complete configurations** covering Llama 3.2, Qwen models with PEFT, nvFSDP, FP8 optimizations
 +++
 {bdg-primary}`Ready-to-run` {bdg-secondary}`examples/llm/`
-:::
+::::
 
-:::{grid-item-card} {octicon}`device-camera-video;1.5em;sd-mr-1` Vision-Language Model Examples  
+::::{grid-item-card} {octicon}`device-camera-video;1.5em;sd-mr-1` Vision-Language Model Examples  
 :link: https://github.com/NVIDIA/NeMo-Automodel/tree/main/examples/vlm
 :link-alt: VLM examples directory
 
 **10 configurations** for Gemma, Phi, Qwen2.5 VL models with fine-tuning and generation scripts
 +++
 {bdg-success}`Production-ready` {bdg-secondary}`examples/vlm/`
-:::
-
 ::::
+
+:::::
 
 ### Quick Start with Code Examples
 
@@ -199,7 +199,6 @@ These examples provide a solid foundation for understanding NeMo Automodel's cap
 
 ```{toctree}
 :maxdepth: 2
-:titlesonly:
 :hidden:
 
 high-performance-text-classification

@@ -1,4 +1,4 @@
-# Large Language Models (LLMs)
+# Large Language Models
 
 ## Introduction
 Large Language Models (LLMs) power a variety of tasks such as dialogue systems, text classification, summarization, and more.
@@ -12,7 +12,7 @@ To run LLMs with NeMo Automodel, make sure you're using NeMo container version `
    pip3 install --upgrade git+git@github.com:NVIDIA-NeMo/Automodel.git
 ```
 
-For other installation options (e.g., uv), please see our [Installation Guide](../guides/installation.md).
+For other installation options (e.g., uv), please see our {doc}`../get-started/installation`.
 
 ## Supported Models
 NeMo Automodel interoperates with most LLMs available on the Hugging Face Hub. During preprocessing, it uses `transformers.AutoTokenizer`, which is sufficient for most LLM cases. If your model requires custom text handling, such as for reasoning tasks, you can override the default tokenizer during the data preparation stage.

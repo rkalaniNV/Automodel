@@ -566,7 +566,7 @@ checkpoint:
 
 **Related Documentation:**
 
-- **[Installation for Clusters](../../get-started/installation.md#cluster-installation)** - Environment setup
+- **[Installation for Clusters](../../get-started/installation.md#installation-for-clusters)** - Environment setup
 - **[Troubleshooting Multi-Node](../../references/troubleshooting-reference.md#multi-node-issues)** - Common issues and solutions
 
 ---

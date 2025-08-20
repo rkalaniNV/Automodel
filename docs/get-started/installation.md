@@ -27,6 +27,7 @@ This guide explains how to install NeMo Automodel for LLM, VLM, and OMNI models 
 ---
 ## Installation Options for Non-Developers
 This section explains the easiest installation options for non-developers, including using pip3 via PyPI or leveraging a preconfigured NVIDIA NeMo Docker container. Both methods offer quick access to the latest stable release of NeMo Automodel with all required dependencies.
+
 ### Install via PyPI (Recommended)
 
 For most users, the easiest way to get started is using `pip3`.
@@ -39,6 +40,7 @@ This installs the latest stable release of NeMo Automodel from PyPI, along with 
 :::
 
 ### Install via NeMo Docker Container
+
 You can use NeMo Automodel with the NeMo Docker container. Pull the container by running:
 ```bash
 docker pull nvcr.io/nvidia/nemo:25.07
@@ -56,12 +58,15 @@ docker run --gpus all -it --rm \
 
 ---
 ## Installation Options for Developers
+
 This section provides installation options for developers, including pulling the latest source from GitHub, using editable mode, or mounting the repo inside a NeMo Docker container.
+
 ### Install via GitHub (Source)
 
 If you want the **latest features** from the `main` branch or want to contribute:
 
 #### Option A - Use `pip` with git repo:
+
 ```bash
 pip3 install git+https://github.com/NVIDIA-NeMo/Automodel.git
 ```
@@ -70,6 +75,7 @@ This installs the repo as a standard Python package (not editable).
 :::
 
 #### Option B - Use `uv` with git repo:
+
 ```bash
 uv pip install git+https://github.com/NVIDIA-NeMo/Automodel.git
 ```
@@ -78,6 +84,8 @@ uv pip install git+https://github.com/NVIDIA-NeMo/Automodel.git
 :::
 
 ### Install in Developer Mode (Editable Install)
+
+
 To contribute or modify the code:
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Automodel.git
@@ -90,6 +98,7 @@ This installs Automodel in editable mode, so changes to the code are immediately
 :::
 
 ### Mount the Repo into a NeMo Docker Container
+
 To run `Automodel` inside a NeMo container while **mounting your local repo**, follow these steps:
 
 ```
@@ -115,6 +124,7 @@ under `/opt/Automodel`.
 :::
 
 ## Bonus: Install Extras
+
 Some functionality may require optional extras. You can install them like this:
 ```bash
 pip3 install nemo-Automodel[cli]    # Installs only the Automodel CLI
@@ -123,6 +133,7 @@ pip3 install nemo-Automodel[vlm]    # Install all VLM-related dependencies.
 ```
 
 ## Summary
+
 | Goal                        | Command or Method                                               |
 | --------------------------- | --------------------------------------------------------------- |
 | Stable install (PyPI)       | `pip3 install nemo-automodel`                                   |
@@ -131,3 +142,16 @@ pip3 install nemo-Automodel[vlm]    # Install all VLM-related dependencies.
 | Run without installing      | Use `PYTHONPATH=$(pwd)` to run scripts                          |
 | Use in Docker container     | Mount repo and `pip install -e .` inside container              |
 | Fast install (via `uv`)     | `uv pip install ...`                                            |
+
+
+(cluster-installation)=
+## Installation for Clusters
+
+For multi-node clusters, use the NeMo container workflow and shared storage:
+
+1. Pull a recent NeMo container: `docker pull nvcr.io/nvidia/nemo:25.07`
+2. Ensure shared directories for datasets, checkpoints, and logs are mounted on all nodes
+3. Use Slurm with container support (Enroot/Pyxis or Singularity) to launch multi-node jobs
+4. Set `HF_HOME` and `WANDB_API_KEY` as needed for nodes
+
+See also: {doc}`../guides/launcher/slurm` for cluster job configuration.

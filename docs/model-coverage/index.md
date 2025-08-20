@@ -76,7 +76,6 @@ All supported models undergo comprehensive testing with:
 
 ```{toctree}
 :maxdepth: 2
-:titlesonly:
 :hidden:
 
 llm

@@ -186,8 +186,6 @@ This template provides a solid foundation for creating professional, maintainabl
     - [1. File-Level Exclusion (Recommended for Entire Sections)](#1-file-level-exclusion-recommended-for-entire-sections)
     - [2. Grid Card Conditional Rendering](#2-grid-card-conditional-rendering)
     - [3. Toctree Conditional Rendering](#3-toctree-conditional-rendering)
-    - [Best Practices](#best-practices)
-    - [Testing Conditional Content](#testing-conditional-content)
   - [Run Doctests (if present)](#run-doctests-if-present)
   - [Example: How to Write Doctests in Documentation](#example-how-to-write-doctests-in-documentation)
   - [MyST Substitutions in Code Blocks](#myst-substitutions-in-code-blocks)
@@ -289,24 +287,24 @@ Control navigation entries conditionally:
 
 ```markdown
 # Global toctree condition (hides entire section)
-::::{toctree}
+```{toctree}
 :hidden:
 :caption: Early Access Features
 :only: not ga
 
 ea-feature1.md
 ea-feature2.md  
-::::
+```
 
 # Inline entry conditions (hides individual entries)
-::::{toctree}
+```{toctree}
 :hidden:
 :caption: Documentation
 
 standard-doc.md
 ea-only-doc.md :only: not ga
 another-standard-doc.md
-::::
+```
 ```
 
 ### Best Practices

@@ -17,7 +17,7 @@ This guide provides complete coverage of NeMo Automodel's organization:
 :gutter: 2
 
 :::{grid-item-card} {octicon}`repo;1.5em;sd-mr-1` Repository Structure
-:link: #repository-structure
+:link: repository-structure
 :link-type: ref
 
 Top-level repository organization, directories, and development workflow
@@ -26,7 +26,7 @@ Top-level repository organization, directories, and development workflow
 :::
 
 :::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Package Structure  
-:link: #package-structure
+:link: package-structure
 :link-type: ref
 
 Deep dive into `nemo_automodel/` module hierarchy and component details
@@ -35,7 +35,7 @@ Deep dive into `nemo_automodel/` module hierarchy and component details
 :::
 
 :::{grid-item-card} {octicon}`mortar-board;1.5em;sd-mr-1` Getting Started Paths
-:link: #getting-started-paths
+:link: getting-started-paths
 :link-type: ref
 
 Recommended exploration paths for different user types
@@ -44,7 +44,7 @@ Recommended exploration paths for different user types
 :::
 
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Development Patterns
-:link: #development-patterns
+:link: development-patterns
 :link-type: ref
 
 Best practices, design principles, and contribution guidelines
@@ -54,6 +54,7 @@ Best practices, design principles, and contribution guidelines
 
 ::::
 
+(repository-structure)=
 ## Repository Structure
 
 The NeMo Automodel repository is organized into several top-level directories, each serving a specific purpose in the development, testing, and deployment workflow.
@@ -201,6 +202,7 @@ python -m pytest tests/functional_tests/
 python -m pytest tests/unit_tests/datasets/
 ```
 
+(package-structure)=
 ## Package Structure
 
 This section provides a detailed breakdown of the `nemo_automodel/` package structure to help you navigate and understand the codebase effectively.
@@ -494,6 +496,7 @@ loggers/
 └── log_utils.py      # General logging utilities
 ```
 
+(getting-started-paths)=
 ## Get Started Paths
 
 Choose your exploration path based on your role and goals:
@@ -507,7 +510,7 @@ Choose your exploration path based on your role and goals:
 **Recommended Path:**
 1. 📁 Start with `examples/` - Review working YAML configurations
 2. 🧪 Run a simple training example
-3. 📖 Read {doc}`/get-started/quick-start`
+3. 📖 Read {doc}`../get-started/quick-start`
 4. 🔧 Modify configurations for your use case
 
 +++
@@ -621,6 +624,7 @@ from nemo_automodel.components.distributed.fsdp2 import FSDP2Manager
 from nemo_automodel.recipes.llm.finetune import LLMFinetuneRecipe
 ```
 
+(development-patterns)=
 ## Development Patterns
 
 ### Component Design Principles
@@ -723,7 +727,7 @@ distributed:
 
 Understanding the repository structure enables effective development:
 
-#### **Step-by-Step Development Process**
+### **Step-by-Step Development Process**
 
 1. **📁 Explore Examples First**
    ```bash
@@ -763,7 +767,7 @@ Understanding the repository structure enables effective development:
    python -m pytest tests/functional_tests/ -k [relevant_test]
    ```
 
-#### **Common Development Patterns**
+### **Common Development Patterns**
 
 **Adding a New Dataset:**
 1. Implement in `nemo_automodel/components/datasets/llm/` or `datasets/vlm/`
@@ -783,7 +787,7 @@ Understanding the repository structure enables effective development:
 3. Create comprehensive tests
 4. Add example configurations
 
-#### **Testing Strategy**
+### **Testing Strategy**
 
 **Unit Tests** - Test individual components:
 ```bash
@@ -809,7 +813,7 @@ python -m pytest tests/functional_tests/hf_consolidated_fsdp/
 python -m pytest tests/functional_tests/hf_peft/
 ```
 
-#### **Documentation Updates**
+### **Documentation Updates**
 
 **API Documentation:**
 - Update docstrings in source files
@@ -850,35 +854,3 @@ python -m pytest tests/unit_tests/[component]/ -v -s
 # Profile training components
 python -m cProfile -o profile_output.prof your_training_script.py
 ```
-
-### Quick Reference Card
-
-#### **File Location Quick Reference**
-- 🏗️ **Architecture decisions**: `docs/about/architecture-overview.md`
-- 📁 **Repository navigation**: `docs/about/repository-and-package-guide.md` (this file)
-- 🚀 **Getting started**: `docs/get-started/`
-- 🧪 **Working examples**: `examples/llm/` and `examples/vlm/`
-- 🔧 **Component source**: `nemo_automodel/components/`
-- 🍳 **Training workflows**: `nemo_automodel/recipes/`
-- ✅ **Testing**: `tests/unit_tests/` and `tests/functional_tests/`
-
-#### **Development Checklist**
-- [ ] Understand the problem by reviewing examples
-- [ ] Identify the correct component to modify
-- [ ] Run existing tests to understand current behavior  
-- [ ] Implement changes following established patterns
-- [ ] Add comprehensive tests for new functionality
-- [ ] Update documentation and examples
-- [ ] Validate changes with integration tests
-
-## Summary
-
-This guide provides the practical knowledge needed to navigate, understand, and contribute to the NeMo AutoModel codebase. The repository is structured for developer productivity with clear separation of concerns, comprehensive testing, and detailed documentation.
-
-**Key Navigation Principles:**
-- **Examples first**: Always start with working examples to understand patterns
-- **Component isolation**: Each component can be understood independently
-- **Test-driven**: Tests provide the best documentation of expected behavior
-- **Configuration-driven**: YAML files define behavior, code implements it
-
-The modular structure enables rapid development while maintaining reliability through comprehensive testing and clear interfaces. Whether you're using NeMo AutoModel or contributing to it, this structure supports efficient development workflows and predictable behavior.

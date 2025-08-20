@@ -179,112 +179,95 @@ python memory_calculator.py --model meta-llama/Llama-3.2-7B
 
 Create a production-ready PEFT configuration:
 
+::::{tab-set}
+::: {tab-item} LLM
 ```yaml
-# memory_efficient_7b_training.yaml
-# Train 7B model on consumer GPUs with PEFT
-
+# memory_efficient_7b_training.yaml (LLM)
 model:
   _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
   pretrained_model_name_or_path: meta-llama/Llama-3.2-7B
-  torch_dtype: torch.bfloat16    # Automatic 2x memory reduction vs FP32
-  attn_implementation: flash_attention_2  # Memory-efficient attention
-  use_liger_kernel: true         # Additional optimizations
+  torch_dtype: torch.bfloat16
+  attn_implementation: flash_attention_2
+  use_liger_kernel: true
 
-# Advanced PEFT configuration for 7B model
 peft:
   _target_: nemo_automodel.components._peft.lora.PeftConfig
-  match_all_linear: true         # Automatically target all linear layers
-  dim: 32                        # LoRA rank - balance between capacity and efficiency
-  alpha: 64                      # Scaling factor (typically 2x rank)
-  dropout: 0.05                  # Regularization
-  use_triton: true               # Triton kernel optimizations
-  
-  # Advanced targeting for 7B models
-  include_modules:
-    - "*.layers.*.self_attn.q_proj"
-    - "*.layers.*.self_attn.k_proj" 
-    - "*.layers.*.self_attn.v_proj"
-    - "*.layers.*.self_attn.o_proj"
-    - "*.layers.*.mlp.gate_proj"
-    - "*.layers.*.mlp.up_proj"
-    - "*.layers.*.mlp.down_proj"
+  match_all_linear: true
+  dim: 32
+  alpha: 64
+  dropout: 0.05
+  use_triton: true
 
-# Memory-optimized distributed training
 distributed:
   _target_: nemo_automodel.components.distributed.fsdp2.FSDP2Manager
-  dp_size: none                  # Automatic GPU detection
-  # FSDP2 automatically shards model parameters across available GPUs
-  
-# Dataset optimized for memory efficiency
+  dp_size: none
+
 dataset:
   _target_: nemo_automodel.components.datasets.llm.text_instruction_dataset.TextInstructionDataset
-  dataset_name: tatsu-lab/alpaca  # Instruction tuning dataset
-  split: train
-  max_length: 2048               # Shorter sequences for memory efficiency
-  num_samples_limit: 10000       # Subset for demonstration
-
-validation_dataset:
-  _target_: nemo_automodel.components.datasets.llm.text_instruction_dataset.TextInstructionDataset
   dataset_name: tatsu-lab/alpaca
-  split: train                   # Use split of training for validation  
+  split: train
   max_length: 2048
-  num_samples_limit: 1000
 
-# Conservative training schedule for large model
 step_scheduler:
-  grad_acc_steps: 8              # Effective batch size without memory increase
-  max_steps: 1250                # 10000 samples / 8 effective batch = 1250 steps
-  ckpt_every_steps: 250
-  val_every_steps: 125
-  warmup_steps: 125
-  lr_scheduler: cosine_annealing
+  grad_acc_steps: 8
+  max_steps: 1250
 
-# Memory-efficient dataloader configuration
 dataloader:
   _target_: torchdata.stateful_dataloader.StatefulDataLoader
-  batch_size: 1                  # Micro-batch size per GPU (very conservative)
+  batch_size: 1
   shuffle: true
   num_workers: 4
-  pin_memory: true
-  persistent_workers: true
-  prefetch_factor: 2
 
-validation_dataloader:
-  _target_: torchdata.stateful_dataloader.StatefulDataLoader
-  batch_size: 2                  # Slightly larger for validation
-  shuffle: false
-  num_workers: 2
-
-# Optimizer optimized for PEFT
 optimizer:
   _target_: torch.optim.AdamW
-  lr: 1e-4                       # Higher learning rate for PEFT
+  lr: 1e-4
   weight_decay: 0.01
-  betas: [0.9, 0.95]
-  eps: 1e-8
 
-# Advanced checkpointing for large models
 checkpoint:
   enabled: true
   checkpoint_dir: ./7b_peft_checkpoints
-  model_save_format: safetensors  # More efficient than torch_save
-  save_consolidated: false        # Save sharded for large models
-  keep_last_n_checkpoints: 3
-  async_save: true               # Non-blocking checkpoint saves
-
-# Memory monitoring
-wandb:
-  project: memory_efficient_7b_training
-  name: llama_7b_peft_optimized
-  tags: ["7b", "peft", "memory-efficient", "distributed"]
-
-# Advanced memory optimizations
-training_optimizations:
-  gradient_clipping: 1.0
-  activation_checkpointing: true  # Trade compute for memory
-  cpu_offload_optimizer: false   # Keep optimizer on GPU for speed
-  zero_optimization: false       # FSDP2 handles sharding
 ```
+```
+:::
+::: {tab-item} VLM
+```yaml
+# memory_efficient_vlm_training.yaml (VLM)
+model:
+  _target_: nemo_automodel.NeMoAutoModelForImageTextToText.from_pretrained
+  pretrained_model_name_or_path: google/gemma-3-4b-it
+  torch_dtype: torch.bfloat16
+
+peft:
+  _target_: nemo_automodel.components._peft.lora.PeftConfig
+  match_all_linear: false
+  include_modules:
+    - "*.language_model.*.self_attn.*"
+    - "*.language_model.*.mlp.*"
+  dim: 16
+  alpha: 32
+  use_triton: true
+
+freeze_config:
+  freeze_embeddings: true
+  freeze_vision_tower: true
+  freeze_language_model: false
+
+dataset:
+  _target_: nemo_automodel.components.datasets.vlm.datasets.make_cord_v2_dataset
+  path_or_dataset: naver-clova-ix/cord-v2
+  split: train
+
+dataloader:
+  batch_size: 1
+  num_workers: 2
+
+checkpoint:
+  enabled: true
+  checkpoint_dir: ./vlm_peft_checkpoints
+```
+```
+:::
+::::
 
 ## Step 3: Multi-GPU Memory Distribution
 

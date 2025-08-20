@@ -35,22 +35,21 @@ recipe](https://github.com/NVIDIA-NeMo/Automodel/blob/main/nemo_automodel/recipe
 offering hands-on demonstrations for quickly getting started with NeMo Automodel. -->
 
 (sft-llama-squad-training)=
-(sft-llama-squad-training)=
 ## Train LLaMA 3.2 1B on SQuAD Dataset
 
 In this guide, we will run SFT on Meta’s `LLaMA 3.2 1B` model with
 the popular [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) (Stanford Question Answering Dataset).
 
-:::{important}
+::::{important}
 Before proceeding with this guide, please ensure that you have NeMo Automodel installed on your
 machine. This can be achieved by running:
 ```bash
 pip3 install nemo-automodel
 ```
-For a complete guide and additional options please consult the Automodel [installation guide](../installation.md).
-:::
+For a complete guide and additional options please consult the Automodel {doc}`../../get-started/installation`.
+::::
 
-#### LLaMA 3.2 1B Model
+### LLaMA 3.2 1B Model
 **LLaMA** is a family of decoder-only transformer models developed by Meta. The **LLaMA 3.2 1B** variant is a compact, lightweight model ideal for research and edge deployment. Despite its size, it maintains architectural features consistent with its larger siblings:
 
 - **Decoder-only architecture**: Follows a GPT-style, autoregressive design—optimized for generation tasks.
@@ -77,11 +76,11 @@ Some Hugging Face model repositories are **gated**, you must explicitly request 
 3.  Wait for approval (usually instant; occasionally manual).
 4.  Ensure the token you pass to your script (via `huggingface-cli login` or the `HF_TOKEN` environment variable) belongs to the account that was approved.
 
- Trying to pull a gated model without an authorized token will trigger a 403 "permission denied" error.
- :::
+Trying to pull a gated model without an authorized token will trigger a 403 "permission denied" error.
+::::
 
 
-#### SQuAD Dataset
+### SQuAD Dataset
 Stanford Question Answering Dataset (SQuAD) is a **reading comprehension dataset**, consisting of questions posed by crowdworkers on a set of Wikipedia articles, where the answer to every question is a segment of text, or span, from the corresponding reading passage, or the question might be unanswerable.
 
 There are two major versions:

@@ -52,6 +52,17 @@ Real-world applications and use case scenarios for different domains and industr
 {bdg-secondary}`Real-World`
 :::
 
+::::{grid-item-card} {octicon}`beaker;1.5em;sd-mr-1` Recipes
+:link: recipes
+:link-type: doc
+:link-alt: Plug-and-play training recipes
+
+LLM and VLM plug-and-play training scripts with ready-to-run configs.
++++
+{bdg-primary}`Recipes`
+{bdg-secondary}`LLM/VLM`
+::::
+
 ::::
 
 ## Learning Path
@@ -93,13 +104,3 @@ Resources are organized by skill level to help you find appropriate content:
 - **Intermediate**: Practical applications and common workflows
 - **Advanced**: Complex scenarios and optimization techniques
 - **Expert**: Cutting-edge features and research applications
-
-```{toctree}
-:maxdepth: 2
-:titlesonly:
-:hidden:
-
-examples/index
-tutorials/index
-use-cases/index
-```

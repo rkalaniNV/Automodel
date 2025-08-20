@@ -29,8 +29,8 @@ Fine-tune Google's Gemma 3n model with optimized architecture featuring MatForme
 :::
 
 :::{grid-item-card} {octicon}`globe;1.5em;sd-mr-1` More Models Coming
-:link: #
-:link-type: url
+:link: gemma3-3n
+:link-type: doc
 :link-alt: Future omni-modal models
 
 Support for additional omni-modal architectures will be added in future releases.
@@ -68,7 +68,6 @@ Gemma 3n introduces several innovations:
 
 ```{toctree}
 :maxdepth: 2
-:titlesonly:
 :hidden:
 
 gemma3-3n

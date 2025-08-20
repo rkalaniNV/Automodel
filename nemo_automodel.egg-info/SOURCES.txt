@@ -9,6 +9,7 @@ nemo_automodel.egg-info/dependency_links.txt
 nemo_automodel.egg-info/entry_points.txt
 nemo_automodel.egg-info/requires.txt
 nemo_automodel.egg-info/top_level.txt
+nemo_automodel/_cli/__init__.py
 nemo_automodel/_cli/app.py
 nemo_automodel/components/__init__.py
 nemo_automodel/components/_peft/__init__.py
@@ -84,8 +85,11 @@ nemo_automodel/components/utils/dist_utils.py
 nemo_automodel/components/utils/model_utils.py
 nemo_automodel/components/utils/sig_utils.py
 nemo_automodel/components/utils/yaml_utils.py
+nemo_automodel/recipes/__init__.py
 nemo_automodel/recipes/base_recipe.py
+nemo_automodel/recipes/llm/__init__.py
 nemo_automodel/recipes/llm/finetune.py
+nemo_automodel/recipes/vlm/__init__.py
 nemo_automodel/recipes/vlm/finetune.py
 nemo_automodel/shared/__init__.py
 nemo_automodel/shared/import_utils.py

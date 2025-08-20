@@ -40,7 +40,7 @@ NeMo Automodel seamlessly integrates with Hugging Face Hub, providing Day-0 supp
 - Multimodal reasoning
 :::
 
-:::{grid-item-card} {octicon}`unmute;1.5em;sd-mr-1` Speech Models
+:::{grid-item-card} {octicon}`megaphone;1.5em;sd-mr-1` Speech Models
 :class-header: sd-bg-success sd-text-white
 
 **Audio processing**
@@ -289,7 +289,7 @@ Choose models based on your available GPU memory:
 **Training:** Full fine-tuning with FSDP2
 :::
 
-:::{grid-item-card} {octicon}`rack-server;1.5em;sd-mr-1` 80GB+ GPU
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` 80GB+ GPU
 :class-header: sd-bg-warning sd-text-white
 
 **Recommended Models:**

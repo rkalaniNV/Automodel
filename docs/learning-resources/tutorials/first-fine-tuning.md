@@ -82,8 +82,10 @@ cat llama_3_2_1b_squad.yaml
 
 **Performance Features Enabled by Default:**
 
+::::{tab-set}
+::: {tab-item} LLM
 ```yaml
-# Optimized model loading with automatic performance features
+# Optimized model loading with automatic performance features (LLM)
 model:
   _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
   pretrained_model_name_or_path: meta-llama/Llama-3.2-1B
@@ -103,16 +105,50 @@ dataloader:
   batch_size: 8
   shuffle: false  # Optimized for training speed
 ```
+:::
+::: {tab-item} VLM
+```yaml
+# Optimized model loading with automatic performance features (VLM)
+model:
+  _target_: nemo_automodel.NeMoAutoModelForImageTextToText.from_pretrained
+  pretrained_model_name_or_path: google/gemma-3-4b-it
+  # Performance optimizations enabled automatically:
+  # - use_liger_kernel: true (if supported)
+  # - attn_implementation: eager or flash_attention_2
+
+distributed:
+  _target_: nemo_automodel.components.distributed.nvfsdp.NVFSDPManager
+  dp_size: none
+
+dataloader:
+  _target_: torchdata.stateful_dataloader.StatefulDataLoader
+  batch_size: 1
+  shuffle: false
+```
+:::
+::::
 
 (tutorial-speedup-step3-benchmark)=
 ## Step 3: Benchmark Against Your Current Workflow
 
 Let's measure the actual speedup you'll get:
 
+::::{tab-set}
+::: {tab-item} LLM
 ```bash
-# NeMo AutoModel training with optimizations
+# NeMo AutoModel training with optimizations (LLM)
 time automodel finetune llm -c llama_3_2_1b_squad.yaml
+```
+:::
+::: {tab-item} VLM
+```bash
+# NeMo AutoModel training with optimizations (VLM)
+time automodel finetune vlm -c gemma_3_vl_4b_cord_v2_nvfsdp.yaml
+```
+:::
+::::
 
+```bash
 # For comparison with vanilla PyTorch/HF Trainer:
 # python your_current_training_script.py  # Your existing workflow
 ```
@@ -198,13 +234,25 @@ print(f"Total time: {time_taken:.2f} seconds")
 
 NeMo AutoModel automatically detects and uses all available GPUs:
 
+::::{tab-set}
+::: {tab-item} LLM
 ```bash
-# Automatically uses all GPUs on your system
+# Automatically uses all GPUs on your system (LLM)
 automodel finetune llm -c llama_3_2_1b_squad.yaml
+```
+:::
+::: {tab-item} VLM
+```bash
+# Automatically uses all GPUs on your system (VLM)
+automodel finetune vlm -c gemma_3_vl_4b_cord_v2_nvfsdp.yaml
+```
+:::
+::::
 
+```text
 # What happens automatically:
 # - Detects 4 GPUs → launches with distributed training
-# - Uses optimized FSDP2 for memory efficiency  
+# - Uses optimized FSDP2/NVFSDP for memory efficiency  
 # - Scales batch size automatically
 # - No code changes required
 ```

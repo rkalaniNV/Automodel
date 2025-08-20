@@ -20,20 +20,20 @@ Welcome to NeMo Automodel! This guide will help you set up your environment and 
 
 ## Essential Setup
 
-::::{grid} 1 1 2 2
+:::::{grid} 1 1 2 2
 :gutter: 2
 
-:::{grid-item-card} {octicon}`download;1.5em;sd-mr-1` Installation
-:link: ../guides/installation
+::::{grid-item-card} {octicon}`download;1.5em;sd-mr-1` Installation
+:link: installation
 :link-type: doc
 
 Install NeMo Automodel and set up your Python environment with all dependencies.
 
 +++
 {bdg-success}`Essential`
-:::
+::::
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quick Start
+::::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quick Start
 :link: quick-start
 :link-type: doc
 
@@ -41,9 +41,9 @@ Run your first fine-tuning job in minutes with our step-by-step guide.
 
 +++
 {bdg-primary}`Beginner`
-:::
+::::
 
-:::{grid-item-card} {octicon}`search;1.5em;sd-mr-1` Model Selection
+::::{grid-item-card} {octicon}`search;1.5em;sd-mr-1` Model Selection
 :link: model-selection
 :link-type: doc
 
@@ -51,9 +51,9 @@ Choose the right model for your task from LLMs, VLMs, and speech models.
 
 +++
 {bdg-info}`Planning`
-:::
+::::
 
-:::{grid-item-card} {octicon}`device-desktop;1.5em;sd-mr-1` Local Workstation
+::::{grid-item-card} {octicon}`device-desktop;1.5em;sd-mr-1` Local Workstation
 :link: local-workstation
 :link-type: doc
 
@@ -61,18 +61,18 @@ Configure your local environment for training on single or multiple GPUs.
 
 +++
 {bdg-secondary}`Setup`
-:::
-
 ::::
+
+:::::
 
 ## Choose Your Training Approach
 
 Select the training method that best fits your needs and experience level:
 
-::::{grid} 1 1 2 2
+:::::{grid} 1 1 2 2
 :gutter: 2
 
-:::{grid-item-card} {octicon}`mortar-board;1.5em;sd-mr-1` LLM Fine-tuning
+::::{grid-item-card} {octicon}`mortar-board;1.5em;sd-mr-1` LLM Fine-tuning
 :link: ../guides/llm/sft
 :link-type: doc
 :link-alt: Language model fine-tuning guide
@@ -81,9 +81,9 @@ Supervised fine-tuning for language models. Perfect for beginners and domain ada
 
 +++
 {bdg-primary}`Beginner`
-:::
+::::
 
-:::{grid-item-card} {octicon}`image;1.5em;sd-mr-1` VLM Fine-tuning
+::::{grid-item-card} {octicon}`image;1.5em;sd-mr-1` VLM Fine-tuning
 :link: ../guides/vlm/index
 :link-type: doc
 :link-alt: Vision-language model guide
@@ -92,9 +92,9 @@ Fine-tune vision language models for multimodal tasks like image captioning and 
 
 +++
 {bdg-info}`Multimodal`
-:::
+::::
 
-:::{grid-item-card} {octicon}`zap;1.5em;sd-mr-1` PEFT Training
+::::{grid-item-card} {octicon}`zap;1.5em;sd-mr-1` PEFT Training
 :link: ../guides/llm/peft
 :link-type: doc
 :link-alt: Parameter-efficient fine-tuning guide
@@ -103,9 +103,9 @@ Memory-efficient LoRA adaptation for large models. Reduce training costs and tim
 
 +++
 {bdg-success}`Efficient`
-:::
+::::
 
-:::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Omni-modal
+::::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Omni-modal
 :link: ../guides/omni/index
 :link-type: doc
 :link-alt: Omni-modal training guide
@@ -114,9 +114,9 @@ Train models on multiple modalities including text, images, and more.
 
 +++
 {bdg-warning}`Advanced`
-:::
-
 ::::
+
+:::::
 
 ## Distributed Training
 

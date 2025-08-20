@@ -1,4 +1,4 @@
-# Production AI Training Tutorials
+# Tutorials
 
 Practical tutorials for experienced AI developers to achieve immediate performance gains and enterprise-scale deployment with NeMo AutoModel.
 
@@ -99,7 +99,6 @@ You're now equipped to transform your AI training infrastructure and deliver mea
 
 ```{toctree}
 :maxdepth: 2
-:titlesonly:
 :hidden:
 
 first-fine-tuning

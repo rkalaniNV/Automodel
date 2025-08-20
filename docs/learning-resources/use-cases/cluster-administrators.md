@@ -30,6 +30,10 @@ As a Cluster Administrator, you need secure, scalable deployment architectures w
 ### NeMo AutoModel Solution
 
 **SLURM Job Configuration**
+::::{tab-set}
+::: {tab-item} Multi-node
+```{dropdown} nemo_training_multinode.slurm
+:open:
 ```bash
 #!/bin/bash
 #SBATCH --job-name=nemo_automodel_training
@@ -66,8 +70,34 @@ srun python -m torch.distributed.launch \
     --master_port=$MASTER_PORT \
     automodel finetune llm -c slurm_training.yaml
 ```
+```
+:::
+::: {tab-item} Single-node
+```{dropdown} nemo_training_singlenode.slurm
+:open:
+```bash
+#!/bin/bash
+#SBATCH --job-name=nemo_automodel_single
+#SBATCH --nodes=1
+#SBATCH --gres=gpu:1
+#SBATCH --time=12:00:00
+#SBATCH --partition=gpu
+
+module load cuda/12.1
+module load python/3.9
+
+# Single-GPU training
+srun automodel finetune llm -c slurm_training_singlenode.yaml
+```
+```
+:::
+::::
 
 **SLURM Training Configuration**
+::::{tab-set}
+::: {tab-item} Multi-node
+```{dropdown} slurm_training.yaml
+:open:
 ```yaml
 # slurm_training.yaml
 model:
@@ -102,6 +132,33 @@ monitoring:
   resource_tracking: true
   log_path: "/shared/logs/${SLURM_JOB_ID}"
 ```
+```
+:::
+::: {tab-item} Single-node
+```{dropdown} slurm_training_singlenode.yaml
+:open:
+```yaml
+# slurm_training_singlenode.yaml
+model:
+  _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
+  pretrained_model_name_or_path: meta-llama/Llama-3.2-1B
+  torch_dtype: torch.bfloat16
+
+dataloader:
+  batch_size: 1
+  num_workers: 2
+
+step_scheduler:
+  grad_acc_steps: 1
+  max_steps: 1000
+
+checkpoint:
+  enabled: true
+  checkpoint_dir: "./checkpoints"
+```
+```
+:::
+::::
 
 ---
 
@@ -112,6 +169,8 @@ monitoring:
 ### NeMo AutoModel Solution
 
 **Security Configuration**
+```{dropdown} security_config.yaml
+:open:
 ```yaml
 # security_config.yaml
 security:
@@ -162,8 +221,11 @@ audit:
     - "checkpoint_access"
     - "model_export"
 ```
+```
 
 **Access Control Script**
+```{dropdown} access_control.py
+:open:
 ```python
 # access_control.py
 import os
@@ -197,6 +259,7 @@ class ClusterAccessControl:
         
         return str(workspace_path)
 ```
+```
 
 ---
 
@@ -207,6 +270,8 @@ class ClusterAccessControl:
 ### NeMo AutoModel Solution
 
 **Monitoring Configuration**
+```{dropdown} monitoring_config.yaml
+:open:
 ```yaml
 # monitoring_config.yaml
 monitoring:
@@ -274,8 +339,11 @@ resource_management:
     cleanup_policy: "auto"
     retention_days: 7
 ```
+```
 
 **Monitoring Dashboard Script**
+```{dropdown} cluster_monitor.py
+:open:
 ```python
 # cluster_monitor.py
 import psutil
@@ -355,6 +423,7 @@ monitor = ClusterMonitor()
 metrics = monitor.collect_system_metrics()
 alerts = monitor.check_alerts(metrics)
 ```
+```
 
 ---
 
@@ -386,8 +455,11 @@ sbatch nemo_training.slurm
 
 ### Resources
 - {doc}`../../guides/launcher/slurm` - SLURM integration guide
-- {doc}`../../references/security-reference` - Security configuration reference
-- SLURM documentation for GPU scheduling
+- [Tutorials](../tutorials/index.md)
+- [Examples](../examples/index.md)
+- [YAML configuration reference](../../references/yaml-configuration-reference.md)
+- [Python API Reference](../../references/python-api-reference.md)
+- [Troubleshooting Reference](../../references/troubleshooting-reference.md)
 
 ---
 

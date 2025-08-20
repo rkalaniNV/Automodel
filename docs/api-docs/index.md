@@ -6,7 +6,7 @@ NeMo Automodel's API reference provides comprehensive technical documentation fo
 :gutter: 3
 
 :::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Model Components
-:link: _transformers
+:link: _transformers/_transformers
 :link-type: doc
 :class-card: sd-border-0
 
@@ -18,7 +18,7 @@ Core model classes with optimizations and Hugging Face integration.
 :::
 
 :::{grid-item-card} {octicon}`database;1.5em;sd-mr-1` Dataset Loaders
-:link: datasets
+:link: datasets/datasets
 :link-type: doc
 :class-card: sd-border-0
 
@@ -30,7 +30,7 @@ Dataset loaders for language models and vision language tasks.
 :::
 
 :::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Distributed Training
-:link: distributed
+:link: distributed/distributed
 :link-type: doc
 :class-card: sd-border-0
 
@@ -42,7 +42,7 @@ FSDP2, DDP, and nvFSDP managers for scalable training.
 :::
 
 :::{grid-item-card} {octicon}`zap;1.5em;sd-mr-1` PEFT & Fine-tuning
-:link: _peft
+:link: _peft/_peft
 :link-type: doc
 :class-card: sd-border-0
 
@@ -54,7 +54,7 @@ LoRA adapters and efficient fine-tuning configurations.
 :::
 
 :::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Loss Functions
-:link: loss
+:link: loss/loss
 :link-type: doc
 :class-card: sd-border-0
 
@@ -66,7 +66,7 @@ Memory-efficient cross-entropy and specialized loss functions.
 :::
 
 :::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Training Utilities
-:link: training
+:link: training/training
 :link-type: doc
 :class-card: sd-border-0
 
@@ -84,17 +84,17 @@ Step schedulers, RNG management, and training utilities.
 :caption: Component APIs
 :hidden:
 
-_transformers
-datasets
-distributed
-_peft
-loss
-training
-optim
-checkpoint
-config
-launcher
-loggers
-quantization
-utils
+_transformers/_transformers
+datasets/datasets
+distributed/distributed
+_peft/_peft
+loss/loss
+training/training
+optim/optim
+checkpoint/checkpoint
+config/config
+launcher/launcher
+loggers/loggers
+quantization/quantization
+utils/utils
 ```
