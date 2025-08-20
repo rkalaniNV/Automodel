@@ -114,30 +114,19 @@ def _extract_all_pp_groups_with_info(device_mesh: DeviceMesh) -> list[tuple[dist
         List of tuples containing (ProcessGroup, set of ranks in that group)
     """
     pp_group_info = []
-    dist.get_rank()
+    current_rank = dist.get_rank()
 
     try:
-        # Get all dimension names except 'pp'
-        other_dims = [name for name in device_mesh.mesh_dim_names if name != "pp"]
+        # Get the PP group for the current rank
+        pp_mesh = device_mesh["pp"]
+        pp_group = pp_mesh.get_group()
 
-        if not other_dims:
-            # Simple case: only pipeline parallel dimension
-            pp_mesh = device_mesh["pp"]
-            pp_group = pp_mesh.get_group()
-            group_ranks = set(range(device_mesh["pp"].size()))
-            pp_group_info.append((pp_group, group_ranks))
-        else:
-            # Complex case: multiple parallelism dimensions
-            # We need to find all unique PP groups across different DP/TP/CP combinations
-            seen_group_ranks = set()
+        # Get the actual ranks that are part of this PP group
+        # This is the correct way to get the ranks in a process group
+        group_ranks = _get_process_group_ranks(pp_group)
 
-            # Get the current rank's position in the mesh
-            device_mesh.get_coordinate()
-
-            # Iterate through all possible combinations of other dimensions
-            # while keeping PP dimension to extract unique PP groups
-            pp_groups_found = _find_unique_pp_groups_in_mesh(device_mesh, other_dims, seen_group_ranks)
-            pp_group_info.extend(pp_groups_found)
+        logger.debug(f"Current rank {current_rank} is in PP group with ranks: {sorted(group_ranks)}")
+        pp_group_info.append((pp_group, group_ranks))
 
     except Exception as e:
         logger.error(f"Failed to extract PP groups from device mesh: {e}")
@@ -146,121 +135,39 @@ def _extract_all_pp_groups_with_info(device_mesh: DeviceMesh) -> list[tuple[dist
     return pp_group_info
 
 
-def _find_unique_pp_groups_in_mesh(
-    device_mesh: DeviceMesh, other_dims: list[str], seen_group_ranks: set
-) -> list[tuple[dist.ProcessGroup, set[int]]]:
+def _get_process_group_ranks(group: dist.ProcessGroup) -> set[int]:
     """
-    Find all unique PP groups in a multi-dimensional mesh.
+    Get the set of global ranks that belong to a process group.
 
     Args:
-        device_mesh: The device mesh
-        other_dims: List of dimension names other than 'pp'
-        seen_group_ranks: Set to track already seen group ranks
+        group: The process group
 
     Returns:
-        List of unique PP groups with their rank sets
-    """
-    pp_group_info = []
-    current_rank = dist.get_rank()
-
-    try:
-        # For each unique combination of other dimensions, get the PP group
-        # This is a simplified approach - we get the main PP group for the current rank
-        pp_mesh = device_mesh["pp"]
-        pp_group = pp_mesh.get_group()
-
-        # Get all ranks in this PP group
-        device_mesh["pp"].size()
-        device_mesh["pp"].get_local_rank()
-
-        # Calculate the ranks in this PP group based on mesh structure
-        group_ranks = _calculate_pp_group_ranks(device_mesh, current_rank)
-
-        # Check if we've already seen this group
-        group_signature = tuple(sorted(group_ranks))
-        if group_signature not in seen_group_ranks:
-            seen_group_ranks.add(group_signature)
-            pp_group_info.append((pp_group, group_ranks))
-
-    except Exception as e:
-        logger.debug(f"Error finding PP groups in mesh: {e}")
-
-    return pp_group_info
-
-
-def _calculate_pp_group_ranks(device_mesh: DeviceMesh, current_rank: int) -> set[int]:
-    """
-    Calculate the set of ranks that belong to the same PP group as the current rank.
-
-    Args:
-        device_mesh: The device mesh
-        current_rank: Current process rank
-
-    Returns:
-        Set of ranks in the same PP group
+        Set of global ranks in the group
     """
     try:
-        # Get the current rank's coordinates in the mesh
-        mesh_coords = device_mesh.get_coordinate()
-        pp_dim_idx = device_mesh.mesh_dim_names.index("pp")
+        # Try to get ranks using the internal method if available
+        if hasattr(group, "get_ranks"):
+            ranks = group.get_ranks()
+            return set(ranks)
 
-        # All ranks with same coordinates except for PP dimension are in same PP group
-        group_ranks = set()
+        # Fallback: calculate based on group properties
+        current_rank = dist.get_rank()
+        local_rank = group.rank()
+        group_size = group.size()
 
-        # Get mesh shape
-        mesh_shape = device_mesh.mesh.shape
-        pp_size = mesh_shape[pp_dim_idx]
+        # Calculate base rank (rank 0 of this group)
+        base_rank = current_rank - local_rank
 
-        # For each PP rank, calculate the corresponding global rank
-        for pp_rank in range(pp_size):
-            coords = list(mesh_coords)
-            coords[pp_dim_idx] = pp_rank
-            try:
-                # Convert coordinates back to global rank
-                global_rank = _coords_to_global_rank(device_mesh, coords)
-                group_ranks.add(global_rank)
-            except Exception:
-                # If coordinate conversion fails, fall back to simple calculation
-                pass
-
-        # If coordinate calculation failed, use simpler approach
-        if not group_ranks:
-            pp_rank = device_mesh["pp"].get_local_rank()
-            base_rank = current_rank - pp_rank
-            group_ranks = {base_rank + i for i in range(device_mesh["pp"].size())}
+        # All ranks in this group
+        group_ranks = {base_rank + i for i in range(group_size)}
 
         return group_ranks
 
     except Exception as e:
-        logger.debug(f"Error calculating PP group ranks: {e}")
-        # Fallback: assume simple PP group structure
-        pp_rank = device_mesh["pp"].get_local_rank()
-        pp_size = device_mesh["pp"].size()
-        base_rank = current_rank - pp_rank
-        return {base_rank + i for i in range(pp_size)}
-
-
-def _coords_to_global_rank(device_mesh: DeviceMesh, coords: list[int]) -> int:
-    """
-    Convert mesh coordinates to global rank.
-
-    Args:
-        device_mesh: The device mesh
-        coords: List of coordinates in each dimension
-
-    Returns:
-        Global rank corresponding to the coordinates
-    """
-    # This is a simplified calculation - in practice, DeviceMesh has internal methods for this
-    mesh_shape = device_mesh.mesh.shape
-    rank = 0
-    multiplier = 1
-
-    for i in reversed(range(len(coords))):
-        rank += coords[i] * multiplier
-        multiplier *= mesh_shape[i]
-
-    return rank
+        logger.debug(f"Error getting process group ranks: {e}")
+        # Ultimate fallback - just return current rank
+        return {dist.get_rank()}
 
 
 def _initialize_single_pp_group_coordinated(group: dist.ProcessGroup, group_idx: int, group_ranks: set[int]) -> None:
@@ -350,15 +257,8 @@ def _initialize_single_pp_group(group: dist.ProcessGroup, group_idx: int) -> Non
         group: Pipeline parallel process group to initialize
         group_idx: Index of the group for logging purposes
     """
-    # Calculate approximate group ranks for backward compatibility
-    current_rank = dist.get_rank()
-    group_size = group.size()
-    local_rank = group.rank()
-
-    # Simple approximation of group ranks
-    base_rank = current_rank - local_rank
-    group_ranks = {base_rank + i for i in range(group_size)}
-
+    # Get the actual group ranks using the new method
+    group_ranks = _get_process_group_ranks(group)
     _initialize_single_pp_group_coordinated(group, group_idx, group_ranks)
 
 
