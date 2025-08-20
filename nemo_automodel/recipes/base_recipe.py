@@ -37,6 +37,7 @@ from nemo_automodel.components.checkpoint.checkpointing import (
 from nemo_automodel.components.config.loader import ConfigNode
 from nemo_automodel.components.optim.scheduler import OptimizerParamScheduler
 from nemo_automodel.components.training.step_scheduler import StepScheduler
+from nemo_automodel.components.distributed.parallel_dims import DimNames
 
 try:
     import yaml as _yaml
@@ -338,10 +339,10 @@ class BaseRecipe:
     def _get_dp_group(self):
         if not self.device_mesh:
             return None
-        elif "cp" in self.device_mesh.mesh_dim_names and self.device_mesh["cp"].size() > 1:
-            return self.device_mesh["dp_cp"].get_group()
-        elif "dp" in self.device_mesh.mesh_dim_names:
-            return self.device_mesh["dp"].get_group()
+        elif DimNames.CP in self.device_mesh.mesh_dim_names and self.device_mesh[DimNames.CP].size() > 1:
+            return self.device_mesh[DimNames.DP_CP].get_group()
+        elif DimNames.DP in self.device_mesh.mesh_dim_names:
+            return self.device_mesh[DimNames.DP].get_group()
         else:
             return None
 
