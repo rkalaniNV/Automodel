@@ -1,11 +1,11 @@
 # Example config for knowledge distillation fine-tuning
 # Run with:
-#   automodel knowledge_distillation llm -c examples/llm/llama_3_2_1b_kd.yaml
+#   automodel finetune llm -c examples/llm/llama_3_2_3b-1b_kd.yaml
 
 step_scheduler:
-  grad_acc_steps: 4
-  ckpt_every_steps: 20
-  val_every_steps: 10
+  grad_acc_steps: 2
+  ckpt_every_steps: 50
+  val_every_steps: 25
   num_epochs: 1
 
 dist_env:

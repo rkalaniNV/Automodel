@@ -27,7 +27,6 @@ import torch.nn as nn
 import wandb
 from modelopt.torch.distill.plugins.huggingface import LMLogitsLoss
 from modelopt.torch.opt.plugins.huggingface import enable_huggingface_checkpointing
-from torch.distributed.device_mesh import _mesh_resources
 from torch.utils.data import DataLoader
 from torchao.float8 import precompute_float8_dynamic_scale_for_fsdp
 from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
@@ -97,10 +96,9 @@ def parse_kd_config(kd_config, teacher_kwargs={}):
     return modelopt_cfg
 
 
-def kd_reduction_fn(loss: torch.Tensor, mask: torch.Tensor | None) -> torch.Tensor:
+def kd_reduction_fn(loss: torch.Tensor, labels: torch.Tensor, ignore_index: int = -100) -> torch.Tensor:
     loss = loss.sum(dim=-1)
-    if mask is not None:
-        loss *= mask.view(-1).to(loss.device)
+    loss *= (labels.view(-1).to(loss.device) != ignore_index)  # mask
     return loss.mean()
 
 
@@ -473,12 +471,9 @@ def calculate_loss(loss_fn, **kwargs) -> torch.Tensor:
     """
     loss_fn_kwargs = {"num_label_tokens": kwargs.pop("num_label_tokens", None)}
     model = kwargs.pop("model")
+    labels = kwargs.pop("labels")
 
     if isinstance(loss_fn, FusedLinearCrossEntropy):
-        # Replace labels with -100 where mask is 0 (don't compute loss for these positions)
-        # -100 is the default ignore index in PyTorch's cross entropy loss
-        labels = kwargs.pop("labels")
-
         # find the lm_head in the model
         lm_head = None
         if hasattr(model, "get_output_embeddings"):
@@ -504,23 +499,30 @@ def calculate_loss(loss_fn, **kwargs) -> torch.Tensor:
         loss_fn_kwargs.update(
             {
                 "logits": kwargs.pop("logits"),
-                "labels": kwargs.pop("labels"),
+                "labels": labels,
             }
         )
 
     # [ModelOpt]: Compute KD loss if model is a DistillationModel
-    if model.training:
-        # Unwrap
-        while hasattr(model, "module"):
-            model = model.module
-        if hasattr(model, "compute_kd_loss"):
-            kd_loss_kwargs = {"loss_reduction_fn": lambda x: kd_reduction_fn(x, loss_fn_kwargs["mask"])}
-            if model.loss_balancer is not None:
-                kd_loss_kwargs["student_loss"] = loss_fn(**loss_fn_kwargs)
+    original_loss = None
+    # Unwrap
+    while hasattr(model, "module"):
+        model = model.module
+    if hasattr(model, "compute_kd_loss"):
+        kd_loss_kwargs = {"loss_reduction_fn": lambda x: kd_reduction_fn(x, labels)}
+        if model.loss_balancer is not None:
+            original_loss = loss_fn(**loss_fn_kwargs)
+            kd_loss_kwargs["student_loss"] = original_loss
 
-            return model.compute_kd_loss(**kd_loss_kwargs)
+        kd_loss = model.compute_kd_loss(**kd_loss_kwargs)
+        if model.training:
+            return {"loss": kd_loss}
 
-    return loss_fn(**loss_fn_kwargs)
+    original_loss = original_loss or loss_fn(**loss_fn_kwargs)
+    if not model.training:
+        return {"loss": kd_loss, "loss_original": original_loss}
+    else:
+        return {"loss": original_loss}
 
 
 # ---------------------------------------------------------------------------
@@ -671,7 +673,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
                 # Run validation every val_every_steps
                 if self.step_scheduler.is_val_step and self.val_dataloader is not None:
-                    self._run_validation_epoch()
+                    val_loss, val_num_tokens_in_batch = self._run_validation_epoch()
+                    self.log_val_metrics(val_loss, val_num_tokens_in_batch)
+
                     self.model.train()
 
     # ------------------ helpers ------------------
@@ -715,7 +719,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 else:
                     out = self.model(**batch)
 
-                local_loss = calculate_loss(
+                losses = calculate_loss(
                     self.loss_fn,
                     logits=out.logits,
                     labels=labels,
@@ -723,6 +727,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     hidden_states=out.hidden_states[-1] if "hidden_states" in out else None,
                     num_label_tokens=num_label_tokens,
                 )
+                local_loss = losses["loss"]
                 loss_buffer.append(local_loss.clone().detach())
                 local_loss.backward()
 
@@ -773,6 +778,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             self.model.eval()
 
             total_loss = 0.0
+            total_loss_original = 0.0
             total_tokens = 0
 
             for batch in self.val_dataloader:
@@ -795,7 +801,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                         out = self.model(logits_to_keep=1, **batch)
                     else:
                         out = self.model(**batch)
-                    local_loss = calculate_loss(
+                    losses = calculate_loss(
                         self.loss_fn,
                         logits=out.logits,
                         labels=labels,
@@ -804,31 +810,26 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                         num_label_tokens=num_label_tokens,
                     )
 
-                total_loss += local_loss.item()
+                total_loss += losses["loss"].item()
+                if "loss_original" in losses:
+                    total_loss_original += losses["loss_original"].item()
                 total_tokens += num_label_tokens
 
-        total_loss = self._dp_allreduce(torch.FloatTensor([total_loss])).item()
-        total_tokens = self._dp_allreduce(torch.LongTensor([total_tokens])).item()
+        if total_loss_original > 0:
+            # [ModelOpt]: Log the original loss during distillation val phase.
+            self.log_val_metrics(total_loss_original, total_tokens)
 
-        val_loss = total_loss / max(total_tokens, 1e-8)
-        if self.dist_env.is_main:
-            if wandb.run is not None:
-                wandb.log({"val_loss": val_loss, "step": self.step_scheduler.step, "epoch": self.step_scheduler.epoch})
-        current_lr = self.optimizer.param_groups[0]["lr"]
-        logging.info(
-            "[val] step {} | epoch {} | loss {:.4f} | lr {:.2e}".format(
-                self.step_scheduler.step, self.step_scheduler.epoch, val_loss, current_lr
-            )
-        )
+        return total_loss, total_tokens
 
-    def log_train_metrics(self, train_loss, grad_norm, num_tokens_in_batch, tps, num_label_tokens) -> float:
-        """Log metrics to wandb.
+    def log_train_metrics(self, train_loss, grad_norm, num_tokens_in_batch, tps, num_label_tokens):
+        """Log metrics to stdout and wandb.
 
         Args:
             train_loss: Training loss.
             grad_norm: Grad norm from the training step.
             num_tokens_in_batch: Total number of loss tokens.
             tps: Tokens per second.
+            num_label_tokens: Number of label tokens.
         """
         log_data = {
             "step": self.step_scheduler.step,
@@ -857,6 +858,34 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             )
         )
         torch.cuda.reset_peak_memory_stats()
+
+    def log_val_metrics(self, val_loss, num_label_tokens):
+        """Log validation metrics to stdout and wandb.
+
+        Args:
+            val_loss: Validation loss.
+            num_label_tokens: Total number of label tokens in batch.
+        """
+        # Apply distributed reduction to metrics
+        val_loss = self._dp_allreduce(torch.FloatTensor([val_loss])).item()
+        num_label_tokens = self._dp_allreduce(torch.LongTensor([num_label_tokens])).item()
+        # Calculate per-token loss
+        val_loss_per_token = val_loss / max(num_label_tokens, 1e-8)
+
+        log_data = {
+            "step": self.step_scheduler.step,
+            "epoch": self.step_scheduler.epoch,
+            "val_loss": val_loss_per_token,
+        }
+
+        if self.dist_env.is_main and wandb.run is not None:
+            wandb.log(log_data)
+
+        logging.info(
+            "[val] step {} | epoch {} | loss {:.4f}".format(
+                log_data["step"], log_data["epoch"], log_data["val_loss"]
+            )
+        )
 
 
 # ---------------------------------------------------------------------------
