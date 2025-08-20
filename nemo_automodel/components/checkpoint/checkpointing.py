@@ -533,14 +533,15 @@ def _extract_target_modules(model: nn.Module) -> list[str]:
 
 
 def _get_dp_tp_mesh(device_mesh: Optional[torch.distributed.DeviceMesh] = None) -> tuple[int, int]:
-    raise NotImplementedError("This function is not implemented")
     dp_rank = 0
     tp_rank = 0
     if device_mesh is not None:
-        if "data_parallel" in device_mesh.mesh_dim_names:
-            dp_rank = device_mesh.get_local_rank("data_parallel")
-        if "tensor_parallel" in device_mesh.mesh_dim_names:
-            tp_rank = device_mesh.get_local_rank("tensor_parallel")
+        if "dp_shard" in device_mesh.mesh_dim_names:
+            dp_rank = device_mesh.get_local_rank("dp_shard")
+        elif "dp_shard_cp" in device_mesh.mesh_dim_names:
+            dp_rank = device_mesh.get_local_rank("dp_shard_cp")
+        if "tp" in device_mesh.mesh_dim_names:
+            tp_rank = device_mesh.get_local_rank("tp")
     return dp_rank, tp_rank
 
 def _init_peft_adapters(model: nn.Module, peft_init_method: str):

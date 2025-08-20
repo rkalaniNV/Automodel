@@ -33,7 +33,7 @@ def test_jsonl_dataset_checkpointing():
     model_wrapper = cfg.distributed.instantiate(world_size=dist_env.world_size)
     device_mesh = getattr(model_wrapper, "device_mesh", None)
 
-    dataset = build_dataloader(cfg.dataset, None, cfg.model, None, device_mesh, 42)[0]
+    dataset = build_dataloader(cfg.dataset, {}, cfg.model, {}, device_mesh, 42)[0]
     
     # fast-forward. not necessary, but we want to make sure the dataset is not at the beginning.
     for i, batch in enumerate(dataset):
@@ -44,8 +44,8 @@ def test_jsonl_dataset_checkpointing():
             expected_batch = batch
             break
 
-    del dataset
     torch.distributed.barrier()
+    del dataset
 
     # assert the correct paths exist
     output_files = [
@@ -60,7 +60,7 @@ def test_jsonl_dataset_checkpointing():
         assert os.access(path, os.R_OK), f"Expected {path} to be readable"
         assert path.stat().st_size > 0, f"Expected {path} to be non-empty"
 
-    dataset = build_dataloader(cfg.dataset, None, cfg.model, None, device_mesh, 42)[0]
+    dataset = build_dataloader(cfg.dataset, {}, cfg.model, {}, device_mesh, 42)[0]
 
     initial_batch = next(iter(dataset))
     for k in ["input_ids", "labels"]:

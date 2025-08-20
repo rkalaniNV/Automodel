@@ -256,8 +256,8 @@ def build_dataloader(
             "rank": device_mesh["dp"].get_local_rank(),
         }
         jsonl_kwargs = {
-            "rank": device_mesh["data_parallel"].get_local_rank(),
-            "world_size": device_mesh["data_parallel"].size(),
+            "rank": device_mesh["dp"].get_local_rank(),
+            "world_size": device_mesh["dp"].size(),
         }
 
     if "tokenizer" not in cfg_ds:
