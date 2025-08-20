@@ -266,7 +266,8 @@ def load_model(
     model_state = ModelState(model, checkpoint_config.is_peft)
 
     if checkpoint_config.is_peft:
-        state_dict = model.state_dict()
+        # no PP support for PEFT models
+        state_dict = model[0].state_dict()
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             with safe_open(os.path.join(model_path, "adapter_model.safetensors"), framework="pt") as f:
                 state_dict = {k: f.get_tensor(k) for k in f.keys()}
@@ -447,14 +448,14 @@ def _get_hf_peft_config(peft_config: "PeftConfig", model_state: ModelState) -> d
         "QuestionAnswering": "QUESTION_ANS",
         "FeatureExtraction": "FEATURE_EXTRACTION",
     }
-    target_modules = _extract_target_modules(model_state.model)
+    target_modules = _extract_target_modules(model_state.model[0])
     try:
-        model_task = model_state.model.config.architectures[0].split("For")[-1]
+        model_task = model_state.model[0].config.architectures[0].split("For")[-1]
     except (AttributeError, IndexError, TypeError):
         model_task = "N/A"
 
     try:
-        name_or_path = model_state.model.config.name_or_path
+        name_or_path = model_state.model[0].config.name_or_path
     except (AttributeError, TypeError):
         name_or_path = "N/A"
 

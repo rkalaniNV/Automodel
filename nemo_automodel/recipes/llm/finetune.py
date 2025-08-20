@@ -160,6 +160,7 @@ def build_model_and_optimizer(
                         m.weight.requires_grad_(False)
             # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
             if cfg_peft is not None:
+                assert autopipeline is None, "PEFT is not supported with AutoPipeline"
                 apply_lora_to_linear_modules(model, cfg_peft)
 
     print_trainable_parameters(model)
