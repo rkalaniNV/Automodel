@@ -11,3 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from nemo_automodel.components.distributed.fsdp2 import FSDP2Manager
+from nemo_automodel.components.distributed.nccl_comm_init import (
+    initialize_nccl_for_pp_groups,
+    should_initialize_nccl_for_pp,
+)
+from nemo_automodel.components.distributed.nvfsdp import NVFSDPManager

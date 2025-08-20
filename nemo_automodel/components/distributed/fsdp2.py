@@ -26,6 +26,10 @@ from torch.distributed.tensor.parallel import (
 )
 from torch.distributed.tensor.placement_types import Replicate, Shard
 
+from nemo_automodel.components.distributed.nccl_comm_init import (
+    initialize_nccl_for_pp_groups,
+    should_initialize_nccl_for_pp,
+)
 from nemo_automodel.components.distributed.parallelizer import (
     fsdp2_strategy_parallelize,
     get_hf_tp_shard_plan,
@@ -177,6 +181,10 @@ class FSDP2Manager:
         self.dp_shard_size = self.dp_size // self.dp_replicate_size
 
         self.device_mesh = self._get_device_mesh()
+
+        # Initialize NCCL communications for pipeline parallel groups if needed
+        if should_initialize_nccl_for_pp(self.device_mesh):
+            initialize_nccl_for_pp_groups(self.device_mesh)
 
         return self
 
