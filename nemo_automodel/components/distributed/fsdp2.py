@@ -113,7 +113,7 @@ class FSDP2Manager:
         if self.device_mesh is None:
             raise ValueError("Device mesh is not initialized")
 
-        if "tp" in self.device_mesh.mesh_dim_names and self.device_mesh["tp"].size() > 1:
+        if DimNames.TP in self.device_mesh.mesh_dim_names and self.device_mesh[DimNames.TP].size() > 1:
             if use_hf_tp_plan:
                 tp_shard_plan = get_hf_tp_shard_plan(model)
             else:
