@@ -820,6 +820,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         """
 
         num_label_tokens = sum((batch["labels"] != -100).sum().item() for batch in batches)
+        num_label_tokens = self._dp_allreduce(torch.Tensor([num_label_tokens]).to(self.dist_env.device)).item()
         loss_buffer = []
 
         # number of tokens in the batch, excluding any tail padding.
@@ -880,8 +881,10 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         self.timestamp = t
         tps = num_tokens_in_batch / time_delta
         reporting_loss = torch.sum(torch.stack(loss_buffer))
+        reporting_loss = self._dp_allreduce(reporting_loss)
         if self.pp_enabled:
             reporting_loss = reporting_loss / num_label_tokens
+            reporting_loss = reporting_loss.to(self.dist_env.device)
             # Send loss to first rank if pp group rank is 0
             src_rank = self.device_mesh.mesh.reshape(-1)[-1].item()
             if self.dist_env.rank == src_rank:
@@ -889,7 +892,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             elif self.dist_env.is_main:
                 torch.distributed.recv(reporting_loss, src=src_rank)
 
-        reporting_loss = reporting_loss.item()
+        reporting_loss = reporting_loss.cpu().item()
         # fix reporting_loss, tps across ranks
         return reporting_loss, grad_norm, tps, num_tokens_in_batch, num_label_tokens
 
