@@ -14,8 +14,6 @@
 
 import contextlib
 import types
-from typing import Any
-from unittest.mock import Mock, MagicMock, patch
 
 import pytest
 import torch
@@ -28,7 +26,6 @@ from nemo_automodel.components.distributed.autopipeline.core import (
 from nemo_automodel.components.distributed.autopipeline.functional import (
     generate_hf_model_fqn_per_model_part,
 )
-from nemo_automodel.components.distributed.autopipeline.hf_utils import init_hf_model_buffers
 
 
 class DummyRotaryEmb(nn.Module):
@@ -144,10 +141,6 @@ def _patch_autopipeline_monkey(monkeypatch):
 
     monkeypatch.setattr(fn, "build_pipeline_schedule", _fake_build_schedule)
 
-
-# -----------------------------
-# AutoPipelineConfig tests
-# -----------------------------
 
 class TestAutoPipelineConfig:
     """Test AutoPipelineConfig validation and properties."""
@@ -555,10 +548,6 @@ class TestAutoPipelineProperties:
         with pytest.raises(ValueError, match="AutopipelineConfig.world_mesh must be provided"):
             AutoPipeline(cfg)
 
-
-# -----------------------------
-# Integration: finetune.build_model_and_optimizer path with AutoPipeline
-# -----------------------------
 
 class TestAutoPipelineDebugUtilities:
     """Test AutoPipeline debug and utility methods."""
