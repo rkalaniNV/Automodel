@@ -12,7 +12,7 @@ Welcome to NeMo Automodel! This guide will help you set up your environment and 
 ## Before You Start
 
 - **System Requirements**: CUDA-compatible GPUs with sufficient memory (8GB+ recommended)
-- **Python Environment**: Python 3.9+ with PyTorch 2.0+
+- **Python Environment**: Python 3.10+ with PyTorch 2.0+
 - **Model Access**: Access to Hugging Face models (Llama, Gemma, Qwen, etc.)
 - **Optional**: Slurm cluster for distributed training at scale
 

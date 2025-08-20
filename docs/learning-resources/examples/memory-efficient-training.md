@@ -1,3 +1,13 @@
+---
+description: "Train large models on resource-constrained hardware using memory optimization techniques and parameter-efficient fine-tuning."
+categories: ["model-training"]
+tags: ["memory-optimization", "large-scale", "peft", "lora", "gpu-accelerated", "optimization"]
+personas: ["mle-focused", "enterprise-focused"]
+difficulty: "advanced"
+content_type: "example"
+modality: "llm"
+---
+
 # Memory-Efficient Large Model Training
 
 **Task**: Train large models on resource-constrained hardware  
@@ -730,3 +740,33 @@ if __name__ == "__main__":
 - **Team Productivity**: More teams can work with large models simultaneously
 
 This example demonstrates how memory-efficient training techniques make large model development accessible to teams with mainstream GPU infrastructure while maintaining production-grade reliability and performance.
+
+## Learn More
+
+**Step-by-Step Learning Path:**
+
+- **[Train 7B Models on 8GB GPUs](../tutorials/parameter-efficient-fine-tuning.md)** - Complete PEFT tutorial with distributed strategies
+- **[Get 2-3x PyTorch Speedup](../tutorials/first-fine-tuning.md)** - Start with performance optimization basics
+- **[Deploy Multi-Node Training](../tutorials/multi-gpu-training.md)** - Scale PEFT to enterprise clusters
+
+**Related Examples:**
+
+- **[High-Performance Text Classification](high-performance-text-classification.md)** - Apply performance optimizations to smaller models
+- **[Multi-Modal Fine-Tuning](multimodal-finetuning.md)** - Extend PEFT techniques to vision-language models
+
+**Technical Guides:**
+
+- **[PEFT Training Guide](../../guides/llm/peft.md)** - Deep dive into Parameter-Efficient Fine-Tuning
+- **[Checkpointing Strategies](../../guides/checkpointing.md)** - Manage training state for large models
+- **[Distributed Training](../../guides/launcher/index.md)** - Multi-GPU coordination and job management
+
+**Use Cases by Role:**
+
+- **[ML Engineers](../use-cases/ml-engineers.md)** - Production PEFT deployment patterns
+- **[DevOps Professionals](../use-cases/devops-professionals.md)** - Infrastructure automation for memory-efficient training
+
+**API Reference:**
+
+- **[PEFT Components](../../api-docs/_peft/_peft.md)** - LoRA implementation and configuration APIs
+- **[Distributed Training](../../api-docs/distributed/distributed.md)** - Multi-GPU memory optimization strategies
+- **[Memory Management](../../api-docs/utils/utils.md)** - Memory optimization utilities and monitoring

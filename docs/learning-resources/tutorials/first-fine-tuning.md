@@ -1,3 +1,14 @@
+---
+description: "Get 2-3x PyTorch speedup by replacing Hugging Face workflows with NeMo AutoModel optimizations and zero code changes."
+categories: ["model-training"]
+tags: ["fine-tuning", "optimization", "performance-tuning", "huggingface", "pytorch", "automodel-cli"]
+personas: ["mle-focused", "researcher-focused"]
+difficulty: "beginner"
+content_type: "tutorial"
+modality: "llm"
+---
+
+(tutorial-pytorch-speedup)=
 # Get 2-3x PyTorch Speedup with One Config Change
 
 Replace your Hugging Face training workflow with NeMo AutoModel for immediate performance gains without code changes.
@@ -8,12 +19,14 @@ Replace your Hugging Face training workflow with NeMo AutoModel for immediate pe
 **Persona**: Applied ML Engineers familiar with PyTorch and Hugging Face
 :::
 
+(tutorial-speedup-prerequisites)=
 ## Prerequisites
 
 - NeMo Automodel installed ({doc}`../../get-started/installation`)
 - Experience with Hugging Face Transformers and PyTorch training
 - At least 8GB GPU memory for comparisons
 
+(tutorial-speedup-learning-objectives)=
 ## What You'll Learn
 
 Transform your existing HF workflows with immediate performance gains:
@@ -24,6 +37,7 @@ Transform your existing HF workflows with immediate performance gains:
 - **Benchmarking**: Measure real speedups vs your current PyTorch workflows
 - **Production Readiness**: Scale from single GPU to multi-GPU without reconfiguration
 
+(tutorial-speedup-why-automodel)=
 ## Why NeMo AutoModel for Applied ML Engineers
 
 You're already successfully training HF models with PyTorch. **NeMo AutoModel gives you immediate performance gains with zero workflow changes.**
@@ -40,6 +54,7 @@ You're already successfully training HF models with PyTorch. **NeMo AutoModel gi
 - **Flash Attention 2**: Memory-efficient attention implementation
 - **BF16 Training**: Automatic mixed precision without loss scaling complexity
 
+(tutorial-speedup-step1-setup)=
 ## Step 1: Performance Comparison Setup
 
 Let's demonstrate the speedup by comparing NeMo AutoModel to vanilla PyTorch on the same task:
@@ -55,6 +70,7 @@ print('Liger kernels available:', HAS_LIGER_KERNEL)
 "
 ```
 
+(tutorial-speedup-step2-configuration)=
 ## Step 2: Performance-Optimized Configuration
 
 Examine how NeMo AutoModel automatically enables optimizations:
@@ -88,6 +104,7 @@ dataloader:
   shuffle: false  # Optimized for training speed
 ```
 
+(tutorial-speedup-step3-benchmark)=
 ## Step 3: Benchmark Against Your Current Workflow
 
 Let's measure the actual speedup you'll get:
@@ -116,7 +133,8 @@ time automodel finetune llm -c llama_3_2_1b_squad.yaml
 - **Lower GPU memory**: More efficient memory usage
 - **Stable memory usage**: No memory leaks or accumulation
 
-## Step 4: Measuring Real Performance Gains
+(tutorial-speedup-step4-measuring)=
+## Step 4: Measure Real Performance Gains
 
 Compare training times and resource usage:
 
@@ -157,7 +175,8 @@ print(f"Throughput: {throughput:.1f} inferences/sec")
 print(f"Total time: {time_taken:.2f} seconds")
 ```
 
-## Step 5: Understanding the Performance Gains
+(tutorial-speedup-step5-understanding)=
+## Step 5: Understand the Performance Gains
 
 **Typical Results You Should Expect:**
 
@@ -174,6 +193,7 @@ print(f"Total time: {time_taken:.2f} seconds")
 - **Larger models**: Memory efficiency lets you train bigger models
 - **Better productivity**: Less waiting, more iterating
 
+(tutorial-speedup-step6-multi-gpu)=
 ## Step 6: Scale to Multi-GPU (Automatic)
 
 NeMo AutoModel automatically detects and uses all available GPUs:
@@ -197,7 +217,8 @@ automodel finetune llm -c llama_3_2_1b_squad.yaml
 | 2x A100 | 10 minutes | 1.8x | 90% |
 | 4x A100 | 6 minutes | 3.0x | 75% |
 
-## Migrating Your Existing Workflows
+(tutorial-speedup-migration)=
+## Migrate Your Existing Workflows
 
 **From HF Trainer to NeMo AutoModel:**
 
@@ -222,6 +243,7 @@ trainer.train()  # Baseline performance
 # Result: 2-3x faster with same accuracy
 ```
 
+(tutorial-speedup-production-tips)=
 ## Production Tips
 
 **Immediate Wins for Applied ML Engineers:**
@@ -232,14 +254,29 @@ trainer.train()  # Baseline performance
 4. **Monitor GPU utilization** - should see higher efficiency
 5. **Benchmark before/after** - document your performance gains
 
+(tutorial-speedup-next-steps)=
 ## Next Steps
 
-- {doc}`parameter-efficient-fine-tuning` - Train 7B models efficiently
-- Experiment with larger models using the same configuration
-- {doc}`../../guides/llm/sft` for advanced optimization techniques
+**Continue Your Learning Path:**
+
+1. **[Train 7B Models on 8GB GPUs](parameter-efficient-fine-tuning.md)** - Memory-efficient PEFT techniques
+2. **[Deploy Multi-Node Training](multi-gpu-training.md)** - Enterprise Slurm cluster integration
+3. **[Advanced LLM Training](../../guides/llm/sft.md)** - Deep dive into supervised fine-tuning
+
+**Practice with Examples:**
+
+- **[High-Performance Text Classification](../examples/high-performance-text-classification.md)** - Benchmark real performance gains
+- **[Memory-Efficient Training](../examples/memory-efficient-training.md)** - Apply optimization techniques
+- **[Distributed Training Example](../examples/distributed-training.md)** - Scale to enterprise infrastructure
+
+**API Reference:**
+
+- **[AutoModel API](../../api-docs/_transformers/_transformers.md)** - Core model classes and methods
+- **[Distributed Components](../../api-docs/distributed/distributed.md)** - FSDP2 and distributed training
+- **[Training Utilities](../../api-docs/training/training.md)** - Performance optimization APIs
 
 ---
 
 **Navigation:**
-- ← {doc}`index` Back to Tutorials Overview
-- → {doc}`vision-language-training` Next: Vision Language Model Training
+- ← [Back to Tutorials Overview](index.md)
+- → [Next: Memory-Efficient Training](parameter-efficient-fine-tuning.md)

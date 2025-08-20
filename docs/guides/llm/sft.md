@@ -1,5 +1,7 @@
+(llm-sft-guide)=
 # Run Supervised Fine-Tuning (SFT)
 
+(sft-introduction)=
 ## Introduction
 
 As large language models (LLMs) become more powerful, adapting them to
@@ -32,6 +34,8 @@ which features a [standalone python3
 recipe](https://github.com/NVIDIA-NeMo/Automodel/blob/main/nemo_automodel/recipes/llm/finetune.py),
 offering hands-on demonstrations for quickly getting started with NeMo Automodel. -->
 
+(sft-llama-squad-training)=
+(sft-llama-squad-training)=
 ## Train LLaMA 3.2 1B on SQuAD Dataset
 
 In this guide, we will run SFT on Meta’s `LLaMA 3.2 1B` model with
@@ -112,11 +116,13 @@ This structure is ideal for training models in context-based question answering,
 In this guide, we use the `SQuAD v1.1` dataset, but you can specify your own data as needed.
 :::
 
+(sft-recipe-usage)=
 ## Use a Recipe to Fine-Tune the Model
 
 This example demonstrates how to fine-tune a large language model using NVIDIA's NeMo Automodel library.
 Specifically, we use the LLM [finetune recipe](https://github.com/NVIDIA-NeMo/Automodel/blob/main/nemo_automodel/recipes/llm/finetune.py), and in particular, the `FinetuneRecipeForNextTokenPrediction` class to orchestrate the fine-tuning process end-to-end: model loading, dataset preparation, optimizer setup, distributed training, checkpointing, and logging.
 
+(sft-recipe-concept)=
 ### What is a Recipe?
 
 A recipe in NeMo Automodel is a **self-contained orchestration module** that wires together all
@@ -135,6 +141,7 @@ The `FinetuneRecipeForNextTokenPrediction` class is one such recipe. It inherits
 The recipe ensures stateless, config-driven orchestration where core components like the model, dataset, and optimizer are configured dynamically using Hydra-style `instantiate()` calls, avoiding hardcoded dependencies.
 :::
 
+(sft-recipe-configuration)=
 ### Configure the Recipe
 
 ``` yaml
@@ -227,6 +234,7 @@ running inference, the adapter and base model weights need to match
 those used for training.
 :::
 
+(sft-run-recipe)=
 ## Run the Fine-Tune Recipe
 
 Assuming the above `yaml` is saved in a file named `sft_guide.yaml`, you can run the fine-tuning workflow either using the Automodel CLI or by directly invoking the recipe Python script.
@@ -304,6 +312,7 @@ checkpoints/epoch_0_step_10/
 4 directories, 11 files
 ```
 
+(sft-inference)=
 ## Run Inference with the NeMo Automodel Fine-Tuned Checkpoint
 
 Inference on the fine-tuned checkpoint is supported through the Hugging Face generate API. To use it, replace the path of the full model with the path to a SFT checkpoint.
@@ -332,6 +341,7 @@ output = model.generate(**inputs, max_length=100)
 print(tokenizer.decode(output[0], skip_special_tokens=True))
 ```
 
+(sft-publish-hub)=
 ## Publish the SFT Checkpoint to the Hugging Face Hub
 
 After fine-tuning a Hugging Face model using NeMo AutoModel, the
@@ -418,6 +428,7 @@ Before running this command, make sure you have specified the checkpoint
 path that you used during fine-tuning, we will use
 [/ft_checkpoints/llama3.2_1b]{.title-ref} as in the fine-tuning section. -->
 
+(sft-export-vllm)=
 ## Export to vLLM
 
 [vLLM](https://github.com/vllm-project/vllm) is an efficient inference
@@ -445,3 +456,22 @@ print(f"Generated text: {outputs[0].outputs[0].text}")
 ```text
 >>> Generated text:  It is the capital of Ontario. Toronto is a global hub for cultural tourism. The City of Toronto
 ```
+
+## Related Learning Resources
+
+**Get Started with Tutorials:**
+
+- **[Get 2-3x PyTorch Speedup](../../learning-resources/tutorials/first-fine-tuning.md)** - Hands-on performance optimization tutorial
+- **[Memory-Efficient Training](../../learning-resources/tutorials/parameter-efficient-fine-tuning.md)** - PEFT techniques for large models
+- **[Multi-Node Deployment](../../learning-resources/tutorials/multi-gpu-training.md)** - Enterprise cluster integration
+
+**Practice with Examples:**
+
+- **[High-Performance Text Classification](../../learning-resources/examples/high-performance-text-classification.md)** - Real-world SFT optimization
+- **[Memory-Efficient Training](../../learning-resources/examples/memory-efficient-training.md)** - Apply SFT to large models
+- **[Distributed Training](../../learning-resources/examples/distributed-training.md)** - Enterprise SFT deployment
+
+**Use Cases by Role:**
+
+- **[ML Engineers](../../learning-resources/use-cases/ml-engineers.md)** - Production SFT deployment patterns
+- **[Data Scientists](../../learning-resources/use-cases/data-scientists.md)** - Research and experimentation workflows

@@ -1,7 +1,11 @@
 ---
 description: "Comprehensive learning resources for NeMo Automodel including examples, tutorials, and practical use cases for fine-tuning and training."
-tags: ["learning", "examples", "tutorials", "use-cases"]
-categories: ["learning"]
+categories: ["getting-started"]
+tags: ["learning", "examples", "tutorials", "use-cases", "documentation", "overview"]
+personas: ["mle-focused", "researcher-focused", "data-scientist-focused", "enterprise-focused"]
+difficulty: "beginner"
+content_type: "concept"
+modality: "universal"
 ---
 
 # About Learning Resources

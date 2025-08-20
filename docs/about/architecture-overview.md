@@ -1,7 +1,11 @@
 ---
-description: "Deep dive into the technical architecture and design principles of NeMo Automodel"
-tags: ["architecture", "technical", "design", "components"]
-categories: ["concepts"]
+description: "Deep dive into the technical architecture and design principles of NeMo Automodel with component diagrams and implementation details."
+categories: ["concepts-architecture"]
+tags: ["architecture", "technical", "design", "components", "distributed-training", "modularity"]
+personas: ["mle-focused", "researcher-focused", "enterprise-focused"]
+difficulty: "advanced"
+content_type: "concept"
+modality: "universal"
 ---
 
 (about-architecture-overview)=
@@ -236,7 +240,7 @@ The components directory contains **11 core modules**, each designed as self-con
 * - `_transformers/`
   - Optimized Hugging Face model wrappers and utilities
 * - `_peft/`
-  - Parameter-Efficient Fine-Tuning (LoRA, DoRA implementations)
+  - Parameter-Efficient Fine-Tuning (LoRA implementations with optimized kernels)
 * - `datasets/`
   - LLM and VLM dataset loaders with preprocessing utilities
 * - `distributed/`
@@ -478,7 +482,7 @@ graph LR
 
 ### PEFT Features
 
-- **LoRA/DoRA**: Low-rank adaptation with optional DoRA improvements
+- **LoRA**: Low-rank adaptation with optimized Triton kernels
 - **Module Targeting**: Flexible pattern matching for layer selection
 - **Rank Configuration**: Adjustable rank for memory/performance trade-offs
 - **Dropout Support**: Regularization in adapter layers

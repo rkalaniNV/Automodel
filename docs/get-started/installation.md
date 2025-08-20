@@ -13,7 +13,7 @@ This guide explains how to install NeMo Automodel for LLM, VLM, and OMNI models 
 ## Prerequisites
 
 ### System Requirements
-- **Python**: 3.9 or higher
+- **Python**: 3.10 or higher
 - **CUDA**: 11.8 or higher (for GPU support)
 - **Memory**: Minimum 16GB RAM, 32GB+ recommended
 - **Storage**: At least 50GB free space for models and datasets

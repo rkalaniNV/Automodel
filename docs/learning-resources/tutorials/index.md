@@ -105,5 +105,4 @@ You're now equipped to transform your AI training infrastructure and deliver mea
 first-fine-tuning
 parameter-efficient-fine-tuning
 multi-gpu-training
-vision-language-training
 ```

@@ -50,7 +50,7 @@ FSDP2, DDP, and nvFSDP managers for scalable training.
 
 LoRA adapters and efficient fine-tuning configurations.
 
-{bdg-success}`LoRA` {bdg-success}`DoRA` {bdg-secondary}`triton-kernels`
+{bdg-success}`LoRA` {bdg-secondary}`triton-kernels`
 :::
 
 :::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Loss Functions

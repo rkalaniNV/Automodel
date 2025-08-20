@@ -1,3 +1,14 @@
+---
+description: "Deploy enterprise-grade distributed training across multiple nodes using Slurm job scheduling and NeMo AutoModel."
+categories: ["infrastructure-operations"]
+tags: ["slurm", "distributed-training", "multi-node", "launcher", "enterprise", "cluster-management"]
+personas: ["admin-focused", "devops-focused", "enterprise-focused"]
+difficulty: "advanced"
+content_type: "tutorial"
+modality: "universal"
+---
+
+(tutorial-multi-node-slurm)=
 # Deploy Multi-Node Training on Your Slurm Cluster Today
 
 Production-ready multi-node training with built-in Slurm integration, containerization, and enterprise monitoring.
@@ -8,12 +19,14 @@ Production-ready multi-node training with built-in Slurm integration, containeri
 **Persona**: Enterprise AI Practitioners and Cluster Administrators managing production ML infrastructure
 :::
 
+(tutorial-multi-node-prerequisites)=
 ## Prerequisites
 
 - Access to Slurm cluster or multi-node GPU environment
 - Completed {doc}`first-fine-tuning` and {doc}`parameter-efficient-fine-tuning`
 - System administrator access for container/Slurm configuration
 
+(tutorial-multi-node-learning-objectives)=
 ## What You'll Learn
 
 Deploy production-scale training infrastructure that works today:
@@ -24,6 +37,7 @@ Deploy production-scale training infrastructure that works today:
 - **Enterprise Monitoring**: Job tracking, resource utilization, and failure recovery
 - **Production Workflows**: Automated deployment pipelines for ML teams
 
+(tutorial-multi-node-enterprise-reality)=
 ## Enterprise Cluster Training Reality
 
 **What Enterprise Teams Actually Need:**
@@ -41,6 +55,7 @@ Most enterprise AI teams have similar infrastructure challenges:
 - **Automatic multi-node scaling** - efficient resource utilization
 - **Enterprise logging** - audit trails and monitoring
 
+(tutorial-multi-node-step1-assessment)=
 ## Step 1: Slurm Cluster Assessment
 
 First, verify your cluster is ready for distributed training:
@@ -64,6 +79,7 @@ which enroot || which singularity
 - **Shared storage**: `/shared`, `/lustre`, or `/gpfs` mounted on all nodes
 - **Module system**: Environment modules for software management
 
+(tutorial-multi-node-step2-configuration)=
 ## Step 2: Configure Multi-Node Training
 
 NeMo AutoModel provides built-in Slurm integration through YAML configuration:
@@ -116,6 +132,7 @@ checkpoint:
   save_consolidated: false  # Sharded saves for large models
 ```
 
+(tutorial-multi-node-step3-launch)=
 ## Step 3: Launch Multi-Node Training
 
 Submit the training job to your Slurm cluster:
@@ -132,6 +149,7 @@ automodel finetune llm -c multi_node_training.yaml
 # 5. Launches distributed training across nodes
 ```
 
+(tutorial-multi-node-step4-monitoring)=
 ## Step 4: Monitor Multi-Node Training
 
 Track your distributed training job across the cluster:
@@ -171,6 +189,7 @@ ssh <node_name> tail -f /tmp/training_node.log
 [Step 1000] Checkpoint saved across 4 nodes (sharded format)
 ```
 
+(tutorial-multi-node-step5-advanced)=
 ## Step 5: Advanced Multi-Node Configurations
 
 **For Large-Scale Enterprise Deployments:**
@@ -213,6 +232,7 @@ dataloader:
   prefetch_factor: 4                # Buffer more batches
 ```
 
+(tutorial-multi-node-step6-production)=
 ## Step 6: Production Deployment Patterns
 
 **Automated Training Pipeline:**
@@ -246,6 +266,7 @@ EOF
 chmod +x submit_enterprise_training.sh
 ```
 
+(tutorial-multi-node-step7-enterprise)=
 ## Step 7: Enterprise Monitoring and Management
 
 **Production Job Monitoring Script:**
@@ -396,7 +417,8 @@ if __name__ == "__main__":
     monitor.run_monitoring()
 ```
 
-## Step 8: Troubleshooting Multi-Node Issues
+(tutorial-multi-node-step8-troubleshooting)=
+## Step 8: Troubleshoot Multi-Node Issues
 
 **Common Enterprise Deployment Issues:**
 
@@ -445,6 +467,7 @@ dataloader:
   prefetch_factor: 8              # Larger prefetch for network storage
 ```
 
+(tutorial-multi-node-success-metrics)=
 ## Enterprise Deployment Success Metrics
 
 **Production Readiness Checklist:**
@@ -473,6 +496,7 @@ dataloader:
 - **Cost Predictability**: Clear resource usage tracking and billing
 - **Compliance Ready**: Audit trails and job logging for enterprise requirements
 
+(tutorial-multi-node-deployment-templates)=
 ## Production Deployment Templates
 
 **Enterprise Training Config Template:**
@@ -513,6 +537,7 @@ checkpoint:
 # sed 's/{{ node_count }}/4/g' > production_config.yaml
 ```
 
+(tutorial-multi-node-next-steps)=
 ## Next Steps for Enterprise Teams
 
 **Immediate Implementation:**
@@ -521,16 +546,34 @@ checkpoint:
 3. **Set up monitoring** - Implement job tracking and alert systems
 4. **Train team members** - Share access patterns and troubleshooting guides
 
-**Advanced Enterprise Features:**
-- {doc}`../../guides/launcher/slurm` - Advanced Slurm configuration options
-- Implement automated model deployment pipelines
-- Set up multi-tenant resource allocation and billing
-- Configure compliance logging and audit trails
+**Deep Dive into Enterprise Features:**
+
+- **[Advanced Slurm Configuration](../../guides/launcher/slurm.md)** - Production cluster optimization
+- **[Checkpointing Strategies](../../guides/checkpointing.md)** - Multi-node state management
+- **[Enterprise Use Cases](../use-cases/cluster-administrators.md)** - Real-world deployment patterns
+
+**Apply in Production:**
+
+- **[Distributed Training Example](../examples/distributed-training.md)** - Complete enterprise workflow
+- **[Memory-Efficient Training](../examples/memory-efficient-training.md)** - Multi-node PEFT deployment
+- **[DevOps Use Cases](../use-cases/devops-professionals.md)** - Infrastructure automation patterns
+
+**API References:**
+
+- **[Launcher Components](../../api-docs/launcher/launcher.md)** - Job submission and management APIs
+- **[Distributed Training](../../api-docs/distributed/distributed.md)** - Multi-node coordination
+- **[Cluster Management](../../api-docs/utils/utils.md)** - Resource management utilities
+
+**Related Documentation:**
+
+- **[Installation for Clusters](../../get-started/installation.md#cluster-installation)** - Environment setup
+- **[Troubleshooting Multi-Node](../../references/troubleshooting-reference.md#multi-node-issues)** - Common issues and solutions
 
 ---
 
 **Navigation:**
-- ← {doc}`parameter-efficient-fine-tuning` Previous: Advanced Memory Optimization
-- ↑ {doc}`index` Back to Tutorials Overview
+- ← [Previous: Memory-Efficient Training](parameter-efficient-fine-tuning.md)
+- ↑ [Back to Tutorials Overview](index.md)
+- → **Complete!** You've mastered enterprise AI training infrastructure
 
 **Congratulations!** You've mastered production-scale distributed training. Your enterprise can now deploy large-scale AI training with confidence, efficiency, and enterprise-grade reliability.

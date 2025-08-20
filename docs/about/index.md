@@ -1,39 +1,62 @@
 ---
-description: "Learn about our platform's core concepts, key features, and fundamental architecture to understand how it works."
-tags: ["overview", "concepts", "architecture", "features"]
-categories: ["concepts"]
+description: "Learn about NeMo Automodel's core concepts, key features, and fundamental architecture for AI model training."
+categories: ["concepts-architecture"]
+tags: ["overview", "concepts", "architecture", "huggingface", "automodel-cli", "nemo"]
+personas: ["researcher-focused", "mle-focused", "data-scientist-focused"]
+difficulty: "beginner"
+content_type: "concept"
+modality: "universal"
 ---
 
 (about-overview)=
-# About NeMo NeMo Automodel
+# About NeMo AutoModel
 
-NVIDIA NeMo NeMo Automodel bridges Hugging Face models with NVIDIA's high-performance training ecosystem, providing Day-0 support for new models without conversions or rewrites. It offers a user-friendly interface while delivering enterprise-grade scalability and performance optimizations.
+NVIDIA NeMo Automatic Model (AutoModel) bridges Hugging Face models with 
+NVIDIA's high-performance training ecosystem, providing Day-0 support for new 
+models without conversions or rewrites. It offers a user-friendly interface 
+while delivering enterprise-grade scalability and performance optimizations.
 
-## What is NeMo Automodel?
+(automodel-overview)=
+## What is NeMo AutoModel
 
-NeMo Automodel provides immediate access to Hugging Face models within the NeMo framework, combining HF's breadth with NeMo's performance and scaling capabilities. Key capabilities include accelerated training with BF16/FP8, distributed scaling via DDP and FSDP2, PEFT/LoRA for efficient fine-tuning, and YAML-driven recipes for reproducible workflows.
+NeMo AutoModel is a high-level interface that bridges Hugging Face models with NVIDIA's high-performance training ecosystem, providing Day-0 support for new models without conversions or rewrites. It enables users to seamlessly fine-tune any Hugging Face model while leveraging NeMo's enterprise-grade scalability and performance optimizations.
 
-## How it Works
+**Built on NVIDIA's proven infrastructure,** AutoModel leverages the NeMo Framework's integration with Megatron-Core and Transformer-Engine backends to deliver high throughput and Model Flops Utilization (MFU), while offering an easier entry point for immediate experimentation with any Hugging Face model.
 
-1. **Load a Hugging Face model** using NeMo NeMo Automodel's drop-in interface
-2. **Prepare your dataset** with Hugging Face datasets and NeMo utilities  
-3. **Configure training** via YAML with model, data, parallelism, and fine-tuning settings
-4. **Train and deploy** leveraging NeMo's optimizations and export to inference frameworks
+(core-capabilities)=
+## Core Capabilities
 
-## Scope and Support
+NeMo AutoModel provides out-of-the-box support for:
 
-NeMo Automodel currently supports:
+- **Scale efficiently** with Fully-Sharded Data Parallelism 2 (FSDP2), Distributed Data Parallel (DDP), Tensor Parallelism (TP), and Context Parallelism (CP)
+- **Accelerate training** through Transformer-Engine optimized kernels, JIT compilation, and advanced parallelism techniques
+- **Maximize efficiency** with techniques designed to achieve high Model Flops Utilization (MFU) across GPU clusters
+- **Migrate seamlessly** to Megatron-Core recipes as they become available
+- **Deploy easily** to vLLM inference, with TensorRT-LLM support planned
+
+(model-support)=
+## Model Support
+
+AutoModel currently supports:
 - **Large Language Models (LLMs)**: Text generation and instruction following
 - **Vision Language Models (VLMs)**: Image-text understanding and generation  
 - **Roadmap**: Video generation and additional modalities
 
-## Why Day-0 Access Matters
+(key-benefits)=
+## Key Benefits
 
-The rapid pace of open-source model releases—including Meta Llama, Google Gemma, Mistral models, Qwen series, DeepSeek R1, and NVIDIA Nemotron—creates opportunities for immediate experimentation and fine-tuning. NeMo Automodel eliminates the traditional delay between model release and optimized training recipes, enabling teams to harness innovations efficiently while maintaining a path to Megatron-Core optimizations as they become available.
+AutoModel seamlessly integrates with the entire Hugging Face model ecosystem—no conversions required. All models work immediately, with popular architectures receiving enhanced Megatron-Core optimizations as they become available.
 
+AutoModel delivers three main advantages:
+
+- **Immediate Access**: Use any Hugging Face model on Day-0 without conversions or waiting for optimized recipes
+- **Enterprise Scale**: Scale from single GPU to multi-node clusters with built-in distributed training
+- **Flexible Fine-tuning**: Choose between full fine-tuning (SFT) or parameter-efficient methods (PEFT/LoRA)
+
+(target-users)=
 ## Target Users
 
-NeMo Automodel is designed for various AI practitioners who need efficient, scalable training solutions:
+NeMo AutoModel is designed for various AI practitioners who need efficient, scalable training solutions:
 
 ::::{grid} 1 1 2 2
 :gutter: 2
@@ -70,8 +93,9 @@ Deploy scalable training infrastructure with containerized environments and clus
 {bdg-warning}`Operations`
 :::
 
+::::
 
-## Explore NeMo NeMo Automodel
+## Explore NeMo AutoModel
 
 ::::{grid} 1 1 2 3
 :gutter: 2 2 2 2
@@ -120,13 +144,13 @@ Installation guide and hands-on tutorial to begin fine-tuning models.
 
 ## Package Components
 
-Explore the core components that make NeMo Automodel powerful and flexible:
+Explore the core components that make NeMo AutoModel powerful and flexible:
 
 ::::{grid} 1 1 2 2
 :gutter: 2 2 2 2
 
 :::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Core Components
-:link: /api-docs/components/components
+:link: /api-docs/index
 :link-type: doc
 :link-alt: Core training components
 
@@ -137,7 +161,7 @@ Modular components including transformers, PEFT, datasets, distributed training,
 :::
 
 :::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Training Recipes
-:link: /api-docs/recipes/recipes
+:link: /guides/index
 :link-type: doc
 :link-alt: End-to-end training workflows
 
@@ -148,7 +172,7 @@ Complete training pipelines for LLM and VLM fine-tuning with configurable workfl
 :::
 
 :::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` Command Line Interface
-:link: /api-docs/cli/index
+:link: /references/cli-command-reference
 :link-type: doc
 :link-alt: CLI tools and launcher
 
@@ -159,7 +183,7 @@ Powerful CLI for launching distributed training jobs across different environmen
 :::
 
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Shared Utilities
-:link: /api-docs/shared/shared
+:link: /api-docs/utils/utils
 :link-type: doc
 :link-alt: Common utilities and helpers
 
@@ -171,32 +195,9 @@ Import management, configuration utilities, and shared functionality used across
 
 ::::
 
-### Key Functionality Areas
-
-#### 🤖 **Model Integration**
-- **Transformers**: Drop-in replacements for Hugging Face models (`NeMoAutoModelForCausalLM`, `NeMoAutoModelForImageTextToText`)
-- **PEFT Support**: LoRA implementation with optimized kernels for parameter-efficient fine-tuning
-- **Day-0 Compatibility**: Immediate support for new Hugging Face model releases
-
-#### 📊 **Data & Datasets**  
-- **LLM Datasets**: Instruction datasets, HellaSwag, SQuAD, packed sequences
-- **VLM Datasets**: Vision-language datasets with specialized collation functions
-- **Processing Utilities**: Data preprocessing and transformation tools
-
-#### ⚡ **Distributed Training**
-- **Parallelism**: DDP, FSDP2, nvFSDP, and tensor parallelism strategies
-- **Optimization**: Gradient utilities, distributed communication, and scaling
-- **Cluster Support**: SLURM integration and multi-node training capabilities
-
-#### 🔧 **Training Infrastructure**
-- **Advanced Checkpointing**: HuggingFace-compatible checkpointing with state management
-- **Loss Functions**: Optimized cross-entropy variants with Transformer Engine support
-- **Quantization**: FP8 quantization for memory efficiency and speed
-- **Monitoring**: WandB integration and comprehensive logging
-
 ### Component Architecture
 
-See how NeMo Automodel components work together:
+Refer to how NeMo AutoModel components work together:
 
 ```{raw} html
 <div id="component-architecture-modal-container" style="cursor: pointer; border: 2px solid transparent; border-radius: 8px; transition: border-color 0.3s ease; padding: 10px;" 
@@ -310,17 +311,10 @@ document.addEventListener('keydown', function(event) {
 </script>
 ```
 
-## Quick Links
-
-- **Day-0 Support**: Use new HF models immediately without conversions
-- **Performance**: BF16/FP8 quantization, optimized attention, Liger kernels
-- **Scaling**: DDP, FSDP2, nvFSDP for single GPU to multi-node clusters
-- **Fine-tuning**: Both full fine-tuning (SFT) and parameter-efficient (PEFT/LoRA)
-- **Export**: Deploy to vLLM, TensorRT-LLM, and other inference frameworks
-
+(get-started-guide)=
 ## Get Started
 
-Ready to begin training with NeMo Automodel? Follow these essential resources to get up and running:
+Ready to begin training with NeMo AutoModel? Follow these essential resources to get up and running:
 
 ### Essential Resources
 
@@ -332,7 +326,7 @@ Ready to begin training with NeMo Automodel? Follow these essential resources to
 :link-type: doc
 :link-alt: Complete installation guide
 
-Set up NeMo Automodel with container, pip, or development installation options.
+Set up NeMo AutoModel with container, pip, or development installation options.
 +++
 {bdg-primary}`Step 1`
 :::
@@ -368,6 +362,6 @@ Explore ready-to-run examples for LLM and VLM fine-tuning workflows.
 
 ### API Documentation
 
-- **[Components API](/api-docs/components/index)** - Modular training components reference
-- **[Recipes API](/api-docs/recipes/index)** - End-to-end workflow documentation
-- **[CLI Reference](/api-docs/cli/index)** - Command-line interface guide
+- **[API Reference](/api-docs/index)** - Complete API documentation for all components
+- **[Configuration Reference](../references/yaml-configuration-reference)** - YAML configuration options
+- **[CLI Reference](../references/cli-command-reference)** - Command-line interface guide

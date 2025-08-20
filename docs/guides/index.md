@@ -1,7 +1,11 @@
 ---
-description: "Comprehensive guides for training language models, vision language models, and omni-modal models with NeMo Automodel across different environments and configurations."
-tags: ["training", "guides", "llm", "vlm", "omni", "checkpointing", "launcher"]
-categories: ["training", "deployment"]
+description: "Comprehensive guides for training language models, vision language models, and omni-modal models with NeMo Automodel across different environments."
+categories: ["model-training"]
+tags: ["training", "guides", "llm", "vlm", "omni", "checkpointing", "launcher", "yaml-config"]
+personas: ["mle-focused", "researcher-focused", "data-scientist-focused"]
+difficulty: "intermediate"
+content_type: "concept"
+modality: "universal"
 ---
 
 # About NeMo Automodel Guides
@@ -127,7 +131,7 @@ Learn how to deploy training jobs across different computing environments and ma
 4. **Monitor & Checkpoint**: Use {doc}`checkpointing` for reliable training state management
 5. **Deploy**: Export models for inference with full Hugging Face compatibility
 
-## Getting Started
+## Get Started
 
 New to NeMo Automodel? Start with these essential guides:
 

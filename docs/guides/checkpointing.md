@@ -1,5 +1,7 @@
+(checkpointing-guide)=
 # Manage Training Checkpoints
 
+(checkpointing-introduction)=
 ## Introduction
 
 During machine-learning experiments, the model-training routine regularly saves checkpoints. A checkpoint is a complete snapshot of a run that includes model weights, optimizer states, and other metadata required to resume training exactly where it left off. Writing these snapshots at regular intervals lets you recover quickly from crashes or pauses without losing progress.
@@ -34,6 +36,7 @@ checkpoint:
 > **Note:** The optimizer states are _always_ saved in DCP (`.distcp` extension) format.
 
 
+(checkpointing-safetensors)=
 ## Safetensors
 To ensure seamless integration with the Hugging Face ecosystem, NeMo Automodel saves checkpoints in the [Safetensors](https://github.com/huggingface/safetensors) format. Safetensors is a memory-safe, zero-copy alternative to Python's pickle (Pytorch .bin), natively supported by Hugging Face Transformers, offering both safety and performance advantages over Python pickle-based approaches.
 
@@ -107,6 +110,7 @@ print(pipe("The key to life is"))
 Although this example uses the Hugging Face Transformers API, the `consolidated/` checkpoint is compatible with any Hugging Face-compatible tool, such as vLLM, SGLang, and others.
 
 
+(checkpointing-peft)=
 ## PEFT
 When training with Parameter-Efficient Fine-Tuning (PEFT) techniques, only a small subset of model weights are updated — the rest of the model remains frozen. This dramatically reduces the size of the checkpoint, often to just a few megabytes.
 
@@ -162,6 +166,7 @@ print(tokenizer.batch_decode(outputs.detach().cpu().numpy(), skip_special_tokens
 >>> Preheat the oven to 350 degrees and place the cookie dough in a large bowl. Roll the dough into 1-inch balls and place them on a cookie sheet. Bake the cookies for 10 minutes. While the cookies are baking, melt the chocolate chips in the microwave for 30 seconds.
 ```
 
+(checkpointing-pytorch-dcp)=
 ## PyTorch DCP
 NeMo AutoModel also offers native PyTorch DCP checkpointing support (`.distcp` extension). Similar to Safetensors, it also provides the same features of load-time resharding and parallel saving.
 
@@ -198,6 +203,7 @@ uv run torchrun --nproc-per-node=2 examples/llm/finetune.py --step_scheduler.ckp
 ...
 ```
 
+(checkpointing-advanced-usage)=
 ## Advanced Usage: Save Additional States
 You can also save additional states in NeMo AutoModel. By default, we also automatically checkpoint the `dataloader`, `rng`, and `step_scheduler` states which are necessary to resume training accurately. In full, a Safetensors consolidated checkpoint will look like this:
 

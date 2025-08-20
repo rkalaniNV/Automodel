@@ -1,3 +1,14 @@
+---
+description: "Train 7B models on 8GB GPUs using Parameter-Efficient Fine-Tuning combined with distributed training strategies."
+categories: ["model-training"]
+tags: ["peft", "lora", "distributed-training", "memory-optimization", "large-scale", "gpu-accelerated"]
+personas: ["mle-focused", "researcher-focused"]
+difficulty: "intermediate"
+content_type: "tutorial"
+modality: "llm"
+---
+
+(tutorial-peft-distributed)=
 # Train 7B Models on 8GB GPUs with PEFT + Distributed
 
 Breakthrough memory limitations and train large models efficiently with Parameter-Efficient Fine-Tuning and distributed strategies.
@@ -8,12 +19,14 @@ Breakthrough memory limitations and train large models efficiently with Paramete
 **Persona**: Infrastructure-Aware AI Developers with GPU clusters or multi-GPU setups
 :::
 
+(tutorial-peft-prerequisites)=
 ## Prerequisites
 
 - Completed {doc}`first-fine-tuning` for performance optimization basics
 - Access to GPU(s) with 8GB+ memory (single GPU or multi-GPU setup)
 - Experience with larger model training challenges
 
+(tutorial-peft-learning-objectives)=
 ## What You'll Learn
 
 Deploy advanced memory optimization techniques for production-scale training:
@@ -24,6 +37,7 @@ Deploy advanced memory optimization techniques for production-scale training:
 - **Multi-Modal Scaling**: Extend techniques to Vision-Language Models
 - **Performance Analysis**: Measure memory savings and training efficiency
 
+(tutorial-peft-memory-challenge)=
 ## The Large Model Memory Challenge
 
 **Infrastructure Reality Check:**
@@ -44,6 +58,7 @@ Most teams face memory constraints when scaling to production-size models:
 **PEFT + Distributed Strategy:**
 Combine Parameter-Efficient Fine-Tuning with distributed training to scale efficiently across your existing GPU infrastructure.
 
+(tutorial-peft-step1-memory-efficient)=
 ## Step 1: Memory-Efficient 7B Model Training
 
 Let's train a 7B model on consumer hardware using PEFT:
@@ -93,6 +108,7 @@ dataloader:
 - **Activations**: ~4GB
 - **Total**: ~12GB (fits on RTX 4090!)
 
+(tutorial-peft-step2-multi-gpu)=
 ## Step 2: Multi-GPU Distributed PEFT
 
 Scale PEFT training across multiple GPUs for even larger models:
@@ -137,6 +153,7 @@ checkpoint:
   save_consolidated: false       # Save sharded for large models
 ```
 
+(tutorial-peft-step3-monitoring)=
 ## Step 3: Monitor Memory-Efficient Training
 
 ```bash
@@ -154,6 +171,7 @@ automodel finetune llm -c llama_3_2_7b_peft.yaml
 [Step 100] Loss: 1.234 | Trainable params: 67M/6.74B (0.99%)
 ```
 
+(tutorial-peft-step4-multimodal)=
 ## Step 4: Advanced Multi-Modal PEFT
 
 Extend memory efficiency to Vision-Language Models:
@@ -194,6 +212,7 @@ dataset:
 - **Freeze strategy**: Only adapt language components, preserve vision
 - **Selective targeting**: Apply LoRA only where needed
 
+(tutorial-peft-step5-production)=
 ## Step 5: Production PEFT Deployment
 
 ```python
@@ -242,6 +261,7 @@ manager.load_adapter("./medical_adapter")
 medical_response = manager.generate("Explain this medical condition...")
 ```
 
+(tutorial-peft-step6-performance)=
 ## Step 6: Performance Analysis and Scaling Guidelines
 
 **Memory and Performance Benchmarks:**
@@ -286,6 +306,7 @@ print("30B model:", calculate_peft_requirements(30, 4))
 3. **Fast iteration needs**: PEFT adapters allow rapid domain switching
 4. **Production serving**: Load base model once, swap adapters per request
 
+(tutorial-peft-multinode)=
 ## Advanced Multi-Node PEFT
 
 ```yaml
@@ -308,6 +329,7 @@ slurm:
   container_image: "nvcr.io/nvidia/nemo:dev"
 ```
 
+(tutorial-peft-optimization-checklist)=
 ## Infrastructure Optimization Checklist
 
 **For Infrastructure-Aware AI Developers:**
@@ -325,11 +347,31 @@ slurm:
 - **Cost Reduction**: 60-80% less GPU time for large model training
 - **Deployment Flexibility**: Multiple specialized models from one base
 
+(tutorial-peft-next-steps)=
 ## Next Steps
 
-- {doc}`multi-gpu-training` - Deploy multi-node training on Slurm clusters
-- Implement adapter switching for production multi-tenant serving
-- {doc}`../../guides/llm/peft` for advanced PEFT optimization techniques
+**Scale to Enterprise Infrastructure:**
+
+1. **[Deploy Multi-Node Training](multi-gpu-training.md)** - Enterprise Slurm cluster integration
+2. **[Advanced PEFT Techniques](../../guides/llm/peft.md)** - Deep dive into LoRA optimization
+3. **[Checkpointing Guide](../../guides/checkpointing.md)** - Manage large model training state
+
+**Apply in Practice:**
+
+- **[Memory-Efficient Training Example](../examples/memory-efficient-training.md)** - Complete PEFT workflow with benchmarks
+- **[Multi-Modal Fine-Tuning](../examples/multimodal-finetuning.md)** - Apply PEFT to vision-language models
+- **[Enterprise Use Cases](../use-cases/ml-engineers.md)** - Production PEFT deployment patterns
+
+**Related Concepts:**
+
+- **[Understanding PEFT](../../about/key-features.md#parameter-efficient-fine-tuning)** - Technical background
+- **[Model Support](../../model-coverage/llm.md)** - PEFT compatibility across architectures
+
+**API Reference:**
+
+- **[PEFT Components](../../api-docs/_peft/_peft.md)** - LoRA implementation and configuration
+- **[Distributed Training](../../api-docs/distributed/distributed.md)** - Multi-GPU PEFT strategies
+- **[Memory Optimization](../../api-docs/utils/utils.md)** - Memory management utilities
 
 ---
 

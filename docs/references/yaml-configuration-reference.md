@@ -13,6 +13,7 @@ modality: "universal"
 
 Comprehensive reference for NeMo Automodel YAML configuration files, covering all sections, parameters, and configuration patterns.
 
+(yaml-config-overview)=
 ## Configuration Overview
 
 NeMo Automodel uses a flexible YAML-based configuration system that supports:
@@ -44,6 +45,7 @@ dataset:
   _target_: nemo_automodel.components.datasets.llm.squad.make_squad_dataset
 ```
 
+(yaml-config-core-sections)=
 ## Core Configuration Sections
 
 ### Step Scheduler
@@ -415,6 +417,7 @@ slurm:
   hf_token: ${HF_TOKEN}
 ```
 
+(yaml-config-patterns)=
 ## Configuration Patterns
 
 ### The `_target_` Pattern
@@ -460,6 +463,7 @@ model:
 #   pretrained_model_name_or_path: meta-llama/Llama-3.2-8B
 ```
 
+(yaml-config-examples)=
 ## Complete Configuration Examples
 
 ### LLM Fine-tuning with PEFT
@@ -522,6 +526,7 @@ dataloader:
     start_of_response_token: "<start_of_turn>model\n"
 ```
 
+(yaml-config-validation)=
 ## Validation and Troubleshooting
 
 ### Required Parameters
@@ -556,6 +561,7 @@ model:
   _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
 ```
 
+(yaml-config-see-also)=
 ## See Also
 
 - {doc}`cli-command-reference` - CLI usage patterns

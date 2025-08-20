@@ -1,3 +1,13 @@
+---
+description: "Learn how to fine-tune large language models using NeMo Automodel with full parameter training and parameter-efficient techniques."
+categories: ["model-training"]
+tags: ["llm", "fine-tuning", "peft", "lora", "yaml-config", "recipes"]
+personas: ["mle-focused", "researcher-focused", "data-scientist-focused"]
+difficulty: "intermediate"
+content_type: "concept"
+modality: "llm"
+---
+
 # Train Large Language Models (LLM)
 
 Learn how to fine-tune large language models using NeMo Automodel with both full parameter training and parameter-efficient techniques.

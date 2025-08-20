@@ -1,11 +1,31 @@
+---
+description: "Get up and running with NeMo Automodel in minutes. Learn to fine-tune your first model using CLI and Python approaches."
+categories: ["getting-started"]
+tags: ["quickstart", "fine-tuning", "automodel-cli", "python-api", "yaml-config", "huggingface"]
+personas: ["mle-focused", "researcher-focused", "data-scientist-focused"]
+difficulty: "beginner"
+content_type: "tutorial"
+modality: "universal"
+---
+
 (get-started-quick-start)=
 # Quick Start
 
 Get up and running with NeMo Automodel in minutes. This guide shows you how to fine-tune your first model using both CLI and Python approaches.
 
+## How It Works
+
+AutoModel follows a simple four-step workflow:
+
+1. **Load a Hugging Face model** using AutoModel's drop-in interface
+2. **Prepare your dataset** with Hugging Face datasets and NeMo utilities  
+3. **Configure training** via YAML with model, data, parallelism, and fine-tuning settings
+4. **Train and deploy** leveraging NeMo's optimizations and export to inference frameworks
+
+(quick-start-prerequisites)=
 ## Prerequisites
 
-- **Python**: 3.9+
+- **Python**: 3.10+
 - **GPU**: NVIDIA GPU with 8GB+ memory
 - **CUDA**: CUDA Toolkit 11.8+ or 12.x
 - **PyTorch**: 2.0+ with CUDA support
@@ -21,8 +41,9 @@ cd NeMo-Automodel
 pip install -e .
 ```
 
-For other installation options, see the {doc}`../guides/installation`.
+For other installation options, refer to the [Installation Guide](../get-started/installation.md).
 
+(cli-approach)=
 ## Approach 1: CLI (Recommended)
 
 The fastest way to get started is with the `automodel` CLI:
@@ -46,6 +67,7 @@ The CLI automatically:
 - Configures FSDP2 for efficient distributed training
 - Saves checkpoints and final model
 
+(python-recipe-approach)=
 ## Approach 2: Python Recipe
 
 For more control, use the Python recipe directly:
@@ -58,7 +80,7 @@ python recipes/llm/finetune.py --config examples/llm/llama_3_2_1b_squad.yaml
 torchrun --nproc-per-node=2 recipes/llm/finetune.py --config examples/llm/llama_3_2_1b_squad.yaml
 ```
 
-## Understanding the Configuration
+## Understand the Configuration
 
 The example uses a YAML configuration file that defines all training parameters:
 
@@ -97,14 +119,40 @@ optimizer:
   lr: 1.0e-5
   weight_decay: 0
 ```
+
 ::::
 
-## Python API Usage
 
-For programmatic access, use the core NeMo Automodel APIs:
 
-::::{dropdown} Python example
-:icon: code
+::::{dropdown} Migration to Megatron-Core (Advanced)
+:icon: rocket
+
+For maximum throughput, you can switch to Megatron-Core with minimal code changes:
+
+```python
+# Model class change
+# Instead of: model=llm.HFAutoModelForCausalLM(model_id)
+model = llm.LlamaModel(Llama32Config1B())
+
+# Optimizer module change  
+# Instead of: optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5))
+optim = MegatronOptimizerModule(config=opt_config)
+
+# Trainer strategy change
+# Instead of: strategy="fsdp2"
+trainer = nl.Trainer(
+    strategy=nl.MegatronStrategy(ddp="pytorch"),
+    # ... other params
+)
+```
+
+This enables optimal performance for training and post-training with minimal overhead.
+::::
+
+::::{dropdown} Lower-Level Component Usage
+:icon: tools
+
+For more granular control, you can use individual components:
 
 ```python
 import torch
@@ -147,6 +195,7 @@ for batch in dataset:
     loss.backward()
     optimizer.step()
 ```
+
 ::::
 
 ## Try Different Models and Tasks
@@ -193,7 +242,7 @@ When you run the command, NeMo Automodel:
 
 ## Expected Output
 
-You should see output like:
+You should observe output like:
 
 ```console
 INFO: Loading model meta-llama/Llama-3.2-1B...
@@ -208,11 +257,56 @@ INFO: Training completed. Model saved to checkpoints/
 
 Now that you've run your first training job:
 
-1. **Explore configurations**: See {doc}`../references/yaml-configuration-reference` for all options
-2. **Try advanced features**: Learn about {doc}`../guides/launcher/slurm` for cluster training
-3. **Understand the architecture**: Read {doc}`../about/architecture-overview`
+1. **Explore configurations**: Refer to the [YAML Configuration Reference](../references/yaml-configuration-reference.md) for all options
+2. **Try advanced features**: Learn about [Slurm Integration](../guides/launcher/slurm.md) for cluster training
+3. **Understand the architecture**: Read the [Architecture Overview](../about/architecture-overview.md)
 4. **Scale up**: Try larger models and datasets
-5. **Get help**: Check {doc}`../references/troubleshooting-reference` for common issues
+5. **Get help**: Check the [Troubleshooting Reference](../references/troubleshooting-reference.md) for common issues
+
+## Advanced: Extending AutoModel
+
+NeMo AutoModel currently supports the `AutoModelForCausalLM` class for text generation. To add support for other tasks:
+
+::::{dropdown} Adding New AutoModel Classes
+:icon: plus
+
+```python
+# Create a subclass similar to HFAutoModelForCausalLM
+class HFAutoModelForSeq2SeqLM(BaseAutoModel):
+    def __init__(self, model_id, **kwargs):
+        # Adapt initializer for your specific use case
+        super().__init__(model_id, **kwargs)
+    
+    def training_step(self, batch, batch_idx):
+        # Implement training logic for sequence-to-sequence
+        pass
+    
+    def validation_step(self, batch, batch_idx):
+        # Implement validation logic
+        pass
+    
+    def configure_model(self):
+        # Model configuration for your task
+        pass
+    
+    def save_checkpoint(self, filepath):
+        # Custom checkpoint handling
+        pass
+    
+    def load_checkpoint(self, filepath):
+        # Custom checkpoint loading
+        pass
+```
+
+You'll also need to:
+
+1. Implement appropriate checkpoint handling
+2. Create a new data module with custom batch preprocessing
+3. Adapt training/validation steps for your specific use case
+
+Refer to the existing `HFAutoModelForCausalLM` class as a reference implementation.
+
+::::
 
 ## Learn More
 
@@ -220,3 +314,4 @@ Now that you've run your first training job:
 - {doc}`../guides/llm/sft` - Deep dive into LLM fine-tuning
 - {doc}`../guides/vlm/index` - Vision-language model training
 - {doc}`../model-coverage/index` - Supported model architectures
+- [NeMo Framework GitHub](https://github.com/NVIDIA/NeMo) - Full reference examples and comprehensive documentation

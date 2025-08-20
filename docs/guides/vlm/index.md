@@ -1,7 +1,19 @@
+---
+description: "Learn how to fine-tune vision language models using NeMo Automodel for multi-modal tasks that combine visual and textual understanding."
+categories: ["model-training"]
+tags: ["vlm", "multimodal", "fine-tuning", "vision", "yaml-config", "recipes"]
+personas: ["mle-focused", "researcher-focused", "data-scientist-focused"]
+difficulty: "intermediate"
+content_type: "concept"
+modality: "vlm"
+---
+
+(vlm-training-overview)=
 # Train Vision Language Models (VLM)
 
 Learn how to fine-tune vision language models using NeMo Automodel for multi-modal tasks that combine visual and textual understanding.
 
+(vlm-overview)=
 ## Overview
 
 Vision Language Models (VLMs) enable AI systems to understand and reason about both visual and textual information simultaneously. NeMo Automodel provides comprehensive support for training VLMs with multi-modal datasets, making it easy to build models that can:
@@ -11,6 +23,7 @@ Vision Language Models (VLMs) enable AI systems to understand and reason about b
 - Understand multi-modal conversations
 - Process medical, scientific, or domain-specific visual content
 
+(vlm-multimodal-training)=
 ## Multi-Modal Training
 
 ::::{grid} 1 1 2 2
@@ -40,6 +53,7 @@ Train models for visual question answering tasks with specialized preprocessing 
 
 ::::
 
+(vlm-supported-modalities)=
 ## Supported Modalities
 
 - **Images**: JPEG, PNG, and other standard image formats
@@ -47,6 +61,7 @@ Train models for visual question answering tasks with specialized preprocessing 
 - **Text**: Natural language instructions, questions, and responses
 - **Multi-turn Conversations**: Complex dialogue scenarios with visual context
 
+(vlm-key-features)=
 ## Key Features
 
 - **Flexible Data Processing**: Support for various multi-modal dataset formats
@@ -55,6 +70,7 @@ Train models for visual question answering tasks with specialized preprocessing 
 - **PEFT Support**: Efficient fine-tuning with LoRA for large VLMs
 - **Distributed Training**: Scale VLM training across multiple GPUs with FSDP2/nvFSDP
 
+(vlm-use-cases)=
 ## Example Use Cases
 
 - **Medical VQA**: Train models on medical imaging datasets like MedPix-VQA

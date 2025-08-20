@@ -1,3 +1,13 @@
+---
+description: "Replace HF Trainer workflows with automatic performance optimizations for high-performance text classification tasks."
+categories: ["model-training"]
+tags: ["fine-tuning", "optimization", "huggingface", "performance-tuning", "pytorch", "mixed-precision"]
+personas: ["mle-focused", "researcher-focused"]
+difficulty: "intermediate"
+content_type: "example"
+modality: "llm"
+---
+
 # High-Performance Text Classification
 
 **Task**: Replace HF Trainer workflows with automatic performance optimizations  
@@ -517,3 +527,26 @@ peft:
 - **Scalability**: Same config works from single GPU to multi-node
 
 This example demonstrates how NeMo AutoModel delivers immediate, measurable performance improvements for text classification tasks while maintaining the same model quality and familiar workflow patterns.
+
+## Learn More
+
+**Step-by-Step Tutorials:**
+
+- **[Get 2-3x PyTorch Speedup](../tutorials/first-fine-tuning.md)** - Complete tutorial on performance optimization
+- **[Memory-Efficient Training](../tutorials/parameter-efficient-fine-tuning.md)** - Scale to larger models with PEFT
+- **[Multi-Node Deployment](../tutorials/multi-gpu-training.md)** - Enterprise cluster integration
+
+**Related Examples:**
+
+- **[Memory-Efficient Large Model Training](memory-efficient-training.md)** - PEFT techniques for 7B+ models
+- **[Multi-Node Distributed Training](distributed-training.md)** - Enterprise-scale deployment patterns
+
+**Technical Deep Dives:**
+
+- **[LLM Training Guide](../../guides/llm/sft.md)** - Advanced supervised fine-tuning techniques
+- **[Architecture Overview](../../about/architecture-overview.md)** - Understanding NeMo AutoModel's performance optimizations
+
+**API Documentation:**
+
+- **[AutoModel Components](../../api-docs/_transformers/_transformers.md)** - Core model classes and optimization APIs
+- **[Performance Utilities](../../api-docs/training/training.md)** - Training optimization and monitoring tools

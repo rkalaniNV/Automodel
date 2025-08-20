@@ -67,7 +67,7 @@ All supported models undergo comprehensive testing with:
 - **Memory Optimization**: FP8 quantization and gradient checkpointing
 - **Performance Benchmarking**: Training speed and convergence validation
 
-## Getting Started
+## Get Started
 
 1. **Choose your model** from the Hugging Face Hub
 2. **Verify compatibility** using our model lists

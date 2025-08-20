@@ -117,7 +117,46 @@ Advanced vision-language model fine-tuning with custom dataset integration and c
 **Hardware**: Multi-GPU setup recommended  
 **Key Value**: Research capabilities beyond standard frameworks
 
-## How to Use Examples
+## Ready-to-Run Code Examples
+
+**Looking for working configurations you can run immediately?** The repository includes a comprehensive collection of production-ready examples with complete YAML configurations and execution scripts.
+
+::::{grid} 1 1 2 2
+:gutter: 2
+
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` LLM Fine-Tuning Examples
+:link: https://github.com/NVIDIA/NeMo-Automodel/tree/main/examples/llm
+:link-alt: LLM examples directory
+
+**8 complete configurations** covering Llama 3.2, Qwen models with PEFT, nvFSDP, FP8 optimizations
++++
+{bdg-primary}`Ready-to-run` {bdg-secondary}`examples/llm/`
+:::
+
+:::{grid-item-card} {octicon}`device-camera-video;1.5em;sd-mr-1` Vision-Language Model Examples  
+:link: https://github.com/NVIDIA/NeMo-Automodel/tree/main/examples/vlm
+:link-alt: VLM examples directory
+
+**10 configurations** for Gemma, Phi, Qwen2.5 VL models with fine-tuning and generation scripts
++++
+{bdg-success}`Production-ready` {bdg-secondary}`examples/vlm/`
+:::
+
+::::
+
+### Quick Start with Code Examples
+
+1. **Navigate to** `examples/llm/` or `examples/vlm/` in your installation
+2. **Choose a YAML configuration** that matches your model and optimization needs  
+3. **Run using** the provided `finetune.py` scripts
+4. **Customize** the YAML settings for your specific dataset and requirements
+
+**Recommended Starting Points:**
+- **LLM SFT**: `examples/llm/llama_3_2_1b_squad.yaml`
+- **PEFT Training**: `examples/llm/llama_3_2_1b_hellaswag_peft.yaml` 
+- **VLM Fine-tuning**: `examples/vlm/gemma_3_vl_4b_medpix_peft.yaml`
+
+## How to Use Tutorial Examples
 
 1. **Navigate to the examples directory** in your NeMo Automodel installation
 2. **Choose an example** that matches your model type and use case
@@ -133,7 +172,7 @@ Each example typically includes:
 - **Documentation**: Explanation of settings and expected outcomes
 - **Requirements**: Specific dependencies and hardware requirements
 
-## Getting Started
+## Get Started with Examples
 
 For first-time users, we recommend starting with:
 
@@ -143,14 +182,14 @@ For first-time users, we recommend starting with:
 
 These examples provide a solid foundation for understanding NeMo Automodel's capabilities and can be easily adapted for your specific requirements.
 
-## Choosing the Right Example
+## Choose the Right Example
 
 **For Performance Optimization** → High-Performance Text Classification  
 **For Memory Constraints** → Memory-Efficient Large Model Training  
 **For Enterprise Deployment** → Multi-Node Distributed Training  
 **For Research & Experimentation** → Advanced Multi-Modal Fine-Tuning
 
-## Getting Started
+## Get Started
 
 1. **Choose an example** based on your primary goal and constraints
 2. **Review hardware requirements** and ensure compatibility  

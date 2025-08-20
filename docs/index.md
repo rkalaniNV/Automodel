@@ -1,7 +1,11 @@
 ---
-description: "Explore comprehensive documentation for our software platform, including tutorials, feature guides, and deployment instructions."
-tags: ["overview", "quickstart", "getting-started"]
+description: "Explore comprehensive documentation for NeMo Automodel, including tutorials, training guides, and deployment instructions."
 categories: ["getting-started"]
+tags: ["overview", "quickstart", "getting-started", "documentation", "automodel-cli", "nemo"]
+personas: ["researcher-focused", "mle-focused", "data-scientist-focused", "enterprise-focused"]
+difficulty: "beginner"
+content_type: "concept"
+modality: "universal"
 ---
 
 (template-home)=
@@ -44,73 +48,94 @@ Each major section serves a specific purpose in your learning journey:
 
 ## Quick Start
 
-::::{grid} 1 1 1 2
-:gutter: 1 1 1 2
+::::{grid} 1 1 2 2
+:gutter: 2
 
-:::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Feature Set A
-:link: feature-set-a
-:link-type: ref
-:link-alt: Feature Set A documentation home
+:::{grid-item-card} {octicon}`download;1.5em;sd-mr-1` Installation
+:link: get-started/installation
+:link-type: doc
+:link-alt: Installation guide
 
-Comprehensive tools and workflows for data processing and analysis.
-Get started with our core feature set.
+Set up NeMo Automodel with container, pip, or development installation options.
++++
+{bdg-primary}`Step 1`
 :::
 
-:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Feature Set B  
-:link: feature-set-b
-:only: not ga
-:link-type: ref
-:link-alt: Feature Set B documentation home
+:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quick Start
+:link: get-started/quick-start
+:link-type: doc
+:link-alt: Quick start tutorial
 
-Advanced integration capabilities and specialized processing tools.
-Available in Early Access.
+Follow the quick start tutorial to fine-tune your first model in minutes.
++++
+{bdg-success}`Step 2`
 :::
 
-::::
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Examples
+:link: learning-resources/examples/index
+:link-type: doc
+:link-alt: Working examples
 
-## Core Learning Path
-
-::::{grid} 1 1 1 2
-:gutter: 1 1 1 2
-
-:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Feature Set A Tutorials
-:link: feature-set-a-tutorials
-:link-type: ref
-:link-alt: Feature Set A tutorial collection
-
-Step-by-step guides for getting the most out of Feature Set A
+Explore ready-to-run examples for LLM and VLM fine-tuning workflows.
++++
+{bdg-info}`Step 3`
 :::
 
-:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Feature Set B Tutorials
-:link: feature-set-b-tutorials
-:only: not ga
-:link-type: ref
-:link-alt: Feature Set B tutorial collection
+:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Tutorials
+:link: learning-resources/tutorials/index
+:link-type: doc
+:link-alt: Step-by-step tutorials
 
-Hands-on tutorials for Feature Set B workflows
+In-depth tutorials for advanced fine-tuning techniques and distributed training.
++++
+{bdg-warning}`Step 4`
 :::
 
 ::::
 
-## Key Guides
+## Training Workflows
 
-::::{grid} 1 1 1 2
-:gutter: 1 1 1 2
+::::{grid} 1 1 2 2
+:gutter: 2
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Deployment Patterns
-:link: admin-deployment
-:link-type: ref
-:link-alt: Deployment and configuration guides
+:::{grid-item-card} {octicon}`cpu;1.5em;sd-mr-1` Language Models
+:link: guides/llm/index
+:link-type: doc
+:link-alt: LLM training guides
 
-Learn how to deploy and configure your environment
+Comprehensive guides for training Large Language Models with SFT and PEFT.
++++
+{bdg-primary}`LLM`
 :::
 
-:::{grid-item-card} {octicon}`plug;1.5em;sd-mr-1` Integration Patterns
-:link: admin-integrations
-:link-type: ref
-:link-alt: Integration and connection guides
+:::{grid-item-card} {octicon}`eye;1.5em;sd-mr-1` Vision Language Models
+:link: guides/vlm/index
+:link-type: doc
+:link-alt: VLM training guides
 
-Connect with external systems and services
+Training workflows for Vision Language Models and multimodal architectures.
++++
+{bdg-success}`VLM`
+:::
+
+:::{grid-item-card} {octicon}`star;1.5em;sd-mr-1` Omni Models
+:link: guides/omni/index
+:link-type: doc
+:link-alt: Omni model guides
+
+Advanced omni-modal model training and configuration.
++++
+{bdg-info}`Omni`
+:::
+
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Distributed Training
+:link: guides/launcher/index
+:link-type: doc
+:link-alt: Distributed training guides
+
+Multi-GPU and cluster deployment with SLURM integration.
++++
+{bdg-warning}`Cluster`
 :::
 
 ::::
@@ -119,133 +144,94 @@ Connect with external systems and services
 
 ## Reference Documentation
 
-::::{grid} 1 1 1 2
-:gutter: 2 2 2 2
+::::{grid} 1 1 2 2
+:gutter: 2
 
-:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration Reference
-:link: references/configuration-reference
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` YAML Configuration
+:link: references/yaml-configuration-reference
 :link-type: doc
+:link-alt: YAML configuration reference
 
 Complete reference for all configuration options and parameters.
-
 +++
-{bdg-primary}`Reference`
+{bdg-primary}`Config`
 :::
 
-:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
-:link: references/cli-reference
+:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Commands
+:link: references/cli-command-reference
 :link-type: doc
+:link-alt: CLI command reference
 
 Command-line interface commands and usage patterns.
-
 +++
 {bdg-info}`CLI`
 :::
 
-
-
-:::{grid-item-card} {octicon}`light-bulb;1.5em;sd-mr-1` Core Design and Architecture
-:link: core-design/index
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` API Reference
+:link: api-docs/index
 :link-type: doc
+:link-alt: Complete API documentation
 
-Architectural decisions and technical specifications for framework internals.
+Comprehensive API documentation for all components and modules.
++++
+{bdg-success}`API`
+:::
 
+:::{grid-item-card} {octicon}`light-bulb;1.5em;sd-mr-1` Architecture
+:link: about/architecture-overview
+:link-type: doc
+:link-alt: Architecture overview
+
+Technical architecture and design principles.
 +++
 {bdg-warning}`Advanced`
 :::
 
 ::::
 
-## Research Methodologies
+## Learning & Use Cases
 
-::::{grid} 1 1 1 2
-:gutter: 2 2 2 2
+::::{grid} 1 1 2 2
+:gutter: 2
 
-:::{grid-item-card} {octicon}`beaker;1.5em;sd-mr-1` Experimental Design
-:link: advanced/research/experimental-design-validation
+:::{grid-item-card} {octicon}`mortar-board;1.5em;sd-mr-1` Use Cases
+:link: learning-resources/use-cases/index
 :link-type: doc
+:link-alt: Real-world use cases
 
-Design controlled experiments and research studies with proper experimental methodology for NeMo RL research.
-
+Explore persona-specific use cases and implementation patterns.
 +++
-{bdg-info}`Research Methodology`
+{bdg-info}`Use Cases`
 :::
 
-:::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Model Evaluation
-:link: advanced/research/model-evaluation-validation
+:::{grid-item-card} {octicon}`package-dependencies;1.5em;sd-mr-1` Model Coverage
+:link: model-coverage/index
 :link-type: doc
+:link-alt: Supported models
 
-Build comprehensive evaluation frameworks and implement robust model assessment and comparison strategies.
-
+Complete list of supported model architectures and compatibility.
 +++
-{bdg-info}`Evaluation Framework`
+{bdg-secondary}`Models`
 :::
-
-:::{grid-item-card} {octicon}`chart;1.5em;sd-mr-1` Performance Analysis
-:link: advanced/research/performance-analysis
-:link-type: doc
-
-Analyze model performance and interpret results with statistical rigor and comprehensive metrics.
-
-+++
-{bdg-info}`Performance Analysis`
-:::
-
-:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Custom Algorithms
-:link: advanced/research/custom-algorithms
-:link-type: doc
-
-Develop custom algorithms and extend NeMo RL with new training approaches and methodologies.
-
-+++
-{bdg-info}`Algorithm Development`
-:::
-
-:::{grid-item-card} {octicon}`search;1.5em;sd-mr-1` Ablation Studies
-:link: advanced/research/ablation-studies
-:link-type: doc
-
-Conduct systematic ablation studies to understand model components and their contributions.
-
-+++
-{bdg-info}`Component Analysis`
-:::
-
-:::{grid-item-card} {octicon}`check-circle;1.5em;sd-mr-1` Reproducible Research
-:link: advanced/research/reproducible-research-validation
-:link-type: doc
-
-Implement deterministic training and environment management for reproducible experiments.
-
-+++
-{bdg-info}`Reproducibility`
-:::
-
-::::
-
-## Get Help
-
-::::{grid} 1 1 1 2
-:gutter: 2 2 2 2
 
 :::{grid-item-card} {octicon}`bug;1.5em;sd-mr-1` Troubleshooting
-:link: guides/troubleshooting
+:link: references/troubleshooting-reference
 :link-type: doc
+:link-alt: Troubleshooting guide
 
 Common issues, error messages, and solutions.
-
 +++
 {bdg-warning}`Support`
 :::
 
-:::{grid-item-card} {octicon}`question;1.5em;sd-mr-1` Production Support
-:link: guides/troubleshooting
+:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` API Interfaces
+:link: references/api-interfaces-reference
 :link-type: doc
+:link-alt: API interfaces reference
 
-Deployment guides, monitoring, and production best practices.
-
+Detailed API interface specifications and examples.
 +++
-{bdg-info}`Production`
+{bdg-dark}`Interfaces`
 :::
 
 ::::
@@ -289,10 +275,10 @@ guides/checkpointing
 ::::{toctree}
 :hidden:
 :caption: Learning Resources
-:maxdepth: 2
+:maxdepth: 3
 learning-resources/index
-learning-resources/tutorials/index
 learning-resources/examples/index
+learning-resources/tutorials/index
 learning-resources/use-cases/index
 ::::
 

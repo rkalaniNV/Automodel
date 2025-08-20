@@ -13,6 +13,7 @@ modality: "universal"
 
 Complete reference for the NeMo Automodel command-line interface, covering all commands, options, and usage patterns.
 
+(cli-overview)=
 ## Overview
 
 The NeMo Automodel CLI provides a unified interface for launching training jobs locally or on distributed systems. It simplifies complex workflows while providing access to advanced configuration options.
@@ -52,6 +53,7 @@ YAML-driven setup:
 
 ::::
 
+(cli-commands)=
 ## Commands
 
 ### `finetune`
@@ -66,6 +68,7 @@ automodel finetune <domain> -c <config.yaml> [options]
 - `llm` - Fine-tune language models (Llama, Gemma, Qwen, etc.)
 - `vlm` - Fine-tune vision language models (Gemma 3 VL, etc.)
 
+(cli-global-options)=
 ## Global Options
 
 ### Required Arguments
@@ -101,6 +104,7 @@ automodel finetune <domain> -c <config.yaml> [options]
   - Alternative syntax for `--nproc-per-node`
 ```
 
+(cli-usage-examples)=
 ## Usage Examples
 
 ### Single GPU Training
@@ -167,6 +171,7 @@ automodel finetune llm -c config_with_slurm.yaml
 
 The CLI will automatically submit a Slurm batch job instead of running locally.
 
+(cli-configuration-integration)=
 ## Configuration Integration
 
 ### YAML Configuration Files
@@ -191,6 +196,7 @@ uv run examples/llm/finetune.py \
     --step_scheduler.max_steps 1000
 ```
 
+(cli-environment-variables)=
 ## Environment Variables
 
 The CLI respects several environment variables:
@@ -209,6 +215,7 @@ The CLI respects several environment variables:
   - Various Slurm environment variables (automatically handled)
 ```
 
+(cli-error-handling)=
 ## Error Handling
 
 ### Common Issues
@@ -239,6 +246,7 @@ If automatic GPU detection fails, explicitly specify the number of processes:
 automodel finetune llm -c config.yaml --nproc-per-node=1
 ```
 
+(cli-advanced-usage)=
 ## Advanced Usage
 
 ### Development and Debugging
@@ -264,7 +272,8 @@ slurm:
   extra_mounts: "/data:/workspace/data"
 ```
 
-## Getting Help
+(cli-getting-help)=
+## Get Help
 
 ```bash
 # Display CLI help

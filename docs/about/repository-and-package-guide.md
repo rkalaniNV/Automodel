@@ -261,7 +261,7 @@ nemo_automodel/
 │   │   ├── chunked_ce.py         # Chunked cross-entropy
 │   │   ├── linear_ce.py          # Linear cross-entropy
 │   │   ├── masked_ce.py          # Masked cross-entropy
-│   │   ├── te_parallel_ce.py     # Transformer Engine parallel CE
+│   │   ├── te_parallel_ce.py     # Tensor-parallel cross-entropy loss
 │   │   └── triton/               # Custom Triton kernels
 │   │       └── te_cross_entropy.py # TE cross-entropy kernel
 │   ├── training/                 # Training utilities and management
@@ -494,7 +494,7 @@ loggers/
 └── log_utils.py      # General logging utilities
 ```
 
-## Getting Started Paths
+## Get Started Paths
 
 Choose your exploration path based on your role and goals:
 
@@ -519,7 +519,7 @@ Choose your exploration path based on your role and goals:
 
 **Recommended Path:**
 1. 🧩 Explore `nemo_automodel/components/` - Understand building blocks
-2. 🍳 Study `nemo_automodel/recipes/` - See component orchestration
+2. 🍳 Study `nemo_automodel/recipes/` - Refer to component orchestration
 3. 🧪 Run `tests/` - Understand expected behavior
 4. 📋 Read `CONTRIBUTING.md` - Development guidelines
 

@@ -1,8 +1,11 @@
 ---
-author: lawrence lane
 description: "Access comprehensive reference documentation including API specifications, configuration options, and technical details."
-tags: ["reference", "api", "configuration", "specifications"]
-categories: ["reference", "onboarding"]
+categories: ["reference"]
+tags: ["reference", "api", "configuration", "specifications", "troubleshooting", "python-api"]
+personas: ["mle-focused", "enterprise-focused", "researcher-focused"]
+difficulty: "reference"
+content_type: "reference"
+modality: "universal"
 ---
 
 (ref-overview)=

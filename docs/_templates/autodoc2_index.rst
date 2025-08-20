@@ -48,7 +48,7 @@ API Reference
 
       LoRA adapters and efficient fine-tuning configurations with custom kernel implementations.
 
-      :bdg-secondary:`LoRA` :bdg-secondary:`DoRA` :bdg-secondary:`triton-kernels` :bdg-secondary:`adapters`
+      :bdg-secondary:`LoRA` :bdg-secondary:`triton-kernels` :bdg-secondary:`adapters`
 
    .. grid-item-card:: :octicon:`graph;1.5em;sd-mr-1` Loss Functions
       :link: loss/loss

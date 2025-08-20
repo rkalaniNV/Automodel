@@ -1118,3 +1118,39 @@ fi
 - **Container Ready**: Production containerization with NVIDIA optimizations
 
 This example demonstrates how NeMo AutoModel enables enterprise-scale distributed training with production-grade reliability, monitoring, and management capabilities that work with existing enterprise infrastructure.
+
+## Learn More
+
+**Master Enterprise Deployment:**
+
+- **[Deploy Multi-Node Training](../tutorials/multi-gpu-training.md)** - Complete enterprise Slurm tutorial
+- **[Memory-Efficient Training](../tutorials/parameter-efficient-fine-tuning.md)** - Combine PEFT with distributed strategies
+- **[Performance Optimization](../tutorials/first-fine-tuning.md)** - Foundational performance techniques
+
+**Related Examples:**
+
+- **[Memory-Efficient Large Model Training](memory-efficient-training.md)** - Distributed PEFT deployment
+- **[High-Performance Text Classification](high-performance-text-classification.md)** - Foundational optimization patterns
+
+**Enterprise Guides:**
+
+- **[Slurm Integration](../../guides/launcher/slurm.md)** - Advanced cluster configuration
+- **[Checkpointing Guide](../../guides/checkpointing.md)** - Multi-node state management
+- **[LLM Training](../../guides/llm/sft.md)** - Large-scale supervised fine-tuning
+
+**Use Cases by Role:**
+
+- **[Cluster Administrators](../use-cases/cluster-administrators.md)** - Infrastructure management patterns
+- **[DevOps Professionals](../use-cases/devops-professionals.md)** - Automation and monitoring strategies
+- **[ML Engineers](../use-cases/ml-engineers.md)** - Production training workflows
+
+**Technical References:**
+
+- **[Launcher Components](../../api-docs/launcher/launcher.md)** - Job submission and management APIs
+- **[Distributed Training](../../api-docs/distributed/distributed.md)** - Multi-node coordination APIs
+- **[Cluster Setup Guide](../../get-started/installation.md#cluster-installation)** - Environment configuration
+
+**Troubleshooting:**
+
+- **[Multi-Node Issues](../../references/troubleshooting-reference.md#multi-node-issues)** - Common problems and solutions
+- **[Performance Debugging](../../references/troubleshooting-reference.md#performance-issues)** - Optimization troubleshooting

@@ -183,7 +183,7 @@ graph LR
 - Minimize computational costs compared to full retraining
 - Support simultaneous development of multiple agent variants
 
-## Getting Started
+## Get Started
 
 ### Basic Continuous Learning Setup
 

@@ -369,7 +369,7 @@ automodel finetune vlm -c examples/vlm/qwen2_5_vl_3b_rdr.yaml
 
 **Best choices**: Qwen family, LLaMA 3.1 (70B), Gemma 2
 
-## Getting Started Examples
+## Get Started Examples
 
 ### Small Model (Good for Experimentation)
 
