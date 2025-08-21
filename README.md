@@ -28,11 +28,32 @@ NeMo Framework is NVIDIA's GPU accelerated, end-to-end training framework for la
 NeMo AutoModel provides native support for a wide range of models available on the Hugging Face Hub, enabling efficient fine-tuning for various domains.
 
 ### Large Language Models
-- **LLaMA Family**: LLaMA 3, LLaMA 3.1, LLaMA 3.2, Code Llama
-- **QWen Family**: QWen3, QWen2.5, Qwen2
-- **Gemma Family**: Gemma2, Gemma3
-- **Phi Family**: Phi2, Phi3, Phi4
-- **And more**: Any causal LM on Hugging Face Hub!
+NeMo AutoModel provides ready-to-use recipes for a wide range of popular language models. Below is a comprehensive list of all committed recipes:
+
+| Model Family | Model recipe |
+|--------------|----------|
+| **LLaMA** | [`meta-llama/Llama-3.2-1B`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/llama_3_2_1b_hellaswag.yaml) |
+| | [`meta-llama/Llama-3.1-8B`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/llama_3_2_1b_hellaswag_fp8.yaml) |
+| **Qwen** | [`Qwen/Qwen2.5-7B`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/qwen2_5_7b_squad.yaml) |
+| | [`Qwen/Qwen3-0.6B`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/qwen_3_0p6b_hellaswag.yaml) |
+| **Mistral** | [`mistralai/Mistral-7B-v0.1`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/mistral_7b_squad.yaml) |
+| | [`mistralai/Mistral-Nemo-Base-2407`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/mistral_nemo_2407_squad.yaml) |
+| **Gemma** | [`google/gemma-2-9b-it`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/gemma_2_9b_it_squad.yaml) |
+| **Phi** | [`microsoft/Phi-3-mini-4k-instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/phi_3_mini_it_squad.yaml) |
+| | [`microsoft/phi-4`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/phi_4_squad.yaml) |
+| **GLM** | [`zai-org/glm-4-9b-chat-hf`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/glm_4_9b_chat_hf_squad.yaml) |
+| **Falcon** | [`tiiuae/Falcon-H1-1.5B-Base`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/falcon_h1_1_5b_base_squad.yaml) |
+| | [`tiiuae/Falcon3-7B-Instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/falcon3_7b_instruct_squad.yaml) |
+| **Granite** | [`ibm-granite/granite-3.3-2b-instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/granite_3_3_2b_instruct_squad.yaml) |
+| **InternLM** | [`internlm/internlm3-8b-instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/internlm3_8b_instruct_squad.yaml) |
+| **Seed** | [`ByteDance-Seed/Seed-Coder-8B-Instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/seed_coder_8b_instruct_squad.yaml) |
+| | [`ByteDance-Seed/Seed-OSS-36B-Instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/seed_oss_36B_hellaswag_peft.yaml) |
+| **OLMo** | [`allenai/OLMo-2-0425-1B-Instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/olmo_2_0425_1b_instruct_squad.yaml) |
+| **Cohere** | [`CohereForAI/c4ai-command-r7b-12-2024`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/cohere_command_r_7b_squad.yaml) |
+| **StarCoder** | [`bigcode/starcoder2-7b`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/starcoder_2_7b_squad.yaml) |
+| **Baichuan** | [`baichuan-inc/Baichuan2-7B-Chat`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/baichuan_2_7b_squad.yaml) |
+
+**And more**: Any causal LM on Hugging Face Hub can be used with the base recipe template!
 
 ### Vision-Language Models
 - **Qwen2.5-VL**: All variants (3B, 7B, 72B)
