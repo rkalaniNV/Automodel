@@ -43,13 +43,8 @@ class FSDP2Manager:
     TP sharding plan. It also supports mixed precision and CPU offloading options.
 
     Attributes:
-        dp_size (Optional[int]): Data-parallel group size. If None or non-positive, it is
-            inferred from WORLD_SIZE.
-        dp_replicate_size (Optional[int]): Data-parallel replicate group size. If None or non-positive, it is
-            inferred from dp_size. Must be a divisor of dp_size.
-        tp_size (Optional[int]): Tensor-parallel group size. Defaults to 1 if zero/None.
-        cp_size (int): Context-parallel group size for pipeline-like sharding.
-        sequence_parallel (bool): Enables sequence parallelism in the TP plan when True.
+        parallel_dims (ParallelDims): Parallel dimensions for the model.
+        sequence_parallel (bool): Enable sequence parallelism in TP plan if True.
         mp_policy (MixedPrecisionPolicy): Defines the mixed precision policy for parameters,
             reductions, and outputs.
         offload_policy (CPUOffloadPolicy): Policy to offload parameters or optimizer states
