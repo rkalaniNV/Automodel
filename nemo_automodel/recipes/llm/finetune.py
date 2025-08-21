@@ -255,9 +255,15 @@ def build_dataloader(
             "num_replicas": device_mesh["dp"].size(),
             "rank": device_mesh["dp"].get_local_rank(),
         }
+
+        if device_mesh["cp"].size() > 1:
+            dp_group = device_mesh["dp_cp"].get_group()
+        else:
+            dp_group = device_mesh["dp"].get_group()
         jsonl_kwargs = {
             "rank": device_mesh["dp"].get_local_rank(),
             "world_size": device_mesh["dp"].size(),
+            "dp_group": dp_group,
         }
 
     if "tokenizer" not in cfg_ds:

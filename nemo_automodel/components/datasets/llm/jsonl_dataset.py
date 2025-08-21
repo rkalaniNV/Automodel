@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from contextlib import ExitStack
 from typing import TYPE_CHECKING
 
@@ -25,6 +26,8 @@ from nemo_automodel.components.datasets.llm.lingua_assets.core import (
 
 if TYPE_CHECKING:
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+
+logger = logging.getLogger(__name__)
 
 
 class JSONLDataset(IterableDataset):
@@ -45,6 +48,7 @@ class JSONLDataset(IterableDataset):
         prefetch_size: int = 64,
         n_views: int = 2,
         infinite: bool = True,
+        dp_group: torch.distributed.ProcessGroup = None,
     ):
         """
         Args:
@@ -82,7 +86,7 @@ class JSONLDataset(IterableDataset):
         self._prefetch_size = prefetch_size
         self._n_views = n_views
         self._infinite = infinite
-
+        self._dp_group = dp_group
         # Initialize dataloader state
         self.data_loader_state = init_dataloader_state_from_args(
             root_dir,
@@ -102,6 +106,9 @@ class JSONLDataset(IterableDataset):
 
         # Create the context stack to manage the dataloader lifecycle and build the dataloader
         self._build_dataloader()
+        
+        # Check if distributed training is initialized
+        self._is_distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
 
     def __iter__(self):
         """
@@ -130,18 +137,49 @@ class JSONLDataset(IterableDataset):
             )
             self._build_dataloader()
 
-        for batch, state in self.data_loader:
-            self.data_loader_state = state
-
-            batch = torch.from_numpy(batch)
-            bs, s, _ = batch.shape
-            loss_mask = torch.ones((bs, s), dtype=torch.int64)
-            return_batch = {
-                "input_ids": batch[:, :, 0],
-                "labels": batch[:, :, 1],
-                "loss_mask": loss_mask,
-            }
-            yield return_batch
+        # For single-epoch mode with distributed training, we need to ensure all ranks exit together
+        data_iterator = iter(self.data_loader)
+        batch_count = 0
+        
+        while True:
+            # Try to get the next batch
+            batch_available = True
+            try:
+                batch, state = next(data_iterator)
+                self.data_loader_state = state
+            except StopIteration:
+                batch_available = False
+            
+            # In single-epoch mode with distributed training, check if any rank is done
+            if not self._infinite and self._is_distributed:
+                # Synchronize to check if any rank has exhausted its data
+                exhausted_tensor = torch.tensor([0 if batch_available else 1], dtype=torch.int32).cuda()
+                torch.distributed.all_reduce(exhausted_tensor, op=torch.distributed.ReduceOp.MAX, group=self._dp_group)
+                any_rank_exhausted = exhausted_tensor.item() > 0
+                
+                if any_rank_exhausted:
+                    if batch_available:
+                        logger.info(
+                            f"Rank {self._rank}: Stopping iteration as other ranks are exhausted. "
+                            f"Processed {batch_count} batches."
+                        )
+                    break
+            elif not batch_available:
+                # In non-distributed or infinite mode, just stop when data is exhausted
+                break
+                
+            # Process and yield the batch if available
+            if batch_available:
+                batch = torch.from_numpy(batch)
+                bs, s, _ = batch.shape
+                loss_mask = torch.ones((bs, s), dtype=torch.int64)
+                return_batch = {
+                    "input_ids": batch[:, :, 0],
+                    "labels": batch[:, :, 1],
+                    "loss_mask": loss_mask,
+                }
+                batch_count += 1
+                yield return_batch
 
     def __del__(self):
         # Ensure resources are closed even if build failed partially
