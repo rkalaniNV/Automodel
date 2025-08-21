@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import logging
 import pathlib
 import time
@@ -430,9 +432,10 @@ def calculate_loss(loss_fn, **kwargs) -> torch.Tensor:
     Returns:
         The loss.
     """
-    loss_fn_kwargs = {"num_label_tokens": kwargs.pop("num_label_tokens", None)}
     model = kwargs.pop("model")
     labels = kwargs.pop("labels")
+    num_label_tokens = kwargs.pop("num_label_tokens", None)
+    loss_fn_kwargs = {"num_label_tokens": num_label_tokens}
 
     if isinstance(loss_fn, FusedLinearCrossEntropy):
         # find the lm_head in the model
@@ -469,7 +472,7 @@ def calculate_loss(loss_fn, **kwargs) -> torch.Tensor:
     kd_loss = None
     model = unwrap_model(model)
     if hasattr(model, "compute_kd_loss"):
-        kd_loss_kwargs = {"loss_reduction_fn": lambda x: kd_reduction_fn(x, labels)}
+        kd_loss_kwargs = {"loss_reduction_fn": lambda x: kd_reduction_fn(x, labels, num_label_tokens)}
         if model.loss_balancer is not None:
             original_loss = loss_fn(**loss_fn_kwargs)
             kd_loss_kwargs["student_loss"] = original_loss
@@ -672,7 +675,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
             with train_ctx(), get_sync_ctx(self.model, i == num_batches - 1):
                 if isinstance(self.loss_fn, FusedLinearCrossEntropy):
-                    # use num_logits_to_keep to avoid full logits matrix in memory
+                    # use logits_to_keep to avoid full logits matrix in memory
                     out = self.model(logits_to_keep=1, **batch)
                     if "hidden_states" not in out:
                         raise ValueError(
@@ -769,7 +772,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                         labels=labels,
                         model=self.model,
                         hidden_states=out.hidden_states[-1] if "hidden_states" in out else None,
-                        num_label_tokens=num_label_tokens,
+                        num_label_tokens=None,
                     )
 
                 total_loss += losses["loss"].item()

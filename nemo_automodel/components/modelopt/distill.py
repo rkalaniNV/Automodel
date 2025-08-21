@@ -47,10 +47,11 @@ def parse_kd_config(kd_config, teacher_kwargs={}):
     return modelopt_cfg
 
 
-def kd_reduction_fn(loss: torch.Tensor, labels: torch.Tensor, ignore_index: int = -100) -> torch.Tensor:
-    loss = loss.sum(dim=-1)
-    loss *= (labels.view(-1).to(loss.device) != ignore_index)  # mask
-    return loss.mean()
+def kd_reduction_fn(loss: torch.Tensor, labels: torch.Tensor, num_label_tokens: int | None, ignore_index: int = -100) -> torch.Tensor:
+    mask = labels.view(-1) != ignore_index
+    loss = mask * loss.sum(dim=-1)
+    num_label_tokens = num_label_tokens or 1
+    return loss.sum() / num_label_tokens
 
 
 def convert_to_kd_model(model, cfg_kd, teacher_kwargs=None):
