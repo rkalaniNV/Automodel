@@ -724,12 +724,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
             total_loss = 0.0
             total_tokens = 0
-            counter = 0
 
             for batch in self.val_dataloader:
-                # if self.dist_env.is_main:
-                if self.dist_env.rank == 1:
-                    print(counter, self.dist_env.rank, flush=True)
                 batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
                 labels = batch.pop("labels")
                 num_label_tokens = (labels != -100).sum().item()
@@ -760,14 +756,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
                 total_loss += local_loss.item() * num_label_tokens  # because we pass in reduction=sum, loss is normalized by num_label_tokens
                 total_tokens += num_label_tokens
-                if counter > 54 and self.dist_env.rank == 1:
-                    print(f"counter: {counter}, rank: {self.dist_env.rank}, loss: {local_loss}, labels: {labels[:10]}", flush=True)
-                counter += 1
-                if counter >=56 and self.dist_env.rank == 1:
-                    print("reached", counter, local_loss, flush=True)
-                    breakpoint()
 
-        print(total_loss, total_tokens, self.dist_env.rank, flush=True)
         total_loss = self._dp_allreduce(torch.tensor(total_loss)).item()
         total_tokens = self._dp_allreduce(torch.tensor(total_tokens)).item()
 
