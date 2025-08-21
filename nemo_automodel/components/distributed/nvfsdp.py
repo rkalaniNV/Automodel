@@ -64,12 +64,7 @@ class NVFSDPManager:
         default=False,
         metadata={"help": "Enable sequence parallelism in TP plan if True. Not supported with nvFSDP right now."},
     )
-    backend: Optional[str] = field(default="nccl", metadata={"help": "Distributed backend, e.g. 'nccl' or 'gloo'."})
-    world_size: Optional[int] = field(
-        default=None,
-        # init=False,
-        metadata={"help": "Total number of processes."},
-    )
+
     nvfsdp_unit_modules: Optional[List[str]] = field(
         default_factory=lambda: [
             "transformers.models.llama.modeling_llama.LlamaDecoderLayer",
@@ -109,61 +104,10 @@ class NVFSDPManager:
         """
         Post-initialization hook that sets up the distributed environment.
         """
-        return self._setup_distributed()
-
-    def _setup_distributed(self):
-        """
-        Initializes the distributed environment.
-
-        - Checks availability and initialization of torch.distributed.
-        - Infers data-parallel and tensor-parallel sizes if not provided.
-        - Builds a device mesh based on the specified mesh shape and dimension names.
-        - Flattens data and context dimensions if context parallelism is enabled.
-
-        Requires the environment variables: RANK, WORLD_SIZE, MASTER_ADDR, MASTER_PORT.
-
-        Raises:
-            RuntimeError: If torch.distributed is not available or not initialized.
-
-        Returns:
-            FSDP2Manager: Instance with the device mesh configured.
-        """
-        if not dist.is_available():
-            raise RuntimeError("torch.distributed not available")
-
-        if not dist.is_initialized():
-            raise RuntimeError("expected torch.distributed to be initialized")
-
-        # infer if not provided
-        self.tp_size = self.tp_size or 1
-        self.cp_size = self.cp_size or 1
-
-        if self.dp_size is None or self.dp_size <= 0:
-            # Calculate dp_size to ensure dp_size * tp_size * cp_size == world_size
-            total_parallel_ranks = self.tp_size * self.cp_size
-            if self.parallel_dims.world_size % total_parallel_ranks != 0:
-                raise ValueError(
-                    f"world_size ({self.world_size}) must be divisible by (tp_size * cp_size) "
-                    f"({self.tp_size} * {self.cp_size} = {total_parallel_ranks})"
-                )
-            self.dp_size = self.world_size // total_parallel_ranks
-
-        mesh_shape = (self.dp_size, self.cp_size, self.tp_size)
-        mesh_names = (DimNames.DP, DimNames.CP, DimNames.TP)
-        for shape, name in zip(mesh_shape, mesh_names):
-            assert isinstance(shape, int), "Expected {} to be an int, but got {}".format(name, type(shape))
-            assert shape > 0, "Expected {} > 0, {}".format(name, shape)
-
-        # build mesh [dp, cp, tp]
-        self.device_mesh = init_device_mesh(
-            device_type="cuda" if self.backend == "nccl" else "cpu",
-            mesh_shape=mesh_shape,
-            mesh_dim_names=mesh_names,
-        )
+        self.device_mesh = self.parallel_dims.mesh
         # flatten dp+cp if cp>1
-        if self.cp_size > 1:
-            self.device_mesh[(DimNames.DP, DimNames.CP)]._flatten(mesh_dim_name=DimNames.DP_CP)
-        return self
+        if self.parallel_dims.cp_enabled:
+            self.parallel_dims.mesh[(DimNames.DP, DimNames.CP)]._flatten(mesh_dim_name=DimNames.DP_CP)
 
     def parallelize(self, model, optimizer=None, use_hf_tp_plan=False):
         """
