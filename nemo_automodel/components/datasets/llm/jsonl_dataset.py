@@ -107,6 +107,29 @@ class JSONLDataset(IterableDataset):
         """
         Yields batches of data from the dataset.
         """
+        # In single-epoch mode, every new iterator call should start from the beginning
+        # of the epoch. Reinitialize state and rebuild the internal dataloader.
+        if not self._infinite:
+            if hasattr(self, "context_stack"):
+                self.context_stack.close()
+
+            self.data_loader_state = init_dataloader_state_from_args(
+                self._root_dir,
+                self._rank,
+                self._world_size,
+                self._sources,
+                self._batch_size,
+                self._packed_sequence_size,
+                self._seed,
+                self._add_bos,
+                self._add_eos,
+                self._prefetch_size,
+                self._n_views,
+                self._split,
+                True,
+            )
+            self._build_dataloader()
+
         for batch, state in self.data_loader:
             self.data_loader_state = state
 

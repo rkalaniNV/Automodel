@@ -907,14 +907,21 @@ def consume_buffer(producer: Process, queue: Queue):
     Yields:
         Any: The data from the queue.
     """
-    while producer.exitcode is None:
+    while True:
+        # If producer finished, drain any remaining items then exit gracefully
+        if producer.exitcode is not None:
+            try:
+                while True:
+                    item = queue.get_nowait()
+                    yield item
+            except Empty:
+                return
+
         try:
             item = queue.get(timeout=0.1)  # Tries to get an item from the queue with a timeout
             yield item
         except Empty:
             pass
-
-    raise RuntimeError("Data loader quit unexpectedly, real error has been raised previously")
 
 
 @contextlib.contextmanager
