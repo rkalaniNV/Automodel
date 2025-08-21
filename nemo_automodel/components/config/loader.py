@@ -230,8 +230,8 @@ class ConfigNode:
         skip_keys = set()
         for k, v in self.__dict__.items():
             # Do not instantiate kwargs that are already passed via kwargs
-            if k.endswith("._target_") and k[:-len("._target_")] in kwargs:
-                skip_keys.add(k[:-len("._target_")])
+            if k.endswith("._target_") and k[: -len("._target_")] in kwargs:
+                skip_keys.add(k[: -len("._target_")])
                 continue
             if any(map(lambda x: k.startswith(x), skip_keys)):
                 continue

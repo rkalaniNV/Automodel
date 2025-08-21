@@ -35,6 +35,7 @@ class DimNames(str, Enum):
     DP_CP = "dp_cp"
     DP_CP_TP = "dp_cp_tp"
 
+
 def _get_device_type(device_or_backend_type: str) -> str:
     """
     Get the device type from the device or backend type.
@@ -53,6 +54,7 @@ def _get_device_type(device_or_backend_type: str) -> str:
         return "cpu"
     else:
         raise ValueError(f"Invalid device or backend type: {device_or_backend_type}")
+
 
 @dataclass
 class ParallelDims:
@@ -305,8 +307,9 @@ class ParallelDims:
         if not self.dp_shard_enabled and not self.cp_enabled:
             return 0, 1
         else:
-            return self.mesh[tuple((DimNames.DP_SHARD_CP,))].get_local_rank(), \
-                self.mesh[tuple((DimNames.DP_SHARD_CP,))].size()
+            return self.mesh[tuple((DimNames.DP_SHARD_CP,))].get_local_rank(), self.mesh[
+                tuple((DimNames.DP_SHARD_CP,))
+            ].size()
 
     def build_mesh_info(self):
         dims = [DimNames.PP, DimNames.DP_REPLICATE, DimNames.DP_SHARD, DimNames.CP, DimNames.TP]
@@ -335,7 +338,9 @@ class ParallelDims:
         self.full_world_size_info = dim_paras
         self.full_world_size_info[DimNames.DP_SHARD_CP] = self.dp_shard_size * self.cp_size
         self.full_world_size_info[DimNames.DP] = self.dp_replicate_size * self.dp_shard_size
-        self.full_world_size_info[DimNames.DP_CP_TP] = self.dp_replicate_size * self.dp_shard_size * self.cp_size * self.tp_size
+        self.full_world_size_info[DimNames.DP_CP_TP] = (
+            self.dp_replicate_size * self.dp_shard_size * self.cp_size * self.tp_size
+        )
 
         for i in range(self.world_size):
             self.full_rank_info[i][DimNames.DP_CP_TP] = (

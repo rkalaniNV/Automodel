@@ -508,7 +508,9 @@ class FinetuneRecipeForVLM(BaseRecipe):
         self.device_mesh = None
         self.model_wrapper = None
         if "distributed" in self.cfg and self.dist_env.world_size > 1:
-            parallel_dims = ParallelDims(**self.cfg.distributed.parallel_dims.to_dict(), world_size=self.dist_env.world_size)
+            parallel_dims = ParallelDims(
+                **self.cfg.distributed.parallel_dims.to_dict(), world_size=self.dist_env.world_size
+            )
             self.model_wrapper = self.cfg.distributed.instantiate(parallel_dims=parallel_dims)
             self.device_mesh = getattr(self.model_wrapper, "device_mesh", None)
 
@@ -671,7 +673,10 @@ class FinetuneRecipeForVLM(BaseRecipe):
         grad_norm = 0.0
         # Clip gradients **after** any rescaling.
         # TODO(@boxiangw): Fix TP gradient clipping
-        if max_grad_norm is not None and (not self.device_mesh or (DimNames.TP in self.device_mesh.mesh_dim_names and self.device_mesh[DimNames.TP].size() == 1)):
+        if max_grad_norm is not None and (
+            not self.device_mesh
+            or (DimNames.TP in self.device_mesh.mesh_dim_names and self.device_mesh[DimNames.TP].size() == 1)
+        ):
             grad_norm = torch.nn.utils.clip_grad_norm_(
                 [p for p in self.model.parameters() if p.requires_grad], max_grad_norm
             )
