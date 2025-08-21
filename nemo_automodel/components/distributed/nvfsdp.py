@@ -131,13 +131,13 @@ class NVFSDPManager:
             NotImplemented: If the required TP sharding plan is not supported.
         """
         if self.data_parallel_sharding_strategy != "optim_grads_params":
-            if self.device_mesh.get_rank() == 0:
+            if self.parallel_dims.mesh.get_rank() == 0:
                 print(
                     "Warning: nvFSDP data_parallel_sharding_strategy is not optim_grads_params. "
                     "Parameters will not be sharded."
                 )
 
-        if self.device_mesh[DimNames.TP].size() > 1:
+        if DimNames.TP in self.parallel_dims.mesh.mesh_dim_names and self.parallel_dims.mesh[DimNames.TP].size() > 1:
             if use_hf_tp_plan:
                 tp_shard_plan = get_hf_tp_shard_plan(model)
             else:
@@ -153,13 +153,13 @@ class NVFSDPManager:
                 }
 
                 # TODO(boxiangw): investigate SP
-                if self.sequence_parallel and self.device_mesh.get_rank() == 0:
+                if self.sequence_parallel and self.parallel_dims.mesh.get_rank() == 0:
                     # TODO(boxiangw): Change this to a log
                     print("Sequence parallelism is disabled. It is not compatible with nvFSDP.")
 
                 tp_shard_plan = base_model_tp_plan
                 # TODO(boxiangw): Change this to a log
-                if self.device_mesh.get_rank() == 0:
+                if self.parallel_dims.mesh.get_rank() == 0:
                     print(
                         "Using default TP plan for parallelization. "
                         "It is compatible with huggingface llama3-style models."
@@ -169,7 +169,7 @@ class NVFSDPManager:
 
         model = nvfsdp_strategy_parallelize(
             model,
-            device_mesh=self.device_mesh,
+            device_mesh=self.parallel_dims.mesh,
             optimizer=optimizer,
             nvfsdp_unit_modules=self.nvfsdp_unit_modules,
             tp_shard_plan=tp_shard_plan,
