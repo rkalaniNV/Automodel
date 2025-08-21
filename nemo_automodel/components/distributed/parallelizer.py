@@ -373,7 +373,7 @@ def fsdp2_strategy_parallelize(
     """
 
     # TP sharding with enhanced plan generation
-    if tp_mesh_name in device_mesh.mesh_dim_names and (tp_mesh := tp_mesh).size() > 1:
+    if tp_mesh_name in device_mesh.mesh_dim_names and (tp_mesh := device_mesh[tp_mesh_name]).size() > 1:
         # Validate that attention heads are divisible by TP size
         validate_tp_mesh(model, tp_mesh)
 

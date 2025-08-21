@@ -39,7 +39,7 @@ from nemo_automodel.components.datasets.vlm.collate_fns import COLLATE_FNS
 from nemo_automodel.components.distributed.cp_utils import make_cp_batch_and_ctx
 from nemo_automodel.components.distributed.init_utils import initialize_distributed
 from nemo_automodel.components.distributed.nvfsdp import NVFSDPManager
-from nemo_automodel.components.distributed.parallel_dims import ParallelDims, DimNames
+from nemo_automodel.components.distributed.parallel_dims import DimNames, ParallelDims
 from nemo_automodel.components.loggers.log_utils import setup_logging
 from nemo_automodel.components.loggers.wandb_utils import suppress_wandb_log_messages
 from nemo_automodel.components.loss.linear_ce import FusedLinearCrossEntropy

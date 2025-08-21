@@ -35,9 +35,9 @@ from nemo_automodel.components.checkpoint.checkpointing import (
     save_optimizer,
 )
 from nemo_automodel.components.config.loader import ConfigNode
+from nemo_automodel.components.distributed.parallel_dims import DimNames
 from nemo_automodel.components.optim.scheduler import OptimizerParamScheduler
 from nemo_automodel.components.training.step_scheduler import StepScheduler
-from nemo_automodel.components.distributed.parallel_dims import DimNames
 
 try:
     import yaml as _yaml

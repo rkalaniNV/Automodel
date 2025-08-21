@@ -15,8 +15,6 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-import torch.distributed as dist
-from torch.distributed.device_mesh import init_device_mesh
 from torch.distributed.tensor.parallel import (
     ColwiseParallel,
     RowwiseParallel,

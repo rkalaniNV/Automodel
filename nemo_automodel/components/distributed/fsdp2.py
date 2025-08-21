@@ -16,7 +16,6 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import torch
-import torch.distributed as dist
 from torch.distributed.fsdp import CPUOffloadPolicy, MixedPrecisionPolicy
 from torch.distributed.tensor.parallel import (
     ColwiseParallel,
@@ -25,7 +24,7 @@ from torch.distributed.tensor.parallel import (
 )
 from torch.distributed.tensor.placement_types import Replicate, Shard
 
-from nemo_automodel.components.distributed.parallel_dims import ParallelDims, DimNames
+from nemo_automodel.components.distributed.parallel_dims import DimNames, ParallelDims
 from nemo_automodel.components.distributed.parallelizer import (
     fsdp2_strategy_parallelize,
     get_hf_tp_shard_plan,
