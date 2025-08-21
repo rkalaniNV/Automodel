@@ -3,9 +3,9 @@
 #   automodel finetune llm -c examples/llm/llama_3_2_3b-1b_kd.yaml
 
 step_scheduler:
-  grad_acc_steps: 2
-  ckpt_every_steps: 50
-  val_every_steps: 25
+  grad_acc_steps: 512
+  ckpt_every_steps: 100
+  val_every_steps: 50
   num_epochs: 1
 
 dist_env:

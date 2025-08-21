@@ -12,20 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import annotations
-
 import logging
 import pathlib
 import time
 from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-import modelopt.torch.distill as mtd
-import modelopt.torch.opt as mto
 import torch
 import torch.nn as nn
 import wandb
-from modelopt.torch.distill.plugins.huggingface import LMLogitsLoss
 from modelopt.torch.opt.plugins.huggingface import enable_huggingface_checkpointing
 from torch.utils.data import DataLoader
 from torchao.float8 import precompute_float8_dynamic_scale_for_fsdp
@@ -47,6 +42,7 @@ from nemo_automodel.components.distributed.nvfsdp import NVFSDPManager
 from nemo_automodel.components.loggers.log_utils import setup_logging
 from nemo_automodel.components.loggers.wandb_utils import suppress_wandb_log_messages
 from nemo_automodel.components.loss.linear_ce import FusedLinearCrossEntropy
+from nemo_automodel.components.modelopt import convert_to_kd_model, kd_reduction_fn
 from nemo_automodel.components.optim.scheduler import OptimizerParamScheduler
 from nemo_automodel.components.training.rng import StatefulRNG
 from nemo_automodel.components.training.step_scheduler import StepScheduler
@@ -56,7 +52,7 @@ from nemo_automodel.components.utils.compile_utils import (
     compile_model,
 )
 from nemo_automodel.components.utils.dist_utils import get_sync_ctx
-from nemo_automodel.components.utils.model_utils import print_trainable_parameters
+from nemo_automodel.components.utils.model_utils import print_trainable_parameters, unwrap_model
 from nemo_automodel.recipes.base_recipe import BaseRecipe
 
 if TYPE_CHECKING:
@@ -69,38 +65,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------
 #  Stateless helper functions
 # ---------------------------
-
-
-def _teacher_factory(cfg_teacher, **kwargs):
-    logger.info("Instantiating teacher model ...")
-    teacher_model = cfg_teacher.instantiate(**kwargs)
-    logger.info("Teacher model instantiated.")
-
-    return teacher_model
-
-
-def parse_kd_config(kd_config, teacher_kwargs={}):
-    kd_loss_fraction = kd_config.get("kd_loss_fraction", 1.0)
-    kd_loss_temperature = kd_config.get("kd_loss_temperature", 1.0)
-    teacher_config = kd_config.get("teacher_model", None)
-    assert teacher_config is not None, "`teacher_model` missing from YAML kd_config section"
-
-    modelopt_cfg = {}
-    modelopt_cfg["criterion"] = LMLogitsLoss(temperature=kd_loss_temperature, reduction="none")
-    if kd_loss_fraction < 1.0:
-        modelopt_cfg["loss_balancer"] = mtd.StaticLossBalancer(kd_loss_weight=kd_loss_fraction)
-    else:
-        modelopt_cfg["loss_balancer"] = None
-    modelopt_cfg["teacher_model"] = (_teacher_factory, (teacher_config,), teacher_kwargs)
-
-    return modelopt_cfg
-
-
-def kd_reduction_fn(loss: torch.Tensor, labels: torch.Tensor, ignore_index: int = -100) -> torch.Tensor:
-    loss = loss.sum(dim=-1)
-    loss *= (labels.view(-1).to(loss.device) != ignore_index)  # mask
-    return loss.mean()
-
 
 def build_model_and_optimizer(
     device,
@@ -176,10 +140,7 @@ def build_model_and_optimizer(
 
         # [ModelOpt]: Apply model transformations if required
         if cfg_kd is not None:
-            modelopt_cfg = parse_kd_config(cfg_kd, teacher_kwargs=kwargs)
-            model = mtd.convert(model, mode=[("kd_loss", modelopt_cfg)])
-            # don't keep KD state
-            mto.ModeloptStateManager(model)._state.pop()
+            model = convert_to_kd_model(model, cfg_kd, teacher_kwargs=kwargs)
 
     print_trainable_parameters(model)
 
@@ -505,24 +466,25 @@ def calculate_loss(loss_fn, **kwargs) -> torch.Tensor:
 
     # [ModelOpt]: Compute KD loss if model is a DistillationModel
     original_loss = None
-    # Unwrap
-    while hasattr(model, "module"):
-        model = model.module
+    kd_loss = None
+    model = unwrap_model(model)
     if hasattr(model, "compute_kd_loss"):
         kd_loss_kwargs = {"loss_reduction_fn": lambda x: kd_reduction_fn(x, labels)}
         if model.loss_balancer is not None:
             original_loss = loss_fn(**loss_fn_kwargs)
             kd_loss_kwargs["student_loss"] = original_loss
-
         kd_loss = model.compute_kd_loss(**kd_loss_kwargs)
-        if model.training:
+
+    # Avoid recomputing the loss if done as part of KD
+    original_loss = original_loss or loss_fn(**loss_fn_kwargs)
+
+    if kd_loss is not None:
+        if not model.training:
+            return {"loss": kd_loss, "loss_original": original_loss}
+        else:
             return {"loss": kd_loss}
 
-    original_loss = original_loss or loss_fn(**loss_fn_kwargs)
-    if not model.training:
-        return {"loss": kd_loss, "loss_original": original_loss}
-    else:
-        return {"loss": original_loss}
+    return {"loss": original_loss}
 
 
 # ---------------------------------------------------------------------------
@@ -817,7 +779,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
 
         if total_loss_original > 0:
             # [ModelOpt]: Log the original loss during distillation val phase.
-            self.log_val_metrics(total_loss_original, total_tokens)
+            self.log_val_metrics(total_loss_original, total_tokens, loss_suffix="_original")
 
         return total_loss, total_tokens
 
@@ -859,7 +821,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         )
         torch.cuda.reset_peak_memory_stats()
 
-    def log_val_metrics(self, val_loss, num_label_tokens):
+    def log_val_metrics(self, val_loss, num_label_tokens, loss_suffix=""):
         """Log validation metrics to stdout and wandb.
 
         Args:
@@ -875,15 +837,15 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         log_data = {
             "step": self.step_scheduler.step,
             "epoch": self.step_scheduler.epoch,
-            "val_loss": val_loss_per_token,
+            f"val_loss{loss_suffix}": val_loss_per_token,
         }
 
         if self.dist_env.is_main and wandb.run is not None:
             wandb.log(log_data)
 
         logging.info(
-            "[val] step {} | epoch {} | loss {:.4f}".format(
-                log_data["step"], log_data["epoch"], log_data["val_loss"]
+            "[val] step {} | epoch {} | loss{} {:.4f}".format(
+                self.step_scheduler.step, self.step_scheduler.epoch, loss_suffix, val_loss_per_token
             )
         )
 
