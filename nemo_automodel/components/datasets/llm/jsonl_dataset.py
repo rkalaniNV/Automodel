@@ -109,7 +109,7 @@ class JSONLDataset(IterableDataset):
         """
         # In single-epoch mode, every new iterator call should start from the beginning
         # of the epoch. Reinitialize state and rebuild the internal dataloader.
-        if not self._infinite:
+        if not self._infinite and self._split == "validation":
             if hasattr(self, "context_stack"):
                 self.context_stack.close()
 
