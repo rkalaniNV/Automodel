@@ -15,6 +15,7 @@
 import contextlib
 import types
 
+from unittest.mock import Mock
 import pytest
 import torch
 import torch.nn as nn

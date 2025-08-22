@@ -18,17 +18,21 @@ Source layout in this package:
 import torch
 from torch.distributed.device_mesh import init_device_mesh
 from nemo_automodel.components.distributed.autopipeline import AutoPipeline, AutoPipelineConfig
+from transformers import AutoModelForCausalLM
 
 # 1) Device mesh with a pipeline axis 'pp'
 world_mesh = init_device_mesh("cuda", mesh_shape=(4,), mesh_dim_names=("pp",))
 
-# 2) Define a loss used by the pipeline schedule (runs on the last stage)
+# 2) Load the model (initialize and materialize weights outside AutoPipeline)
+model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-hf")
+
+# 3) Define a loss used by the pipeline schedule (runs on the last stage)
 def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     return torch.nn.functional.cross_entropy(
         logits.float().view(-1, logits.size(-1)), targets.view(-1), ignore_index=-100
     )
 
-# 3) Configure and build
+# 4) Configure and build AutoPipeline
 cfg = AutoPipelineConfig(
     world_mesh=world_mesh,
     pp_axis_name="pp",
@@ -37,18 +41,17 @@ cfg = AutoPipelineConfig(
     pp_batch_size=4,
     layers_per_stage=None,
 )
-ap = AutoPipeline(cfg).build("meta-llama/Llama-2-7b-hf", loss_fn=loss_fn)
+ap = AutoPipeline(cfg).build(model, loss_fn=loss_fn)
 
-# 4) Train step (batch must include `input_ids`; others are forwarded)
-def train_ctx():
-    return torch.enable_grad()
+# 5) Access pipeline components
+pipeline_info = ap.info
+model_parts = ap.parts
+stage_modules = ap.list_stage_modules()
 
-loss = ap.step(
-    batch={"input_ids": input_ids, "attention_mask": attention_mask},
-    labels=labels,            # tensor, same shape as input_ids
-    loss_mask=loss_mask,      # optional; positions with 0 are ignored (-100)
-    train_ctx=train_ctx,
-)
+# 6) Debug and monitoring
+print(ap.debug_summary())
+print(ap.pretty_print_stages())
+ap.visualize_current_schedule("schedule.png")
 ```
 
 ### Configuration (selected)
@@ -78,7 +81,8 @@ def my_parallelize_fn(
     # in-place wrapping only; do not return a new module
     pass
 
-ap = AutoPipeline(cfg).build("meta-llama/Llama-2-7b-hf", loss_fn=loss_fn, parallelize_fn=my_parallelize_fn)
+model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-hf")
+ap = AutoPipeline(cfg).build(model, loss_fn=loss_fn, parallelize_fn=my_parallelize_fn)
 ```
 
 ### Controlling stage splits
@@ -103,15 +107,25 @@ cfg = AutoPipelineConfig(
 ### Introspection and helpers
 
 ```python
-info = ap.pipeline_info                       # PipelineInfo
+# Access pipeline information
+info = ap.info                                # PipelineInfo
+model_parts = ap.parts                        # list[nn.Module] 
 names = ap.list_stage_modules()               # list[list[str]]
 print(ap.pretty_print_stages())               # human-readable summary
+print(ap.debug_summary())                     # pipeline statistics
 
-from nemo_automodel.components.distributed.autopipeline.training_utils import (
-    pp_scale_grads_by_division, clip_grad_norm_for_pp,
-)
-# Example grad utilities (if stages are exposed in future versions)
-# pp_scale_grads_by_division(info.stages, scale_factor=pp_degree)
+# Parameter analysis
+stage_param_counts = ap.get_stage_param_counts()
+total_params = ap.get_total_param_count()
+trainable_params = ap.get_total_param_count(trainable_only=True)
+
+# Gradient utilities
+ap.scale_grads_by_divisor(divisor=8)
+grad_norm = ap.clip_grad_norm(max_norm=1.0)
+
+# Schedule visualization
+ap.visualize_current_schedule("schedule.png")
+ap.log_debug_summary()                        # Log summary with stages
 ```
 
 ### HuggingFace specifics
