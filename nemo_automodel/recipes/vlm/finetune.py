@@ -38,7 +38,7 @@ from nemo_automodel.components.config._arg_parser import parse_args_and_load_con
 from nemo_automodel.components.datasets.vlm.collate_fns import COLLATE_FNS
 from nemo_automodel.components.distributed.cp_utils import make_cp_batch_and_ctx
 from nemo_automodel.components.distributed.init_utils import initialize_distributed
-from nemo_automodel.components.distributed.megatronfsdp import MegatronFSDPManager
+from nemo_automodel.components.distributed.nvfsdp import NVFSDPManager
 from nemo_automodel.components.loggers.log_utils import setup_logging
 from nemo_automodel.components.loggers.wandb_utils import suppress_wandb_log_messages
 from nemo_automodel.components.loss.linear_ce import FusedLinearCrossEntropy
@@ -144,8 +144,8 @@ def build_model_and_optimizer(
     init_ctx = nullcontext()
     if hasattr(cfg_model, "is_meta_device"):
         is_meta_device = cfg_model.is_meta_device
-        if is_meta_device and isinstance(model_wrapper, MegatronFSDPManager):
-            raise ValueError("Meta device initialization is not supported with MegatronFSDPManager")
+        if is_meta_device and isinstance(model_wrapper, NVFSDPManager):
+            raise ValueError("Meta device initialization is not supported with NVFSDPManager")
         init_ctx = ContextManagers([no_init_weights(), init_empty_weights()]) if is_meta_device else init_ctx
         del cfg_model.is_meta_device
 
@@ -167,7 +167,7 @@ def build_model_and_optimizer(
         print_trainable_parameters(model)
 
         if callable(getattr(model_wrapper, "parallelize", None)):
-            if isinstance(model_wrapper, MegatronFSDPManager):
+            if isinstance(model_wrapper, NVFSDPManager):
                 trainable_params = list(filter(lambda x: x.requires_grad, model.parameters()))
                 assert len(trainable_params) > 0, "trainable_params cannot be empty"
                 if tp_size > 1:
@@ -639,68 +639,6 @@ class FinetuneRecipeForVLM(BaseRecipe):
             batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
             labels = batch.pop("labels")
 
-<<<<<<< HEAD
-=======
-        train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels, loss_mask)
-        with train_ctx():
-            if isinstance(self.loss_fn, FusedLinearCrossEntropy):
-                # use num_logits_to_keep to avoid full logits matrix in memory
-                out = self.model(logits_to_keep=1, **batch)
-                if "hidden_states" not in out:
-                    raise ValueError(
-                        "FusedLinearCrossEntropy requires the model to output hidden states. Set `model.output_hidden_states=True` in the config."
-                    )
-            else:
-                out = self.model(**batch)
-            local_loss = calculate_loss(
-                self.loss_fn,
-                logits=out.logits,
-                labels=labels,
-                mask=loss_mask,
-                model=self.model,
-                hidden_states=out.hidden_states[-1] if "hidden_states" in out else None,
-            )
-
-        # local_num_loss_tokens are the number of tokens that are used for loss calculation
-        # in pretraining, this excludes padding tokens. In SFT, this additionally
-        # excludes the context tokens.
-        local_num_loss_tokens = loss_mask.sum().detach().to(torch.int)
-        # num_nonpad_tokens are the number of non-padding tokens
-        self.num_nonpad_tokens += labels.numel() - count_tail_padding(labels)
-        self.total_local_num_loss_tokens += local_num_loss_tokens
-        self.forward_data_store.append(local_loss.detach())
-
-        with get_sync_ctx(self.model, is_optim_step):
-            local_loss.backward()
-
-        grad_norm = None
-        if is_optim_step:
-            rescale_gradients(
-                self.model,
-                self.total_local_num_loss_tokens,
-                self.device_mesh[
-                    ("dp_cp" if "dp_cp" in _mesh_resources.root_to_flatten_mapping.get(self.device_mesh, {}) else "dp")
-                ].get_group()
-                if self.device_mesh is not None
-                else None,
-            )
-
-            # Clip gradients **after** any rescaling.
-            # TODO(@boxiangw): Fix TP gradient clipping
-            if not self.device_mesh or self.device_mesh["tp"].size() == 1:
-                grad_norm = clip_gradients(self.model, clip_norm)
-            else:
-                # TODO: TP WAR
-                grad_norm = 0.0
-
-            # Note(MegatronFSDP): Need to call these functions for MegatronFSDP if not using latest api
-            # self.model.finish_grad_sync()
-
-            self.optimizer.step()
-            self.optimizer.zero_grad()
-
-            # Precompute FP8 scales
->>>>>>> 68176f8 (rename nvFSDP to MegatronFSDP)
             if (
                 "position_ids" not in batch
                 and self.device_mesh is not None
@@ -708,7 +646,6 @@ class FinetuneRecipeForVLM(BaseRecipe):
             ):
                 batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(self.model.device)
 
-<<<<<<< HEAD
             train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels)
             with train_ctx(), get_sync_ctx(self.model, i == num_batches - 1):
                 if isinstance(self.loss_fn, FusedLinearCrossEntropy):
@@ -727,35 +664,6 @@ class FinetuneRecipeForVLM(BaseRecipe):
                     model=self.model,
                     hidden_states=out.hidden_states[-1] if "hidden_states" in out else None,
                     num_label_tokens=num_label_tokens,
-=======
-            if self.lr_scheduler is not None:
-                self.lr_scheduler.step(1)
-
-            # Note(MegatronFSDP): Need to call these functions for MegatronFSDP if not using latest api
-            # self.model.install_optimized_model_weights()
-            # self.model.zero_grad_buffer()
-
-            # TPS is calculated as follows (assuming grad-accumulation-steps=2):
-            # fwd 0 | bwd 0 | fwd 1 | bwd 1 | opt 0 | fwd 2 | bwd 2 | ...
-            # ^                                     ^
-            t = time.perf_counter()
-            time_delta = t - self.timestamp
-            self.timestamp = t
-            tps = self.num_nonpad_tokens / time_delta
-            self.num_nonpad_tokens = 0
-            # log
-            reporting_loss = self.log_train_metrics(grad_norm, tps)
-            current_lr = self.optimizer.param_groups[0]["lr"]
-            logging.info(
-                "step {} | epoch {} | loss {:.4f} | grad_norm {:.4f} | lr {:.2e} | mem: {:.2f} GiB | tps {:.2f}".format(
-                    self.step_scheduler.step,
-                    self.step_scheduler.epoch,
-                    reporting_loss,
-                    grad_norm,
-                    current_lr,
-                    torch.cuda.max_memory_allocated() / 1024**3,
-                    tps,
->>>>>>> 68176f8 (rename nvFSDP to MegatronFSDP)
                 )
                 loss_buffer.append(local_loss.clone().detach())
                 local_loss.backward()
