@@ -106,7 +106,7 @@ class JSONLDataset(IterableDataset):
 
         # Create the context stack to manage the dataloader lifecycle and build the dataloader
         self._build_dataloader()
-        
+
         # Check if distributed training is initialized
         self._is_distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
 
@@ -140,7 +140,7 @@ class JSONLDataset(IterableDataset):
         # For single-epoch mode with distributed training, we need to ensure all ranks exit together
         data_iterator = iter(self.data_loader)
         batch_count = 0
-        
+
         while True:
             # Try to get the next batch
             batch_available = True
@@ -149,14 +149,14 @@ class JSONLDataset(IterableDataset):
                 self.data_loader_state = state
             except StopIteration:
                 batch_available = False
-            
+
             # In single-epoch mode with distributed training, check if any rank is done
             if not self._infinite and self._is_distributed:
                 # Synchronize to check if any rank has exhausted its data
                 exhausted_tensor = torch.tensor([0 if batch_available else 1], dtype=torch.int32).cuda()
                 torch.distributed.all_reduce(exhausted_tensor, op=torch.distributed.ReduceOp.MAX, group=self._dp_group)
                 any_rank_exhausted = exhausted_tensor.item() > 0
-                
+
                 if any_rank_exhausted:
                     if batch_available:
                         logger.info(
@@ -167,7 +167,7 @@ class JSONLDataset(IterableDataset):
             elif not batch_available:
                 # In non-distributed or infinite mode, just stop when data is exhausted
                 break
-                
+
             # Process and yield the batch if available
             if batch_available:
                 batch = torch.from_numpy(batch)

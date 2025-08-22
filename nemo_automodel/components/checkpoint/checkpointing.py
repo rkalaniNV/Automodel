@@ -544,6 +544,7 @@ def _get_dp_tp_mesh(device_mesh: Optional[torch.distributed.DeviceMesh] = None) 
             tp_rank = device_mesh.get_local_rank("tp")
     return dp_rank, tp_rank
 
+
 def _init_peft_adapters(model: nn.Module, peft_init_method: str):
     """
     Initialize the PEFT adapters with the scaled weights.

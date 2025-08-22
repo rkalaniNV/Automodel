@@ -765,7 +765,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                         num_label_tokens=num_label_tokens,
                     )
 
-                total_loss += local_loss.item() * num_label_tokens  # because we pass in reduction=sum, loss is normalized by num_label_tokens
+                total_loss += (
+                    local_loss.item() * num_label_tokens
+                )  # because we pass in reduction=sum, loss is normalized by num_label_tokens
                 total_tokens += num_label_tokens
 
         total_loss = self._dp_allreduce(torch.tensor(total_loss)).item()
