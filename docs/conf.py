@@ -47,7 +47,7 @@ extensions = [
     "myst_codeblock_substitutions",  # Our custom MyST substitutions in code blocks
     "json_output",  # Generate JSON output for each page
     "search_assets",  # Enhanced search assets extension
-    # "ai_assistant",  # AI Assistant extension for intelligent search responses
+    "ai_assistant",  # AI Assistant extension for intelligent search responses
     "swagger_plugin_for_sphinx",  # For Swagger API documentation
     "sphinxcontrib.mermaid",  # For Mermaid diagrams
 ]

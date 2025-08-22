@@ -115,6 +115,17 @@ Learn how to deploy training jobs across different computing environments and ma
 
 ::::
 
+## Working with Code Snippets
+
+Code blocks include a small toolbar in the top‑right corner when you hover them:
+
+- **Copy**: Copies the raw code to your clipboard. If you highlight lines first, only the selection is copied.
+- **Ask AI**: Copies a pre‑built “explain this code” prompt plus the code (or selection) and opens your AI chat tab in a new window. Paste to ask your question.
+
+Tips:
+- Select just the lines you care about before clicking to keep prompts short and focused.
+- No data is sent automatically; you decide what to paste into your chat.
+
 ## Key Features Across All Guides
 
 - **Day-0 Hugging Face Support**: Use any compatible model without conversion

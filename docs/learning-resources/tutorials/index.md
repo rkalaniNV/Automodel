@@ -45,13 +45,13 @@ These practical tutorials are designed for experienced AI developers who want to
 
 Follow our recommended sequence to maximize your infrastructure investments:
 
-### 1. Start Here: {doc}`first-fine-tuning` {bdg-primary}`Applied ML Engineers`
+### 1. Start Here: {doc}`first-fine-tuning`
 **Get 2-3x PyTorch speedup with one config change**. Drop-in replacement for HF Trainer with automatic performance optimizations. Perfect for teams already training with PyTorch/HF.
 
-### 2. Scale Efficiently: {doc}`parameter-efficient-fine-tuning` {bdg-success}`Infrastructure-Aware Developers`  
+### 2. Scale Efficiently: {doc}`parameter-efficient-fine-tuning`  
 **Train 7B models on 8GB GPUs**. Break through memory limitations with PEFT + distributed training. Essential for teams with GPU resource constraints.
 
-### 3. Enterprise Deployment: {doc}`multi-gpu-training` {bdg-warning}`Enterprise Practitioners`
+### 3. Enterprise Deployment: {doc}`multi-gpu-training`
 **Deploy multi-node training on Slurm clusters today**. Production-ready distributed training with built-in cluster integration. Critical for enterprise AI infrastructure.
 
 ## Tutorial Design for Production Teams

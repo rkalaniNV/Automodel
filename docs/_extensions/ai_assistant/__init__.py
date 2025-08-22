@@ -121,7 +121,7 @@ def copy_assets_early(app, docname, source):
     bundle_path = os.path.join(static_path, 'ai-assistant.bundle.js')
     bundle_javascript_modules(extension_dir, bundle_path)
     
-    # Copy CSS assets if they exist
+    # Copy CSS/UI assets if they exist
     assets_dir = os.path.join(extension_dir, 'assets')
     if os.path.exists(assets_dir):
         dest_assets_dir = os.path.join(static_path, 'assets')
@@ -132,6 +132,18 @@ def copy_assets_early(app, docname, source):
             logger.info('AI assistant CSS assets copied')
         except Exception as e:
             logger.warning(f'Failed to copy CSS assets: {e}')
+
+    # Ensure UI files are available under _static/ui for direct load
+    ui_src = os.path.join(extension_dir, 'ui')
+    if os.path.exists(ui_src):
+        ui_dest = os.path.join(static_path, 'ui')
+        try:
+            if os.path.exists(ui_dest):
+                shutil.rmtree(ui_dest)
+            shutil.copytree(ui_src, ui_dest)
+            logger.info('AI assistant UI scripts copied to _static/ui')
+        except Exception as e:
+            logger.warning(f'Failed to copy UI scripts: {e}')
     
     # Mark as copied
     app._ai_assistant_assets_copied = True
@@ -162,6 +174,9 @@ def setup(app: Sphinx):
     # Add the bundled JavaScript file (contains all modules)
     app.add_js_file('ai-assistant.bundle.js')
     logger.info('AI assistant bundled JS will be loaded')
+    # Add CopyToChat UI (copies prompt+snippet, opens chat)
+    app.add_js_file('ui/CopyToChat.js')
+    logger.info('CopyToChat UI will be loaded')
     
     # Add configuration values
     app.add_config_value('ai_assistant_enabled', True, 'env')
