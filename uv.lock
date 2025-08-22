@@ -495,7 +495,6 @@ wheels = [
 name = "cut-cross-entropy"
 version = "25.3.2"
 source = { git = "https://github.com/srogawski-nvidia/ml-cross-entropy.git?rev=b2dd50b4b59f519c3b85e06da50ac8b8f9fac19f" }
-
 dependencies = [
     { name = "setuptools" },
     { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
