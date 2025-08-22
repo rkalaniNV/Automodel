@@ -38,9 +38,7 @@ class Block(nn.Module):
             self.mlp = MLP(config.hidden_size, config.intermediate_size, backend.linear)
         else:
             self.mlp = MoE(moe_config, backend)
-        self.input_layernorm = initialize_rms_norm_module(
-            backend.rms_norm, config.hidden_size, eps=config.rms_norm_eps
-        )
+        self.input_layernorm = initialize_rms_norm_module(backend.rms_norm, config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = initialize_rms_norm_module(
             backend.rms_norm, config.hidden_size, eps=config.rms_norm_eps
         )
@@ -50,7 +48,8 @@ class Block(nn.Module):
         self,
         x: torch.Tensor,
         freqs_cis: torch.Tensor,
-        padding_mask: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
+        padding_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """
         Forward pass for the Transformer block.
@@ -68,6 +67,7 @@ class Block(nn.Module):
         attn_out = self.self_attn(
             x=self.input_layernorm(x),
             freqs_cis=freqs_cis,
+            attention_mask=attention_mask,
         )
         x = x + attn_out
 
@@ -129,7 +129,6 @@ class DeepseekV3Model(nn.Module):
         for layer_id in range(config.num_hidden_layers):
             self.layers[str(layer_id)] = Block(layer_id, config, self.moe_config, backend)
         self.norm = initialize_rms_norm_module(backend.rms_norm, config.hidden_size, eps=config.rms_norm_eps)
-        self.lm_head = initialize_linear_module(backend.linear, config.hidden_size, config.vocab_size, bias=False)
 
         self.max_seq_len = config.max_position_embeddings
         self.register_buffer(
@@ -140,7 +139,7 @@ class DeepseekV3Model(nn.Module):
                 config.rope_theta,
                 config.rope_scaling,
             ),
-            persistent=True,
+            persistent=False,
         )
 
     def forward(
@@ -172,8 +171,7 @@ class DeepseekV3Model(nn.Module):
         # final_aux_loss = torch.stack(aux_losses).mean() if aux_losses else None
 
         h = self.norm(h) if self.norm else h
-        logits = self.lm_head(h) if self.lm_head else h
-        return logits
+        return h
 
     def update_moe_gate_bias(self) -> None:
         with torch.no_grad():
@@ -182,7 +180,7 @@ class DeepseekV3Model(nn.Module):
                     block.mlp.gate.update_bias()
 
     def init_weights(self, buffer_device: torch.device | None = None) -> None:
-        buffer_device = buffer_device or torch.cuda.current_device()
+        buffer_device = buffer_device or torch.device(f"cuda:{torch.cuda.current_device()}")
 
         with buffer_device:
             self.freqs_cis = precompute_freqs_cis(
@@ -205,12 +203,14 @@ class DeepseekV3ForCausalLM(nn.Module):
     @classmethod
     def from_config(
         cls,
-        config: str | DeepseekV3Config,
+        pretrained_model_name_or_path: str | DeepseekV3Config,
         moe_config: MoEConfig | None = None,
         backend: BackendConfig | None = None,
     ):
-        if isinstance(config, str):
-            config = DeepseekV3Config.from_pretrained(config)
+        if isinstance(pretrained_model_name_or_path, str):
+            config = DeepseekV3Config.from_pretrained(pretrained_model_name_or_path)
+        else:
+            config = pretrained_model_name_or_path
         return cls(config, moe_config, backend)
 
     def __init__(
@@ -222,7 +222,7 @@ class DeepseekV3ForCausalLM(nn.Module):
         super().__init__()
         self.config = config
         self.backend = backend or BackendConfig()
-        self.model = DeepseekV3Model(config, backend=backend)
+        self.model = DeepseekV3Model(config, backend=backend, moe_config=moe_config)
         self.lm_head = initialize_linear_module(backend.linear, config.hidden_size, config.vocab_size, bias=False)
 
     def forward(
@@ -244,7 +244,7 @@ class DeepseekV3ForCausalLM(nn.Module):
                     block.mlp.gate.update_bias()
 
     def init_weights(self, buffer_device: torch.device | None = None) -> None:
-        buffer_device = buffer_device or torch.cuda.current_device()
+        buffer_device = buffer_device or torch.device(f"cuda:{torch.cuda.current_device()}")
         with buffer_device:
             self.model.init_weights(buffer_device=buffer_device)
             final_out_std = self.config.hidden_size**-0.5

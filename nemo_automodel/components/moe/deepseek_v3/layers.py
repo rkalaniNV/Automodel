@@ -25,6 +25,17 @@ from nemo_automodel.components.moe.utils import (
 )
 
 
+def _create_kwargs_for_te(attention_mask: torch.Tensor | None = None):
+    if attention_mask is None:
+        return {}
+    else:
+        return {
+            "attn_mask_type": "padding",
+            "window_size": (-1, -1),
+            "attention_mask": attention_mask.unsqueeze(1).unsqueeze(2),
+        }
+
+
 class MLA(nn.Module):
     def __init__(self, config: DeepseekV3Config, backend: BackendConfig):
         super().__init__()
@@ -37,6 +48,7 @@ class MLA(nn.Module):
         self.qk_head_dim = config.qk_head_dim
         self.v_head_dim = config.v_head_dim
 
+        self.backend = backend
         attn_impl = backend.attn
         linear_impl = backend.linear
         rms_norm_impl = backend.rms_norm
@@ -105,6 +117,7 @@ class MLA(nn.Module):
         self,
         x: torch.Tensor,
         freqs_cis: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
     ):
         bsz, local_seq_len, _ = x.size()
 
@@ -129,7 +142,8 @@ class MLA(nn.Module):
         k_pe = k_pe.unsqueeze(2).expand([bsz, -1, self.n_heads, self.qk_rope_head_dim])
         k = torch.cat([k_nope, k_pe], dim=-1)
 
-        x = self.attn_func(q, k, v)
+        attn_kwargs = _create_kwargs_for_te(attention_mask) if self.backend.attn == "te" else {}
+        x = self.attn_func(q, k, v, **attn_kwargs)
 
         x = self.o_proj(x.flatten(2))
         return x

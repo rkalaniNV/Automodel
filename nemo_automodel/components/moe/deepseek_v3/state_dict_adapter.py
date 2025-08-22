@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from typing import Any, Optional
 
 import torch
@@ -35,15 +36,10 @@ class DeepSeekV3StateDictAdapter(MoEStateDictMixin, StateDictAdapter):
         self.config = config
         self.moe_config = moe_config
         self.backend = backend
-        self.dtype = dtype  # Configurable dtype for operations
-        # Track whether the original HF format used "model." prefix or not
-        self._uses_model_prefix = True  # Default assumption
-        # Track whether the original HF state dict had quantization scale_inv tensors
+        self.dtype = dtype
+        self._uses_model_prefix = True
         self._had_scale_inv_tensors = False
-        # Mapping only for keys that require renaming/aggregation. Other keys pass through unchanged.
         self.from_hf_map = {
-            # HF -> native (GroupedExperts)
-            # Note: native grouped params are direct nn.Parameter, so no `.weight` suffix
             "model.layers.{}.mlp.experts.{}.gate_proj.weight": "model.layers.{}.mlp.experts.gate_projs",
             "model.layers.{}.mlp.experts.{}.up_proj.weight": "model.layers.{}.mlp.experts.up_projs",
             "model.layers.{}.mlp.experts.{}.down_proj.weight": "model.layers.{}.mlp.experts.down_projs",
@@ -55,7 +51,6 @@ class DeepSeekV3StateDictAdapter(MoEStateDictMixin, StateDictAdapter):
             if key.endswith(".weight") and key + "_scale_inv" in state_dict:
                 scale_inv = state_dict[key + "_scale_inv"]
                 dequantized_weight = dequantize_from_fp8(weight, scale_inv, dtype=self.dtype)
-                # update the weight and remove the scale_inv tensor
                 state_dict[key] = dequantized_weight
                 scale_inv_keys.append(key + "_scale_inv")
 
@@ -80,13 +75,12 @@ class DeepSeekV3StateDictAdapter(MoEStateDictMixin, StateDictAdapter):
                 non_quantized_key in key for non_quantized_key in non_quantized_keys
             ):
                 expected_scale_shape = calculate_scale_shape(value)
-                # add weight_scale_inv to the state_dict
                 weight_scale_inv_state_dict[key + "_scale_inv"] = torch.ones(expected_scale_shape, dtype=self.dtype)
 
         state_dict.update(weight_scale_inv_state_dict)
         return state_dict
 
-    def to_hf(self, state_dict: dict[str, Any]) -> dict[str, Any]:
+    def to_hf(self, state_dict: dict[str, Any], exclude_key_regex: Optional[str] = None) -> dict[str, Any]:
         """Convert from native model state dict to HuggingFace format.
         Automatically detects format based on backend.enable_deepep configuration.
         """
@@ -94,6 +88,9 @@ class DeepSeekV3StateDictAdapter(MoEStateDictMixin, StateDictAdapter):
             hf_state_dict = self._to_hf_deepep(state_dict)
         else:
             hf_state_dict = self._to_hf_grouped_experts(state_dict)
+
+        if exclude_key_regex:
+            hf_state_dict = {k: v for k, v in hf_state_dict.items() if not re.match(exclude_key_regex, k)}
 
         if self._had_scale_inv_tensors:
             return self._add_quantization_scale_inv_tensors(hf_state_dict)
@@ -111,17 +108,14 @@ class DeepSeekV3StateDictAdapter(MoEStateDictMixin, StateDictAdapter):
         - Aggregate per-expert weights into grouped tensors
         - If device_mesh is provided, only load experts needed for the current rank
         """
-        # Detect the format and quantization status by checking keys BEFORE dequantization
         for key in hf_state_dict.keys():
             if ".mlp.experts." in key and key.endswith(".weight"):
                 self._uses_model_prefix = key.startswith("model.")
             if key.endswith("_scale_inv"):
                 self._had_scale_inv_tensors = True
 
-        # Dequantize and drop *_scale_inv tensors
         hf_state_dict = self._dequantize(hf_state_dict)
 
-        # Determine target format based on backend config or explicit parameter
         if target_format == "auto":
             actual_target_format = "deepep" if self.backend.enable_deepep else "grouped_experts"
         else:
@@ -162,7 +156,6 @@ def calculate_scale_shape(weight: torch.Tensor) -> tuple[int, ...]:
         return (weight.shape[0], 1)
     if weight.ndim == 3:
         return (weight.shape[0], weight.shape[1], 1)
-    # Default conservative
     shape = list(weight.shape)
     if len(shape) > 0:
         shape[-1] = 1
