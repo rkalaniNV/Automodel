@@ -161,12 +161,7 @@ class BaseRecipe:
         is_dist_initialized = torch.distributed.is_initialized()
         is_rank_0 = not is_dist_initialized or torch.distributed.get_rank() == 0
 
-        if not is_dist_initialized:
-            dp_group = None
-        elif self.device_mesh["cp"].size() > 1:
-            dp_group = self.device_mesh["dp_cp"].get_group()
-        else:
-            dp_group = self.device_mesh["dp"].get_group()
+        dp_group = self._get_dp_group()
 
         path = self.checkpoint_config.checkpoint_dir
         path = os.path.join(path, f"epoch_{epoch}_step_{step}")
@@ -371,17 +366,17 @@ class BaseRecipe:
     def _get_dp_group(self):
         if not self.device_mesh:
             return None
-        elif self.device_mesh["cp"].size() > 1:
-            return self.device_mesh["dp_cp"].get_group()
+        elif self.device_mesh["dp_shard_cp"].size() > 1:
+            return self.device_mesh["dp_shard_cp"].get_group()
         else:
-            return self.device_mesh["dp"].get_group()
+            return self.device_mesh["dp_shard"].get_group()
 
-    def _dp_allreduce(self, tensor, op=dist.ReduceOp.SUM):
+    def _dp_allreduce(self, t, op=dist.ReduceOp.SUM):
         dp_group = self._get_dp_group()
         if dp_group is not None:
-            dp_group.allreduce(tensor.cuda(), op=op)
-            tensor = tensor.cpu()
-        return tensor
+            torch.distributed.all_reduce(t, op=op, group=dp_group)
+            t = t.cpu()
+        return t
 
 
 def _find_latest_checkpoint(checkpoint_dir):

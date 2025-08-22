@@ -19,7 +19,6 @@ import logging
 import pathlib
 import time
 from contextlib import nullcontext
-from functools import partial
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import torch
@@ -52,6 +51,7 @@ from nemo_automodel.components.distributed.nvfsdp import NVFSDPManager
 from nemo_automodel.components.loggers.log_utils import setup_logging
 from nemo_automodel.components.loggers.wandb_utils import suppress_wandb_log_messages
 from nemo_automodel.components.loss.linear_ce import FusedLinearCrossEntropy
+from nemo_automodel.components.moe.deepseek_v3.parallelizer import parallelize_model
 from nemo_automodel.components.optim.scheduler import OptimizerParamScheduler
 from nemo_automodel.components.training.rng import StatefulRNG
 from nemo_automodel.components.training.step_scheduler import StepScheduler
@@ -157,6 +157,11 @@ def build_model_and_optimizer(
                 for m in model.modules():
                     if isinstance(m, nn.Embedding):
                         m.weight.requires_grad_(False)
+
+            # for m in model.model.layers.values():
+            #     if isinstance(m.mlp, MoE):
+            #         m.mlp.gate.weight.requires_grad_(False)
+
             # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
             if cfg_peft is not None:
                 assert autopipeline is None, "PEFT is not supported with AutoPipeline"
@@ -175,6 +180,7 @@ def build_model_and_optimizer(
                 cfg_model.pretrained_model_name_or_path,
                 getattr(cfg_peft, "lora_A_init", None),
                 device_mesh=autopipeline.cfg.world_mesh,
+                moe_mesh=autopipeline.cfg.moe_mesh,
             )
 
         # Create optimizer for all model parts
@@ -312,15 +318,15 @@ def build_dataloader(
         del cfg_dl.shuffle
     if device_mesh is not None:
         dist_sampler_kwargs |= {
-            "num_replicas": device_mesh["dp"].size(),
-            "rank": device_mesh["dp"].get_local_rank(),
+            "num_replicas": device_mesh[("dp_shard",)].size(),
+            "rank": device_mesh[("dp_shard",)].get_local_rank(),
         }
+        print(f"dp_mesh: {device_mesh[('dp_shard',)]}, dist_sampler_kwargs: {dist_sampler_kwargs}")
+
     if "tokenizer" not in cfg_ds:
         logging.info("Using model config to instantiate tokenizer")
         trust_remote_code = getattr(cfg_model, "trust_remote_code", False)
-        tokenizer = AutoTokenizer.from_pretrained(
-            cfg_model.pretrained_model_name_or_path, trust_remote_code=trust_remote_code
-        )
+        tokenizer = AutoTokenizer.from_pretrained(cfg_model.pretrained_model_name_or_path, trust_remote_code=True)
     elif "_target_" not in cfg_ds.tokenizer:
         tokenizer = AutoTokenizer.from_pretrained(**cfg_ds.tokenizer.to_dict())
     else:
@@ -579,7 +585,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         self.model_wrapper = None
         if "distributed" in self.cfg:
             self.model_wrapper = self.cfg.distributed.instantiate(world_size=self.dist_env.world_size)
-            self.device_mesh = getattr(self.model_wrapper, "device_mesh", None)
+            self.meshes = self.model_wrapper.build_meshes(device_type="cuda")
+            self.device_mesh = self.meshes["default"]
 
         if self.dist_env.is_main and hasattr(self.cfg, "wandb"):
             suppress_wandb_log_messages()
@@ -593,7 +600,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         # Check if packed_sequence_size > 0 and use HF's flash_attention_2 for attn implementation.
         use_hf_fa2 = self.cfg.get("packed_sequence.packed_sequence_size", 0) > 0
 
-        self.pp_enabled: bool = False if self.model_wrapper.pp_size <= 1 else True
+        self.pp_enabled: bool = False if self.cfg.distributed.pp <= 1 else True
         autopipeline_cfg = self.cfg.get("autopipeline", None)
         if self.pp_enabled:
             assert autopipeline_cfg is not None, "AutoPipelineConfig is required when pipeline parallelism is enabled"
@@ -602,7 +609,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             )
             autopipeline_cfg = autopipeline_cfg.instantiate(
                 world_mesh=self.device_mesh,
-                moe_mesh=None,
+                moe_mesh=self.meshes["moe"] if "moe" in self.meshes else None,
                 pp_axis_name="pp",
                 dp_axis_names=(
                     ("dp_replicate", "dp_shard")
@@ -612,7 +619,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 ),
                 cp_axis_name="cp" if "cp" in self.device_mesh.mesh_dim_names else None,
                 tp_axis_name="tp" if "tp" in self.device_mesh.mesh_dim_names else None,
-                ep_axis_name=None,
+                ep_axis_name="ep" if "ep" in self.meshes["moe"].mesh_dim_names else None,
                 ep_shard_axis_names=None,
                 pp_batch_size=self.cfg.dataloader.batch_size,
                 device=torch.cuda.current_device(),
@@ -640,7 +647,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             cfg_compile=self.cfg.get("compile", None),
             autopipeline=autopipeline,
             loss_fn=self.loss_fn,
-            parallelize_fn=partial(parallelize_for_pp, model_wrapper=self.model_wrapper),
+            parallelize_fn=parallelize_model,
         )
         if isinstance(model, AutoPipeline):
             self.model_parts = model.parts
@@ -733,6 +740,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     for mp in self.model_parts:
                         mp.train()
 
+        # self.save_checkpoint(epoch, self.step_scheduler.step)
+
     # ------------------ helpers ------------------
     def _forward_backward_step(
         self,
@@ -750,7 +759,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         if (
             "position_ids" not in batch
             and self.device_mesh is not None
-            and (self.device_mesh["cp"].size() > 1 or self.device_mesh["tp"].size() > 1)
+            and (self.device_mesh["dp_shard_cp"].size() > 1 or self.device_mesh["tp"].size() > 1)
         ):
             batch["position_ids"] = (
                 torch.arange(0, batch["input_ids"].shape[1])
@@ -769,15 +778,45 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 losses = [] if self.pp.info.has_last_stage else None
                 if self.pp.info.has_last_stage:
                     masked_labels = labels.clone()
+                    # if "loss_mask" in batch:
+                    #     if masked_labels.shape[1] < batch["loss_mask"].shape[1]:
+                    #         pad_width = batch["loss_mask"].shape[1] - masked_labels.shape[1]
+                    #         masked_labels = torch.cat(
+                    #             [masked_labels, torch.zeros(masked_labels.shape[0], pad_width, dtype=masked_labels.dtype, device=masked_labels.device)],
+                    #             dim=1,
+                    #         )
+                    #     masked_labels[batch["loss_mask"] == 0] = -100
                     targets = masked_labels
                 else:
                     targets = None
 
+                if "attention_mask" in batch:
+                    padding_mask = (batch["attention_mask"] == 0).to(self.dist_env.device, non_blocking=True)
+                    attention_mask = (batch.pop("attention_mask") == 0).to(self.dist_env.device, non_blocking=True)
+                    # padding_mask = None
+                    # attention_mask = None
+                else:
+                    attention_mask = None
+                    padding_mask = None
+
                 input_ids = batch.pop("input_ids")
                 if self.pp.info.has_first_stage:
-                    self.pp.info.schedule.step(input_ids, target=targets, losses=losses, **batch)
+                    self.pp.info.schedule.step(
+                        input_ids,
+                        target=targets,
+                        losses=losses,
+                        padding_mask=padding_mask,
+                        attention_mask=attention_mask,
+                        **batch,
+                    )
                 else:
-                    self.pp.info.schedule.step(target=targets, losses=losses, **batch)
+                    self.pp.info.schedule.step(
+                        target=targets,
+                        losses=losses,
+                        padding_mask=padding_mask,
+                        attention_mask=attention_mask,
+                        **batch,
+                    )
 
             if self.pp.info.has_last_stage:
                 local_loss = torch.sum(torch.stack(losses))
@@ -820,12 +859,16 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         """
 
         num_label_tokens = sum((batch["labels"] != -100).sum().item() for batch in batches)
-        num_label_tokens = self._dp_allreduce(torch.Tensor([num_label_tokens]).to(self.dist_env.device)).item()
+        num_label_tokens = self._dp_allreduce(
+            torch.tensor(num_label_tokens, dtype=torch.int32, device=self.dist_env.device)
+        ).item()
         loss_buffer = []
 
         # number of tokens in the batch, excluding any tail padding.
         num_tokens_in_batch = sum(batch["labels"].numel() - count_tail_padding(batch["labels"]) for batch in batches)
-        num_tokens_in_batch = self._dp_allreduce(torch.LongTensor([num_tokens_in_batch])).item()
+        num_tokens_in_batch = self._dp_allreduce(
+            torch.tensor(num_tokens_in_batch, dtype=torch.int32, device=self.dist_env.device)
+        ).item()
 
         num_batches = len(batches)
         for i, batch in enumerate(batches):
@@ -834,7 +877,10 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             )
 
         if self.pp_enabled:
-            self.pp.scale_grads_by_divisor(num_label_tokens)
+            self.pp.scale_grads_by_divisor(num_label_tokens / self._get_dp_group().size())
+
+        for mp in self.model_parts:
+            mp.update_moe_gate_bias()
 
         grad_norm = None
         # Clip gradients **after** any rescaling.
@@ -845,7 +891,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     max_grad_norm,
                     foreach=True,
                     pp_mesh=(self.device_mesh["pp"] if self.pp_enabled else None),
-                    ep_dense_params_mesh_ndim=None,
+                    ep_axis_name="ep" if "ep" in self.meshes["moe"].mesh_dim_names else None,
                 )
             else:
                 if not self.device_mesh or self.device_mesh["tp"].size() == 1:
@@ -880,8 +926,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         time_delta = t - self.timestamp
         self.timestamp = t
         tps = num_tokens_in_batch / time_delta
-        reporting_loss = torch.sum(torch.stack(loss_buffer))
+        reporting_loss = torch.sum(torch.stack(loss_buffer), dtype=torch.float32).to(self.dist_env.device)
         reporting_loss = self._dp_allreduce(reporting_loss)
+
         if self.pp_enabled:
             reporting_loss = reporting_loss / num_label_tokens
             reporting_loss = reporting_loss.to(self.dist_env.device)

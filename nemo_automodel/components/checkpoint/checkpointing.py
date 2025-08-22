@@ -41,6 +41,7 @@ from nemo_automodel.components.checkpoint.stateful_wrappers import (
     ModelState,
     OptimizerState,
 )
+from nemo_automodel.components.moe.deepseek_v3.state_dict_adapter import DeepSeekV3StateDictAdapter
 
 if TYPE_CHECKING:
     from peft import PeftConfig
@@ -139,6 +140,10 @@ def save_model(
 
     elif checkpoint_config.model_save_format == SerializationFormat.SAFETENSORS:
         model_state_dict = model_state.state_dict()
+        state_dict_adapter = DeepSeekV3StateDictAdapter(
+            model[0].config, model[0].model.moe_config, model[0].backend, dtype=torch.bfloat16
+        )
+        model_state_dict = state_dict_adapter.to_hf(model_state_dict, exclude_key_regex=r".*_extra_state.*")
         fqn_to_file_index_mapping = None
         if checkpoint_config.save_consolidated:
             # we first need to find the FQN -> .safetensors mapping
@@ -187,6 +192,7 @@ def load_model_from_base_checkpoint(
     model_name: str,
     peft_init_method: str,
     device_mesh: Optional[DeviceMesh] = None,
+    moe_mesh: Optional[DeviceMesh] = None,
 ):
     """
     Load a model from the base Hugging Face checkpoint in parallel.
@@ -201,6 +207,10 @@ def load_model_from_base_checkpoint(
     from transformers.models.gemma3.modeling_gemma3 import Gemma3ForConditionalGeneration
 
     to_empty_parameters_only(model, device=device)
+    model = model.bfloat16()
+    model.model.freqs_cis = model.model.freqs_cis.to(torch.float32)
+    with torch.no_grad():
+        model.init_weights()
 
     # HF models set _is_hf_initialized to True after initialization.
     # But because we initialize on meta device, these are erroneously set to True.
@@ -228,6 +238,14 @@ def load_model_from_base_checkpoint(
 
     model_state = ModelState(model, is_peft=is_peft, is_init_step=True)
     model_state_dict = model_state.state_dict()
+    from nemo_automodel.components.moe.deepseek_v3.state_dict_adapter import DeepSeekV3StateDictAdapter
+
+    state_dict_adapter = DeepSeekV3StateDictAdapter(
+        model.config, model.model.moe_config, model.backend, dtype=torch.bfloat16
+    )
+    model_state_dict = state_dict_adapter.to_hf(model_state_dict, exclude_key_regex=r".*_extra_state.*")
+    # torch.distributed.breakpoint(3)
+
     if os.path.exists(model_name):
         # offline models will pass in the model path directly
         model_path = model_name
@@ -238,11 +256,12 @@ def load_model_from_base_checkpoint(
         storage_reader=_HuggingFaceStorageReader(
             model_path, key_mapping=getattr(model, "_checkpoint_conversion_mapping", None)
         ),
-        process_group=device_mesh["pp"].get_group() if device_mesh else None,
+        process_group=None,
     )
+    model_state_dict = state_dict_adapter.from_hf(model_state_dict, device_mesh=moe_mesh["ep"])
     model_state.load_state_dict(model_state_dict)
-    if hasattr(model, "tie_weights") and model_state.is_tied_lm_head:
-        model.tie_weights()
+    # if hasattr(model, "tie_weights") and model_state.is_tied_lm_head:
+    #     model.tie_weights()
 
 
 def load_model(

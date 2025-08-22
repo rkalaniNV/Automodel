@@ -163,6 +163,10 @@ class AutoPipeline:
             loss_fn=loss_fn,
             parallelize_fn=parallelize_fn,
             module_fqns_per_model_part=self.cfg.module_fqns_per_model_part,
+            patch_inner_model=self.cfg.patch_inner_model,
+            patch_causal_lm_model=self.cfg.patch_causal_lm_model,
+            scale_grads=self.cfg.scale_grads_in_schedule,
+            round_to_pp_multiple=self.cfg.round_virtual_stages_to_pp_multiple,
         )
 
         # Update PipelineInfo state
@@ -188,7 +192,7 @@ class AutoPipeline:
         error_if_nonfinite: bool = False,
         foreach: bool | None = None,
         pp_mesh: DeviceMesh | None = None,
-        ep_dense_params_mesh_ndim: int | None = None,
+        ep_axis_name: str | None = None,
     ) -> torch.Tensor:
         if self._info.stages is None:
             raise RuntimeError("Autopipeline not built. Call build() first.")
@@ -200,7 +204,7 @@ class AutoPipeline:
             error_if_nonfinite,
             foreach,
             pp_mesh,
-            ep_dense_params_mesh_ndim,
+            ep_axis_name,
         )
 
     @property
