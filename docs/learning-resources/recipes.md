@@ -8,7 +8,7 @@ content_type: "how-to"
 modality: "universal"
 ---
 
-# Training Recipes (LLM & VLM)
+# Recipes
 
 NeMo Automodel ships with plug-and-play training scripts ("recipes") that let you fine-tune popular models with minimal setup. Pick a recipe, choose a YAML config, and run.
 
@@ -56,12 +56,12 @@ Capabilities:
 ## Where to Find Recipes
 
 - Python scripts (entry points):
-  - `nemo_automodel/recipes/llm/finetune.py`
-  - `nemo_automodel/recipes/vlm/finetune.py`
+  - [`nemo_automodel/recipes/llm/finetune.py`](https://github.com/NVIDIA/NeMo-Automodel/blob/main/nemo_automodel/recipes/llm/finetune.py)
+  - [`nemo_automodel/recipes/vlm/finetune.py`](https://github.com/NVIDIA/NeMo-Automodel/blob/main/nemo_automodel/recipes/vlm/finetune.py)
 
 - Example YAML configs to copy/modify:
-  - `examples/llm/`
-  - `examples/vlm/`
+  - [`examples/llm/`](https://github.com/NVIDIA/NeMo-Automodel/tree/main/examples/llm)
+  - [`examples/vlm/`](https://github.com/NVIDIA/NeMo-Automodel/tree/main/examples/vlm)
 
 ## See Also
 

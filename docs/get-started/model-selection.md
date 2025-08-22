@@ -309,7 +309,7 @@ Choose models based on your available GPU memory:
 - Largest VLMs (72B+)
 - Custom architectures
 
-**Training:** nvFSDP, tensor parallelism
+**Training:** nvFSDP (optional), tensor parallelism
 :::
 
 ::::

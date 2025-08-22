@@ -120,7 +120,7 @@ Learn how to deploy training jobs across different computing environments and ma
 - **Day-0 Hugging Face Support**: Use any compatible model without conversion
 - **Optimized Performance**: BF16/FP8 quantization and kernel optimizations
 - **Flexible Scaling**: Single GPU to multi-node distributed training with FSDP2/nvFSDP
-- **Easy Deployment**: Export to vLLM, TensorRT-LLM, and other inference frameworks
+- **Easy Deployment**: Export to vLLM; TensorRT-LLM/Triton integration may require additional tooling
 - **Production Ready**: Safetensors checkpoints compatible with Hugging Face ecosystem
 
 ## Training Workflow Overview

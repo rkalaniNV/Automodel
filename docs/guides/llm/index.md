@@ -80,7 +80,7 @@ Working with instruction-following datasets and conversation formats for chat an
 - **Flexible Training**: Choose between SFT and PEFT based on your needs
 - **Optimized Performance**: Benefit from BF16/FP8 quantization and kernel optimizations
 - **Distributed Training**: Scale from single GPU to multi-node clusters with FSDP2/nvFSDP
-- **Easy Deployment**: Export to vLLM, TensorRT-LLM, and other inference frameworks
+- **Easy Deployment**: Export to vLLM; TensorRT-LLM/Triton integration may require additional tooling
 
 ```{toctree}
 :maxdepth: 2

@@ -578,7 +578,7 @@ graph TB
 ### Downstream Deployment
 
 - **vLLM Integration**: Export for high-performance inference
-- **TensorRT-LLM**: Planned optimization support
+- **TensorRT-LLM/Triton**: Integration depends on external tooling and may require additional steps
 - **Standard Formats**: HuggingFace-compatible outputs
 
 ## Extensibility and Future Development
@@ -592,7 +592,7 @@ graph TB
 
 ### Roadmap Considerations
 
-- **Pipeline Parallelism**: 4D parallelism support
+- **Parallelism Roadmap**: Future evaluation of additional parallel dimensions
 - **Video Models**: Extension beyond text and vision
 - **Additional Backends**: More inference engine integrations
 - **Advanced Optimizations**: Continued performance improvements
@@ -708,8 +708,8 @@ class TrainingState:
 
 ### Planned Enhancements
 
-#### **4D Parallelism Support**
-Extension of current 3D parallelism (data, tensor, pipeline) to include context parallelism for extremely long sequences.
+#### **Expanded Parallelism Support**
+Extended strategies across data, tensor, and context dimensions; pipeline parallelism may be evaluated in future work.
 
 #### **Heterogeneous Training**
 Support for mixed hardware setups (different GPU types, CPU offloading strategies).

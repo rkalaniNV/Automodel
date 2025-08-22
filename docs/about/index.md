@@ -32,7 +32,7 @@ NeMo AutoModel provides out-of-the-box support for:
 - **Accelerate training** through Transformer-Engine optimized kernels, JIT compilation, and advanced parallelism techniques
 - **Maximize efficiency** with techniques designed to achieve high Model Flops Utilization (MFU) across GPU clusters
 - **Migrate seamlessly** to Megatron-Core recipes as they become available
-- **Deploy easily** to vLLM inference, with TensorRT-LLM support planned
+- **Deploy easily** to vLLM inference; TensorRT-LLM/Triton integration may require additional tooling
 
 (model-support)=
 ## Model Support

@@ -74,6 +74,14 @@ Deploy to vLLM for optimized inference, with TensorRT-LLM support planned.
 
 Automodel provides immediate support for newly released and existing models on the Hugging Face Hub without requiring conversions or checkpoint rewrites, saving significant development time. 
 
+```python
+# Day-0 usage example (drop-in replacement)
+from nemo_automodel import NeMoAutoModelForCausalLM
+
+model = NeMoAutoModelForCausalLM.from_pretrained("gpt2")
+# ... proceed with training/eval as with transformers AutoModel
+```
+
 **Key Benefits:**
 - **Immediate Model Access**: Use new models as soon as they're released on HF Hub
 - **No Conversion Required**: Direct model loading without format changes
@@ -103,10 +111,10 @@ Automodel includes native distributed support for training across multiple GPUs 
 
 **Distributed Strategies:**
 - **Megatron-Core Foundation**: Built on proven GPU-optimized techniques from NVIDIA's Megatron-Core library
-- **Advanced Parallelism**: Tensor Parallelism (TP), Pipeline Parallelism (PP), Context Parallelism (CP), and Expert Parallelism (EP)
+- **Advanced Parallelism**: Tensor Parallelism (TP) and Context Parallelism (CP)
 - **DDP (Data Parallel)**: Simple multi-GPU setup with gradient synchronization
 - **FSDP2**: Parameter sharding with optional tensor parallelism and CPU offloading
-- **nvFSDP**: NVIDIA-optimized FSDP with advanced overlap strategies
+- **nvFSDP (optional)**: NVIDIA-optimized FSDP with advanced overlap strategies (requires installation)
 - **Multi-Node Support**: Seamless scaling across cluster environments up to 1,000+ GPUs
 - **Memory Optimization**: Gradient checkpointing and parameter offloading
 
@@ -133,33 +141,34 @@ Automodel offers ready-to-use recipes that define end-to-end workflows (data pre
 
 ## Technical Implementation Details
 
-### 🤖 **Model Integration**
+### **Model Integration**
 - **Transformers**: Drop-in replacements for Hugging Face models (`NeMoAutoModelForCausalLM`, `NeMoAutoModelForImageTextToText`)
 - **PEFT Support**: LoRA implementation with optimized kernels for parameter-efficient fine-tuning
 - **Day-0 Compatibility**: Immediate support for new Hugging Face model releases
 
-### 📊 **Data & Datasets**  
+### **Data & Datasets**
 - **LLM Datasets**: Instruction datasets, HellaSwag, SQuAD, packed sequences
 - **VLM Datasets**: Vision-language datasets with specialized collation functions
 - **Processing Utilities**: Data preprocessing and transformation tools
 
-### ⚡ **Distributed Training**
+### **Distributed Training**
 - **Parallelism**: DDP, FSDP2, nvFSDP, and tensor parallelism strategies
 - **Optimization**: Gradient utilities, distributed communication, and scaling
 - **Cluster Support**: SLURM integration and multi-node training capabilities
 
-### 🔧 **Training Infrastructure**
+### **Training Infrastructure**
 - **Advanced Checkpointing**: HuggingFace-compatible checkpointing with state management
 - **Loss Functions**: Optimized cross-entropy variants with Transformer-Engine integration and specialized loss functions
 - **Quantization**: FP8 quantization for memory efficiency and speed
 - **Monitoring**: WandB integration and comprehensive logging
+- **PEFT Checkpointing Note**: Save PEFT adapters with safetensors; torch.save is not supported for PEFT adapters
 
 ## Summary of Key Benefits
 
 - **Immediate Deployment**: Use any Hugging Face model without waiting for optimized recipes
 - **Production Ready**: Scale to multi-node clusters with enterprise-grade distributed training
 - **Future Proof**: Clear migration path to Megatron-Core recipes for optimal performance when available
-- **Export Flexibility**: Deploy to vLLM inference framework with TensorRT-LLM support planned
+- **Export Flexibility**: Export to vLLM; TensorRT-LLM/Triton integration may require additional tooling
 
 (backend-comparison)=
 ## Backend Comparison: Megatron-Core vs AutoModel
@@ -186,10 +195,10 @@ NeMo Framework offers two complementary training backends, each optimized for di
   - Optimal Throughput with Megatron-Core kernels and maximum MFU
   - Good Performance with Transformer-Engine integration, liger kernels, and PyTorch JIT
 * - **Scalability**
-  - Up to 1,000 GPUs with full 4-D parallelism (TP, PP, CP, EP)
+  - Up to 1,000 GPUs with 3-D+ strategies (DP, TP, CP)
   - Comparable scalability using PyTorch native TP, CP, and FSDP2 at slightly reduced training throughput
 * - **Inference Path**
-  - Export to TensorRT-LLM, vLLM, or directly to NVIDIA NIM
+  - Export to vLLM (TensorRT-LLM/NIM paths may require additional tooling)
   - Export to vLLM
 ```
 
