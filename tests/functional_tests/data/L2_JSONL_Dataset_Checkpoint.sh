@@ -19,7 +19,7 @@ export PYTHONPATH=${PYTHONPATH:-}:$(pwd)
 export CUDA_VISIBLE_DEVICES="0,1"
 
 TRANSFORMERS_OFFLINE=1 python -m torch.distributed.run --nproc_per_node=2 --nnodes=1 -m coverage run --data-file=/workspace/.coverage --source=/workspace --parallel-mode \
--m pytest tests/functional_tests/datasets/llm/test_jsonl_dataset_checkpointing.py \
+-m pytest tests/functional_tests/training/test_jsonl_dataset_checkpointing.py \
     --config examples/llm/llama_3_2_1b_fineweb_edu.yaml \
     --model.pretrained_model_name_or_path /home/TestData/akoumparouli/hf_mixtral_2l/ \
     --dataset._target_ nemo_automodel.components.datasets.llm.jsonl_dataset.JSONLDataset \
