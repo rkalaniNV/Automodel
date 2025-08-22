@@ -281,7 +281,6 @@ def build_dataloader(
 
     with StatefulRNG(seed=seed, ranked=True):
         if cfg_ds._target_ is JSONLDataset:
-            print("initalizae jsonldataset")
             ds = cfg_ds.instantiate(tokenizer=tokenizer, seed=seed, **jsonl_kwargs)
             return ds, tokenizer
         else:

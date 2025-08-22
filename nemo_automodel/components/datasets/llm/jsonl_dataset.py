@@ -109,7 +109,6 @@ class JSONLDataset(IterableDataset):
 
         # Check if distributed training is initialized
         self._is_distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
-        print("Initialized dataset")
 
     def __iter__(self):
         """

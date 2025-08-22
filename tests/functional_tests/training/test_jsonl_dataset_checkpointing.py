@@ -33,8 +33,6 @@ def test_jsonl_dataset_checkpointing():
     model_wrapper = cfg.distributed.instantiate(world_size=dist_env.world_size)
     device_mesh = getattr(model_wrapper, "device_mesh", None)
 
-    print("Build dataset")
-
     dataset = build_dataloader(cfg.dataset, {}, cfg.model, {}, device_mesh, 42)[0]
     
     # fast-forward. not necessary, but we want to make sure the dataset is not at the beginning.
@@ -81,4 +79,3 @@ def test_jsonl_dataset_checkpointing():
         if Path("checkpoints/").exists():
             shutil.rmtree(Path("checkpoints/"))
     torch.distributed.barrier()
-    assert False
