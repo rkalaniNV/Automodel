@@ -834,7 +834,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             )
 
         if self.pp_enabled:
-            self.pp.scale_grads_by_divisor(num_label_tokens)
+            self.pp.scale_grads_by_divisor(num_label_tokens / self._get_dp_group().size())
 
         grad_norm = None
         # Clip gradients **after** any rescaling.
