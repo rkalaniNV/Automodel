@@ -53,6 +53,7 @@ from nemo_automodel.components.loggers.log_utils import setup_logging
 from nemo_automodel.components.loggers.wandb_utils import suppress_wandb_log_messages
 from nemo_automodel.components.loss.linear_ce import FusedLinearCrossEntropy
 from nemo_automodel.components.optim.scheduler import OptimizerParamScheduler
+from nemo_automodel.components.quantization.fp8 import apply_fp8_to_model, build_fp8_config
 from nemo_automodel.components.training.rng import StatefulRNG
 from nemo_automodel.components.training.step_scheduler import StepScheduler
 from nemo_automodel.components.training.utils import count_tail_padding
@@ -144,9 +145,6 @@ def build_model_and_optimizer(
                 "Packed sequence is supported only with Flash Attention. "
                 "Setting model's attn_implementation to flash_attention_2"
             )
-        # Add FP8 config if provided
-        if cfg_fp8 is not None:
-            kwargs["fp8_config"] = cfg_fp8.instantiate()
 
         # Instantiate the model in meta device to avoid OOM
         with init_ctx:
@@ -161,6 +159,10 @@ def build_model_and_optimizer(
             if cfg_peft is not None:
                 assert autopipeline is None, "PEFT is not supported with AutoPipeline"
                 apply_lora_to_linear_modules(model, cfg_peft)
+
+            if cfg_fp8 is not None:
+                fp8_config = build_fp8_config(cfg_fp8)
+                model = apply_fp8_to_model(model, config=fp8_config)
 
     print_trainable_parameters(model)
 
@@ -864,10 +866,13 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             opt.zero_grad()
 
         # Precompute FP8 scales
+        fp8_config = self.cfg.get("fp8", None)
         if (
-            self.cfg.get("fp8", None) is not None
+            fp8_config is not None
+            and fp8_config.get("enabled", False)
+            and fp8_config.get("precompute_float8_dynamic_scale_for_fsdp", False)
             and not self.pp_enabled
-            and self.model_parts[0].precompute_float8_dynamic_scale_for_fsdp
+            and self.device_mesh is not None
             and self.device_mesh["dp_shard"].size() > 1
         ):
             precompute_float8_dynamic_scale_for_fsdp(self.model_parts[0])
