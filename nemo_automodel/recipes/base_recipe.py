@@ -140,10 +140,8 @@ class BaseRecipe:
 
         if not is_dist_initialized:
             dp_group = None
-        elif self.device_mesh["cp"].size() > 1:
-            dp_group = self.device_mesh["dp_cp"].get_group()
         else:
-            dp_group = self.device_mesh["dp"].get_group()
+            dp_group = self._get_dp_group()
 
         path = self.checkpoint_config.checkpoint_dir
         path = os.path.join(path, f"epoch_{epoch}_step_{step}")
@@ -349,10 +347,15 @@ class BaseRecipe:
         else:
             return self.device_mesh["dp"].get_group()
 
+    def _get_dp_group_size(self):
+        dp_group = self._get_dp_group()
+        return 1 if dp_group is None else dp_group.size()
+
     def _dp_allreduce(self, tensor, op=dist.ReduceOp.SUM):
         dp_group = self._get_dp_group()
         if dp_group is not None:
-            dp_group.allreduce(tensor.cuda(), op=op)
+            tensor = tensor.cuda()
+            dist.all_reduce(tensor, op=op, group=dp_group)
             tensor = tensor.cpu()
         return tensor
 

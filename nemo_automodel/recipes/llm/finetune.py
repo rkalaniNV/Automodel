@@ -44,6 +44,7 @@ from nemo_automodel.components.loggers.log_utils import setup_logging
 from nemo_automodel.components.loggers.wandb_utils import suppress_wandb_log_messages
 from nemo_automodel.components.loss.linear_ce import FusedLinearCrossEntropy
 from nemo_automodel.components.optim.scheduler import OptimizerParamScheduler
+from nemo_automodel.components.quantization.fp8 import apply_fp8_to_model, build_fp8_config
 from nemo_automodel.components.training.rng import StatefulRNG
 from nemo_automodel.components.training.step_scheduler import StepScheduler
 from nemo_automodel.components.training.utils import count_tail_padding
@@ -117,9 +118,6 @@ def build_model_and_optimizer(
                 "Packed sequence is supported only with Flash Attention. "
                 "Setting model's attn_implementation to flash_attention_2"
             )
-        # Add FP8 config if provided
-        if cfg_fp8 is not None:
-            kwargs["fp8_config"] = cfg_fp8.instantiate()
 
         # Instantiate the model in meta device to avoid OOM
         with init_ctx:
@@ -133,6 +131,10 @@ def build_model_and_optimizer(
             # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
             if cfg_peft is not None:
                 apply_lora_to_linear_modules(model, cfg_peft)
+
+            if cfg_fp8 is not None:
+                fp8_config = build_fp8_config(cfg_fp8)
+                model = apply_fp8_to_model(model, config=fp8_config)
 
     print_trainable_parameters(model)
 
@@ -618,12 +620,19 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             max_grad_norm: Gradient clipping norm. Optional, if None will not clip gradients.
         """
 
-        num_label_tokens = sum((batch["labels"] != -100).sum().item() for batch in batches)
+        num_label_tokens = torch.tensor(
+            sum((batch["labels"] != -100).sum().item() for batch in batches), dtype=torch.long
+        )
+        num_label_tokens = self._dp_allreduce(num_label_tokens).item()
         loss_buffer = []
 
         # number of tokens in the batch, excluding any tail padding.
-        num_tokens_in_batch = sum(batch["labels"].numel() - count_tail_padding(batch["labels"]) for batch in batches)
-        num_tokens_in_batch = self._dp_allreduce(torch.LongTensor([num_tokens_in_batch])).item()
+        num_tokens_in_batch = torch.tensor(
+            sum(batch["labels"].numel() - count_tail_padding(batch["labels"]) for batch in batches),
+            dtype=torch.long,
+        )
+        num_tokens_in_batch = self._dp_allreduce(num_tokens_in_batch).item()
+        dp_group_size = self._get_dp_group_size()
 
         num_batches = len(batches)
         for i, batch in enumerate(batches):
@@ -635,7 +644,9 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 and self.device_mesh is not None
                 and (self.device_mesh["cp"].size() > 1 or self.device_mesh["tp"].size() > 1)
             ):
-                batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(self.model.device)
+                batch["position_ids"] = (
+                    torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(self.dist_env.device)
+                )
 
             train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels)
 
@@ -659,16 +670,19 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     num_label_tokens=num_label_tokens,
                 )
                 loss_buffer.append(local_loss.clone().detach())
-                local_loss.backward()
+                (local_loss * dp_group_size).backward()
 
         # do the optimization step
         grad_norm = 0
-        # Clip gradients **after** any rescaling.
         # TODO(@boxiangw): Fix TP gradient clipping
         if max_grad_norm is not None and (not self.device_mesh or self.device_mesh["tp"].size() == 1):
             grad_norm = torch.nn.utils.clip_grad_norm_(
                 [p for p in self.model.parameters() if p.requires_grad], max_grad_norm
             )
+
+            if hasattr(grad_norm, "full_tensor"):
+                grad_norm = grad_norm.full_tensor()  # collect the summed grad norm across ranks
+
             if isinstance(grad_norm, torch.Tensor):
                 grad_norm = grad_norm.item()
 
@@ -682,9 +696,12 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             self.lr_scheduler.step(1)
 
         # Precompute FP8 scales
+        fp8_config = self.cfg.get("fp8", None)
         if (
-            self.cfg.get("fp8", None) is not None
-            and self.model.precompute_float8_dynamic_scale_for_fsdp
+            fp8_config is not None
+            and fp8_config.get("enabled", False)
+            and fp8_config.get("precompute_float8_dynamic_scale_for_fsdp", False)
+            and self.device_mesh is not None
             and self.device_mesh["dp_shard"].size() > 1
         ):
             precompute_float8_dynamic_scale_for_fsdp(self.model)
@@ -697,7 +714,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         time_delta = t - self.timestamp
         self.timestamp = t
         tps = num_tokens_in_batch / time_delta
-        reporting_loss = torch.sum(torch.stack(loss_buffer)).item()
+        reporting_loss = torch.sum(torch.stack(loss_buffer))
+        reporting_loss = self._dp_allreduce(reporting_loss).item()
         # fix reporting_loss, tps across ranks
         return reporting_loss, grad_norm, tps, num_tokens_in_batch, num_label_tokens
 
@@ -707,13 +725,13 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         with StatefulRNG(seed=1, ranked=True):
             self.model.eval()
 
-            total_loss = 0.0
-            total_tokens = 0
+            total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.dist_env.device)
+            total_num_label_tokens = 0
 
             for batch in self.val_dataloader:
                 batch = {k: v.to(self.dist_env.device, non_blocking=True) for k, v in batch.items()}
                 labels = batch.pop("labels")
-                num_label_tokens = (labels != -100).sum()
+                num_label_tokens = (labels != -100).sum().item()
 
                 if (
                     self.device_mesh
@@ -721,38 +739,40 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     and (self.device_mesh["cp"].size() > 1 or self.device_mesh["tp"].size() > 1)
                 ):
                     batch["position_ids"] = (
-                        torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(self.model.device)
+                        torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).to(self.dist_env.device)
                     )
 
                 train_ctx, batch = make_cp_batch_and_ctx(self.device_mesh, batch, labels)
                 with train_ctx():
                     if isinstance(self.loss_fn, FusedLinearCrossEntropy):
-                        out = self.model(logits_to_keep=1, **batch)
-                    else:
-                        out = self.model(**batch)
-                    local_loss = calculate_loss(
+                        batch["logits_to_keep"] = 1
+                    out = self.model(**batch)
+                    total_loss += calculate_loss(
                         self.loss_fn,
                         logits=out.logits,
                         labels=labels,
                         model=self.model,
                         hidden_states=out.hidden_states[-1] if "hidden_states" in out else None,
-                        num_label_tokens=num_label_tokens,
+                        num_label_tokens=None,  # we will normalize outside.
                     )
 
-                total_loss += local_loss.item()
-                total_tokens += num_label_tokens
+                total_num_label_tokens += num_label_tokens
 
-        total_loss = self._dp_allreduce(torch.FloatTensor([total_loss])).item()
-        total_tokens = self._dp_allreduce(torch.LongTensor([total_tokens])).item()
+        total_loss = self._dp_allreduce(total_loss).item()
+        total_num_label_tokens = self._dp_allreduce(torch.tensor(total_num_label_tokens, dtype=torch.long)).item()
 
-        val_loss = total_loss / max(total_tokens, 1e-8)
+        val_loss = total_loss / max(total_num_label_tokens, 1e-8)
         if self.dist_env.is_main:
             if wandb.run is not None:
                 wandb.log({"val_loss": val_loss, "step": self.step_scheduler.step, "epoch": self.step_scheduler.epoch})
         current_lr = self.optimizer.param_groups[0]["lr"]
         logging.info(
-            "[val] step {} | epoch {} | loss {:.4f} | lr {:.2e}".format(
-                self.step_scheduler.step, self.step_scheduler.epoch, val_loss, current_lr
+            "[val] step {} | epoch {} | loss {:.4f} | lr {:.2e} | num_label_tokens {}".format(
+                self.step_scheduler.step,
+                self.step_scheduler.epoch,
+                val_loss,
+                current_lr,
+                total_num_label_tokens,
             )
         )
 

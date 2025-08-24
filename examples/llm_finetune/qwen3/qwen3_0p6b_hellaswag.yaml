@@ -14,7 +14,7 @@
 
 
 # To run this recipe, please use the following command:
-# torchrun --nproc-per-node=8 recipes/llm/finetune.py --config recipes/llm/llama_3_2_1b_hellaswag.yaml
+# torchrun --nproc-per-node=8 recipes/llm_finetune/finetune.py --config recipes/llm_finetune/qwen3_0/qwen3_0p6b_hellaswag.yaml
 # Adjust --nproc-per-node to the number of GPUs available on your host machine.
 
 
@@ -35,10 +35,10 @@ rng:
 
 model:
   _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
-  pretrained_model_name_or_path: meta-llama/Llama-3.2-1B
+  pretrained_model_name_or_path: Qwen/Qwen3-0.6B
 
 checkpoint:
-  enabled: true
+  enabled: false
   checkpoint_dir: checkpoints/
   model_save_format: torch_save # torch_save or safetensors
   save_consolidated: false # saves the model in a consolidated safetensors format. Requires model_save_format to be safetensors.
@@ -50,6 +50,7 @@ distributed:
   tp_size: 1
   cp_size: 1
   sequence_parallel: false
+  use_hf_tp_plan: false # if true, will attempt to get the TP plan from hf model.
 
 loss_fn:
   _target_: nemo_automodel.components.loss.masked_ce.MaskedCrossEntropy
