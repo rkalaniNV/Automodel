@@ -134,7 +134,7 @@ def test_launch_with_slurm(monkeypatch, tmp_path):
         assert parts[0].startswith("PYTHONPATH=")
         assert parts[0].endswith(":$PYTHONPATH")
         assert parts[1] == "python3"
-        assert parts[2].endswith("recipes/llm/finetune.py")
+        assert parts[2].endswith("recipes/llm_finetune/finetune.py")
         assert parts[3] == "-c"
         assert parts[4] == "/tmp/a/0123456789/y.conf"
 
@@ -184,7 +184,7 @@ def test_main_multi_node(monkeypatch, tmp_yaml_file):
     run_mod = importlib.import_module("torch.distributed.run")
     monkeypatch.setattr(run_mod, "run", lambda *a, **kw: 0)
     import torch.distributed.run as trn
-    monkeypatch.setattr(trn, "get_args_parser", lambda: argparse.Namespace(parse_args=lambda: DummyArgs()))
+    monkeypatch.setattr(trn, "get_args_parser", lambda: argparse.Namespace(parse_known_args=lambda: (DummyArgs(), None)))
     monkeypatch.setattr(trn, "determine_local_world_size", lambda **kwargs: 4)
 
     # Simulate torchrun parser and arguments

@@ -23,6 +23,7 @@ import torch
 import torch.distributed.checkpoint as dcp
 import torch.distributed.tensor
 import torch.nn as nn
+import yaml
 
 from nemo_automodel.components.checkpoint.stateful_wrappers import ModelState, OptimizerState
 from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
@@ -58,6 +59,16 @@ def load_dcp(ckpt_dir: Path | str) -> tuple[dict, dict]:
             sched_state_dict = {}
 
     return tensor_state_dict, sched_state_dict
+
+
+def compare_configs(source_config: dict, restored_config: dict):
+    """ Recursively compare two configs."""
+    for k, v in source_config.items():
+        if k in restored_config:
+            if isinstance(v, dict):
+                compare_configs(v, restored_config[k])
+            else:
+                assert v == restored_config[k], f"Config mismatch for key {k}. Expected {v} but got {restored_config[k]}"
 
 
 def to_cpu(
@@ -737,7 +748,7 @@ def test_dcp_checkpoint():
         "optim.state.lm_head.weight.exp_avg_sq": ([16000, 512], torch.bfloat16, "cpu"),
     }
 
-    cfg_path = Path(__file__).parents[3] / "examples" / "llm" / "llama_3_2_1b_hellaswag.yaml"
+    cfg_path = Path(__file__).parents[3] / "examples" / "llm_finetune" / "llama3_2" / "llama3_2_1b_hellaswag.yaml"
     cfg = parse_args_and_load_config(cfg_path)
     trainer = FinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
@@ -771,6 +782,7 @@ def test_dcp_checkpoint():
         "optim/__1_0.distcp",
         "optim/.metadata",
         "step_scheduler.pt",
+        "config.yaml",
     ]
 
     for file in output_files:
@@ -824,6 +836,11 @@ def test_dcp_checkpoint():
     source_model_loss = get_validation_loss(trainer.model, val_batch, trainer.loss_fn, trainer.dist_env.device)
     restored_model_loss = get_validation_loss(restored_model, val_batch, trainer.loss_fn, trainer.dist_env.device)
     assert torch.allclose(source_model_loss, restored_model_loss), "Model loss mismatch"
+
+    # compare the recipe configs
+    with open(Path(trainer.checkpoint_config.checkpoint_dir) / "epoch_0_step_10" / "config.yaml", "r") as f:
+        restored_config = yaml.safe_load(f)
+    compare_configs(trainer.cfg.raw_config, restored_config)
 
     # similarly, the optimizer states are saved in a dictionary formatted as:
     # {

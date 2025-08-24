@@ -20,7 +20,12 @@ from typing import List, Optional, Union
 
 import torch
 from torch.nn.attention import SDPBackend, sdpa_kernel
-from transformers import AutoModelForCausalLM, AutoModelForImageTextToText, PreTrainedModel
+from transformers import (
+    AutoModelForCausalLM,
+    AutoModelForImageTextToText,
+    AutoModelForSequenceClassification,
+    PreTrainedModel,
+)
 from transformers.models.auto.auto_factory import _BaseAutoModelClass
 
 from nemo_automodel import __version__
@@ -111,6 +116,34 @@ def _patch_liger_kernel(model):
         raise RuntimeError("Failed to patch model")
 
 
+def _get_next_fallback_attn(attn_implementation: str) -> str:
+    """
+    Get the next attention implementation in the priority list, in reverse order.
+
+    If a model does not support a given attention implementation, the next
+    implementation in the priority list is returned.
+
+    If the current attention implementation is not in the priority list, it uses eager.
+
+    Args:
+        attn_implementation (str): The current attention implementation.
+
+    Returns:
+        str: The next attention implementation in the priority list.
+    """
+    priorities = [
+        "eager",
+        "sdpa",
+        "flash_attention_2",
+        "flash_attention_3",
+    ]
+    if attn_implementation in priorities:
+        pos = priorities.index(attn_implementation)
+        return priorities[max(0, pos - 1)]
+    else:
+        return priorities[0]
+
+
 class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
     """
     Drop-in replacement for ``_BaseAutoModelClass`` that includes custom-kernels.
@@ -169,6 +202,9 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
                 Data type passed to the underlying `from_pretrained` call.
             attn_implementation (str, default="flash_attention_2"): Desired
                 attention implementation; forwarded to the HF config.
+            fp8_config (FP8Config, optional): FP8 configuration object that
+                specifies all FP8 quantization settings. If provided, FP8 quantization
+                will be applied to the model for improved performance on supported hardware.
             **kwargs: Additional keyword arguments forwarded verbatim to
                 `AutoModelForCausalLM.from_pretrained`.
 
@@ -201,6 +237,7 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
             )
 
         # load model
+        model = None
         try:
             name = cls.__name__
             if name.startswith("NeMo"):
@@ -215,8 +252,11 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
             cls.__name__ = name
         except ValueError as e:
             if "does not support" in str(e):
-                logging.warning("Falling back to eager attention.")
-                return _retry(attn_implementation="eager")
+                if model is not None:
+                    del model
+                attn_implementation = _get_next_fallback_attn(attn_implementation)
+                logging.warning("Falling back to {} attention.".format(attn_implementation))
+                return _retry(attn_implementation=attn_implementation)
             raise e
 
         # Kernel patching
@@ -232,7 +272,7 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
             if use_sdpa_patching:
                 model = _patch_attention(model, sdpa_method)
         except:
-            logging.warning("Retrying without Liger kernels.")
+            logging.warning("Retrying without SDPA patching.")
             return _retry(use_sdpa_patching=False)
 
         model.config.update({"nemo_version": __version__})
@@ -270,10 +310,6 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
                 One or multiple SDPA back-ends to prefer when applying SDPA
                 patching. When ``None``, the default backend resolution logic is
                 used. Defaults to ``None``.
-            torch_dtype (Union[str, torch.dtype], optional):
-                The desired data type for model initialization
-                (e.g., ``"auto"``, ``torch.float16``). Passed through to
-                ``transformers.AutoModel``. Defaults to ``"auto"``.
             attn_implementation (str, optional):
                 Specifies which attention implementation to use (e.g.,
                 ``"flash_attention_2"``, ``"eager"``). Only applied when the
@@ -292,14 +328,13 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
               deleted and the method recurses once with
               `use_liger_kernel=False` or `use_sdpa_patching=False`
         """
-        torch_dtype = dtype_from_str(torch_dtype) if torch_dtype != "auto" else torch_dtype
+        torch_dtype = dtype_from_str(torch_dtype) if torch_dtype != "auto" else torch.bfloat16
 
         def _retry(**override):
             """Internal helper to re-enter this function with patched args."""
             return cls.from_config(
                 config,
                 *model_args,
-                torch_dtype=torch_dtype,
                 attn_implementation=override.get("attn_implementation", attn_implementation),
                 use_liger_kernel=override.get("use_liger_kernel", use_liger_kernel),
                 use_sdpa_patching=override.get("use_sdpa_patching", use_sdpa_patching),
@@ -315,8 +350,8 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
             model = super().from_config(
                 config,
                 *model_args,
-                torch_dtype=torch_dtype,
                 attn_implementation=attn_implementation,
+                torch_dtype=torch_dtype,
                 **kwargs,
             )
             cls.__name__ = name
@@ -339,7 +374,7 @@ class _BaseNeMoAutoModelClass(_BaseAutoModelClass):
             if use_sdpa_patching:
                 model = _patch_attention(model, sdpa_method)
         except:
-            logging.warning("Retrying without Liger kernels.")
+            logging.warning("Retrying without SDPA patching.")
             return _retry(use_sdpa_patching=False)
 
         model.config.update({"nemo_version": __version__})
@@ -402,6 +437,36 @@ class NeMoAutoModelForImageTextToText(_BaseNeMoAutoModelClass, AutoModelForImage
     >>> model = NeMoAutoModelForImageTextToText.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct") # try Liger
     >>> model = NeMoAutoModelForImageTextToText.from_pretrained(
     ...     "Qwen/Qwen2.5-VL-3B-Instruct", use_liger_kernel=False)                            # skip Liger
+    """
+
+    pass
+
+
+class NeMoAutoModelForSequenceClassification(_BaseNeMoAutoModelClass, AutoModelForSequenceClassification):
+    """Drop-in replacement for ``transformers.AutoModelForSequenceClassification`` with custom-kernels.
+
+    The class only overrides ``from_pretrained`` and ``from_config`` to add the
+    optional ``use_liger_kernel`` flag.  If the flag is ``True`` (default) and
+    the Liger kernel is available, the model's attention layers are
+    monkey-patched in place.  If patching fails for any reason, the call is
+    retried once with ``use_liger_kernel=False`` so that users still obtain a
+    functional model.
+
+
+    @akoumpa: currently only supporting liger_kernel for demonstration purposes.
+
+    Notes:
+    -----
+    - No changes are made to the model's public API; forward signatures,
+      generation utilities, and weight shapes remain identical.
+    - Only decoder-style (causal) architectures are currently supported by the
+      Liger patch.  Unsupported models will silently fall back.
+
+    Examples:
+    --------
+    >>> model = NeMoAutoModelForSequenceClassification.from_pretrained("bert-base-uncased") # try Liger
+    >>> model = NeMoAutoModelForSequenceClassification.from_pretrained(
+    ...     "bert-base-uncased", use_liger_kernel=False)                            # skip Liger
     """
 
     pass

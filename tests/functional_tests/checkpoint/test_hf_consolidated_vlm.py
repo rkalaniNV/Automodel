@@ -25,6 +25,7 @@ import torch.distributed.tensor
 import torch.nn as nn
 from safetensors import safe_open
 from transformers import AutoModelForImageTextToText
+import yaml
 
 from nemo_automodel.components.checkpoint._backports.hf_storage import _HuggingFaceStorageReader
 from nemo_automodel.components.checkpoint.stateful_wrappers import ModelState, OptimizerState
@@ -64,6 +65,16 @@ def load_dcp(ckpt_dir: Path | str) -> tuple[dict, dict]:
             sched_state_dict = {}
 
     return tensor_state_dict, sched_state_dict
+
+
+def compare_configs(source_config: dict, restored_config: dict):
+    """ Recursively compare two configs."""
+    for k, v in source_config.items():
+        if k in restored_config:
+            if isinstance(v, dict):
+                compare_configs(v, restored_config[k])
+            else:
+                assert v == restored_config[k], f"Config mismatch for key {k}. Expected {v} but got {restored_config[k]}"
 
 
 def load_safetensors(ckpt_dir: Path | str) -> dict[str, torch.Tensor]:
@@ -402,7 +413,7 @@ def test_consolidated_vlm_checkpoint():
     }
 
     script_path = Path(__file__).parent.resolve()
-    cfg = parse_args_and_load_config(script_path / "gemma_3_vl_4b_cord_v2.yaml")
+    cfg = parse_args_and_load_config(script_path / "gemma3" / "gemma3_vl_4b_cord_v2.yaml")
     trainer = FinetuneRecipeForVLM(cfg)
     trainer.setup()
     trainer.run_train_validation_loop()
@@ -437,14 +448,16 @@ def test_consolidated_vlm_checkpoint():
         "model/consolidated/tokenizer_config.json",
         "model/consolidated/tokenizer.json",
         "model/consolidated/special_tokens_map.json",
+        "model/consolidated/generation_config.json",
         "optim/__0_0.distcp",
         "optim/__1_0.distcp",
         "optim/.metadata",
         "step_scheduler.pt",
+        "config.yaml",
     ]
 
     for file in output_files:
-        path = Path(trainer.checkpoint_config.checkpoint_dir) / "epoch_0_step_10" / file
+        path = Path(trainer.checkpoint_config.checkpoint_dir) / "epoch_2_step_10" / file
         assert path.exists(), f"Expected {path} to exist"
         if "." in file:
             assert path.is_file(), f"Expected {path} to be a file"
@@ -455,7 +468,7 @@ def test_consolidated_vlm_checkpoint():
 
     # Load checkpoint data
     restored_optim_dict, saved_lr_scheduler_state = load_dcp(
-        Path(trainer.checkpoint_config.checkpoint_dir) / "epoch_0_step_10" / "optim",
+        Path(trainer.checkpoint_config.checkpoint_dir) / "epoch_2_step_10" / "optim",
     )
     # Remove "sched." prefix from keys in saved_lr_scheduler_state if present
     if saved_lr_scheduler_state is not None:
@@ -485,11 +498,11 @@ def test_consolidated_vlm_checkpoint():
                 )
 
     restored_model_dict, _ = load_dcp(
-        Path(trainer.checkpoint_config.checkpoint_dir) / "epoch_0_step_10" / "model",
+        Path(trainer.checkpoint_config.checkpoint_dir) / "epoch_2_step_10" / "model",
     )
     restored_model_dict_consolidated = load_safetensors(
         Path(trainer.checkpoint_config.checkpoint_dir)
-        / "epoch_0_step_10"
+        / "epoch_2_step_10"
         / "model"
         / "consolidated"
         / "model-00001-of-00001.safetensors",
@@ -504,10 +517,15 @@ def test_consolidated_vlm_checkpoint():
     restored_model_loss = get_validation_loss(restored_model, val_batch, trainer.loss_fn, trainer.dist_env.device)
     assert torch.allclose(source_model_loss, restored_model_loss), "Model loss mismatch"
 
+    # compare the recipe configs
+    with open(Path(trainer.checkpoint_config.checkpoint_dir) / "epoch_2_step_10" / "config.yaml", "r") as f:
+        restored_config = yaml.safe_load(f)
+    compare_configs(trainer.cfg.raw_config, restored_config)
+
     # load consolidated model using HF API and verify it's the same as the trained model
     consolidated_model = (
         AutoModelForImageTextToText.from_pretrained(
-            Path(trainer.checkpoint_config.checkpoint_dir) / "epoch_0_step_10" / "model" / "consolidated"
+            Path(trainer.checkpoint_config.checkpoint_dir) / "epoch_2_step_10" / "model" / "consolidated"
         )
         .to(trainer.model.dtype)
         .to(trainer.dist_env.device)
