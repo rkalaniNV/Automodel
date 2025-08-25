@@ -24,7 +24,7 @@ NeMo Framework is NVIDIA's GPU accelerated, end-to-end training framework for la
 
 > ⚠️ Note: NeMo AutoModel is under active development. New features, improvements, and documentation updates are released regularly. We are working toward a stable release, so expect the interface to solidify over time. Your feedback and contributions are welcome, and we encourage you to follow along as new updates roll out.
 
-## Features
+## Feature Roadmap
 
 ✅ _Available now_ | 🔜 _Coming in 25.09_
 
