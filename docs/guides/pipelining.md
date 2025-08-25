@@ -52,34 +52,41 @@ import torch
 from torch.distributed.device_mesh import init_device_mesh
 from nemo_automodel.components.distributed.pipelining import AutoPipeline
 from transformers import AutoModelForCausalLM
+from transformers.integrations.accelerate import init_empty_weights
+from transformers.modeling_utils import no_init_weights
+from transformers.utils import ContextManagers
 
-# 1) Initialize device mesh with 2 pipeline stages
-world_mesh = init_device_mesh("cuda", mesh_shape=(2,), mesh_dim_names=("pp",))
-
-# 2) Load your model
-model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-hf")
-
-# 3) Define loss function
 def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    """Define loss function for pipeline training."""
     return torch.nn.functional.cross_entropy(
         logits.float().view(-1, logits.size(-1)),
         targets.view(-1),
         ignore_index=-100
     )
 
-# 4) Configure and build pipeline
-ap = AutoPipeline(
-    world_mesh=world_mesh,
-    pp_axis_name="pp",
-    pp_schedule="1f1b",
-    pp_microbatch_size=1,
-    device=torch.cuda.current_device(),
-    dtype=torch.bfloat16,
-).build(model, loss_fn=loss_fn)
+if __name__ == "__main__":
+    # 1) Initialize device mesh with 2 pipeline stages
+    world_mesh = init_device_mesh("cuda", mesh_shape=(2,), mesh_dim_names=("pp",))
 
-# 5) Access pipeline components
-print(ap.debug_summary())
-print(ap.pretty_print_stages())
+    # 2) Load model on meta device to avoid OOM with large models
+    init_ctx = ContextManagers([no_init_weights(), init_empty_weights()])
+    with init_ctx:
+        model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.1-8B")
+
+    # 3) Configure and build pipeline
+    ap = AutoPipeline(
+        world_mesh=world_mesh,
+        pp_axis_name="pp",
+        pp_schedule="1f1b",
+        pp_microbatch_size=1,
+        pp_batch_size=8,  # Total batch size across pipeline
+        device=torch.cuda.current_device(),
+        dtype=torch.bfloat16,
+    ).build(model, loss_fn=loss_fn)
+
+    # 4) Access pipeline components
+    print(ap.debug_summary())
+    print(ap.pretty_print_stages())
 ```
 
 ### Running the Quick Start Example
@@ -94,12 +101,9 @@ uv run torchrun --nproc_per_node=2 pipeline_example.py
 For a complete training example:
 
 ```bash
-# Run fine-tuning with 2-way pipeline parallelism
+# Run fine-tuning with 2-way pipeline parallelism using Llama 3.1 8B
 uv run torchrun --nproc_per_node=2 examples/llm/finetune.py \
-    --config examples/llm/llama_3_2_1b_squad.yaml \
-    --distributed.pp_size 2 \
-    --autopipeline._target_ nemo_automodel.components.distributed.pipelining.AutoPipeline \
-    --dataloader.batch_size 8
+    --config examples/llm_finetune/llama3_1/llama3_1_8b_hellaswag_pp.yaml
 ```
 
 ## Configuration Options
@@ -722,5 +726,3 @@ Key takeaways:
 - The functional API offers modular components for implementing pipeline parallelism with any PyTorch model
 - Both can be combined with other parallelization strategies for optimal performance
 - Use built-in monitoring tools to understand and optimize your pipeline
-
-For more examples and advanced usage patterns, see the [AutoPipeline examples](https://github.com/NVIDIA/NeMo-AutoModel/tree/main/examples/pipeline) in the NeMo AutoModel repository.
