@@ -856,7 +856,6 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     max_grad_norm,
                     foreach=True,
                     pp_mesh=(self.device_mesh["pp"] if self.pp_enabled else None),
-                    ep_dense_params_mesh_ndim=None,
                 )
             else:
                 if not self.device_mesh or self.device_mesh["tp"].size() == 1:
