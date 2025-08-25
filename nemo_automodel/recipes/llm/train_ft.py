@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import pathlib
 import time
@@ -44,7 +43,6 @@ from nemo_automodel.components.datasets.llm.packed_sequence import PackedSequenc
 from nemo_automodel.components.distributed.autopipeline.core import AutoPipeline
 from nemo_automodel.components.distributed.cp_utils import make_cp_batch_and_ctx
 from nemo_automodel.components.distributed.init_utils import (
-    get_local_rank_preinit,
     get_rank_safe,
     initialize_distributed,
 )
@@ -75,20 +73,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------
 #  Stateless helper functions
 # ---------------------------
-
-
-@contextlib.contextmanager
-def _model_init_context(seed: int, use_meta_device: bool = False):
-    with contextlib.ExitStack() as stack:
-        stack.enter_context(StatefulRNG(seed=seed, ranked=True))
-        if use_meta_device:
-            stack.enter_context(torch.device("meta"))
-            stack.enter_context(init_empty_weights())
-        else:
-            stack.enter_context(
-                torch.device(f"cuda:{get_local_rank_preinit()}" if torch.cuda.is_available() else "cpu")
-            )
-        yield
 
 
 def build_model_and_optimizer(
