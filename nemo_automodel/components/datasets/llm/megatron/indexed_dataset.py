@@ -354,7 +354,7 @@ class IndexedDataset(torch.utils.data.Dataset):
         Tuple[List[numpy.ndarray], numpy.ndarray],
     ]:
         if isinstance(idx, (int, numpy.integer)):
-            ptr, length, mode = self.index[int(idx)]
+            ptr, length, mode = self.index[idx]
             seq = self.bin_reader.read(self.index.dtype, length, ptr)
             return (seq, mode) if mode is not None else seq
 
