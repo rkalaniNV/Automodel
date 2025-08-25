@@ -26,7 +26,7 @@ import torch
 import torch.nn as nn
 import wandb
 from torch.distributed.device_mesh import DeviceMesh
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, IterableDataset
 from torchao.float8 import precompute_float8_dynamic_scale_for_fsdp
 from torchdata.stateful_dataloader.sampler import StatefulDistributedSampler
 from transformers import AutoTokenizer
@@ -100,7 +100,6 @@ def build_model_and_optimizer(
     model_wrapper,
     seed,
     tp_size=1,
-    freeze_embeddings=True,
     cfg_fp8=None,
     cfg_compile=None,
     autopipeline: AutoPipeline | None = None,
@@ -120,7 +119,6 @@ def build_model_and_optimizer(
         model_wrapper: Optional parallelism wrapper.
         seed: Random seed.
         tp_size: Tensor parallel size.
-        freeze_embeddings: Whether to freeze embeddings.
         cfg_fp8: Configuration for FP8.
         cfg_compile: Configuration for torch.compile.
 
@@ -150,11 +148,6 @@ def build_model_and_optimizer(
         with init_ctx:
             model = cfg_model.instantiate(**kwargs)
 
-            if freeze_embeddings:
-                logging.info("Freezing embeddings")
-                for m in model.modules():
-                    if isinstance(m, nn.Embedding):
-                        m.weight.requires_grad_(False)
             # Optionally apply PEFT (e.g., LoRA/DoRA, etc)
             if cfg_peft is not None:
                 assert autopipeline is None, "PEFT is not supported with AutoPipeline"
@@ -317,19 +310,25 @@ def build_dataloader(
             "num_replicas": device_mesh["dp"].size(),
             "rank": device_mesh["dp"].get_local_rank(),
         }
-    if "tokenizer" not in cfg_ds:
+    # if tokenizer is not provided, use the model config to instantiate it
+    if "tokenizer" not in cfg_ds and cfg_model.get("pretrained_model_name_or_path", None) is not None:
         logging.info("Using model config to instantiate tokenizer")
         trust_remote_code = getattr(cfg_model, "trust_remote_code", False)
         tokenizer = AutoTokenizer.from_pretrained(
             cfg_model.pretrained_model_name_or_path, trust_remote_code=trust_remote_code
         )
+    elif cfg_ds.get("tokenizer", None) is None:
+        tokenizer = None
     elif "_target_" not in cfg_ds.tokenizer:
         tokenizer = AutoTokenizer.from_pretrained(**cfg_ds.tokenizer.to_dict())
     else:
         tokenizer = cfg_ds.tokenizer.instantiate()
 
     with StatefulRNG(seed=seed, ranked=True):
-        ds = cfg_ds.instantiate(tokenizer=tokenizer)
+        kwargs = {}
+        if tokenizer is not None:
+            kwargs["tokenizer"] = tokenizer
+        ds = cfg_ds.instantiate(**kwargs)
         # Apply packing if configured
         if getattr(cfg_ps, "packed_sequence_size", 0) > 0:
             logger.info(f"Packing dataset with size: {cfg_ps.packed_sequence_size}")
@@ -341,12 +340,16 @@ def build_dataloader(
                 max_packs=getattr(cfg_ps, "max_packs", None),
             ).pack()
 
-        sampler = StatefulDistributedSampler(
-            ds,
-            seed=seed,
-            drop_last=True,
-            **dist_sampler_kwargs,
-        )
+        if not isinstance(ds, IterableDataset):
+            sampler = StatefulDistributedSampler(
+                ds,
+                seed=seed,
+                drop_last=True,
+                **dist_sampler_kwargs,
+            )
+        else:
+            logging.info("Using IterableDataset; skipping sampler.")
+            sampler = None
 
         # Handle collate_fn instantiation if it's a ConfigNode
         dl_kwargs = {"dataset": ds, "sampler": sampler, "drop_last": True}
@@ -549,7 +552,7 @@ def parallelize_for_pp(
 # ---------------------------------------------------------------------------
 
 
-class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
+class TrainFinetuneRecipeForNextTokenPrediction(BaseRecipe):
     """Recipe for fine-tuning a model for next-token prediction.
 
     This class orchestrates training, from setup to main training loop.
@@ -692,7 +695,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         self.checkpoint_config = build_checkpoint_config(
             self.cfg.get("checkpoint", None),
             self.cfg.get("model.cache_dir", None),
-            self.cfg.model.pretrained_model_name_or_path,
+            self.cfg.model.get("pretrained_model_name_or_path", None),
             True if self.cfg.get("peft", None) else False,
         )
 
@@ -1013,7 +1016,7 @@ def main(config_path=None):
     if config_path is None:
         config_path = pathlib.Path(__file__).parent.resolve() / "llama_3_2_1b_hellaswag.yaml"
     cfg = parse_args_and_load_config(config_path)
-    trainer = FinetuneRecipeForNextTokenPrediction(cfg)
+    trainer = TrainFinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
     trainer.run_train_validation_loop()
 
