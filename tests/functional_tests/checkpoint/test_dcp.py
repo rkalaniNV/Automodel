@@ -776,7 +776,7 @@ def test_dcp_checkpoint():
         "optim.state.lm_head.weight.exp_avg_sq": ([16000, 512], torch.bfloat16, "cpu"),
     }
 
-    cfg_path = Path(__file__).parents[3] / "examples" / "llm" / "llama_3_2_1b_hellaswag.yaml"
+    cfg_path = Path(__file__).parents[3] / "examples" / "llm_finetune" / "llama3_2" / "llama3_2_1b_hellaswag.yaml"
     cfg = parse_args_and_load_config(cfg_path)
     trainer = FinetuneRecipeForNextTokenPrediction(cfg)
     trainer.setup()
@@ -795,7 +795,7 @@ def test_dcp_checkpoint():
             trainer.optimizer,
             trainer.lr_scheduler,
         ).state_dict()["optim"]
-    )    
+    )
 
     # assert the correct paths exist
     output_files = [
@@ -909,7 +909,7 @@ def test_dcp_checkpoint():
                 restored_model_dict[k].shape[0] // 2,
             )[torch.distributed.get_rank()]
 
-        
+
         assert list(curr_shard.shape) == expected_shape, (
             f"Shape mismatch for key {k}. Expected shape {expected_shape} but got {curr_shard.shape}"
         )

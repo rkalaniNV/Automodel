@@ -815,7 +815,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 )
                 loss_buffer.append(local_loss.clone().detach())
                 if is_train:
-                    local_loss.backward()
+                    (local_loss * self._get_dp_group_size()).backward()
 
     def _run_train_optim_step(self, batches, max_grad_norm: Optional[float] = None):
         """Execute a single training step.
@@ -825,13 +825,18 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             max_grad_norm: Gradient clipping norm. Optional, if None will not clip gradients.
         """
 
-        num_label_tokens = sum((batch["labels"] != -100).sum().item() for batch in batches)
-        num_label_tokens = self._dp_allreduce(torch.Tensor([num_label_tokens]).to(self.dist_env.device)).item()
+        num_label_tokens = torch.tensor(
+            sum((batch["labels"] != -100).sum().item() for batch in batches), dtype=torch.long
+        )
+        num_label_tokens = self._dp_allreduce(num_label_tokens).item()
         loss_buffer = []
 
         # number of tokens in the batch, excluding any tail padding.
-        num_tokens_in_batch = sum(batch["labels"].numel() - count_tail_padding(batch["labels"]) for batch in batches)
-        num_tokens_in_batch = self._dp_allreduce(torch.LongTensor([num_tokens_in_batch])).item()
+        num_tokens_in_batch = torch.tensor(
+            sum(batch["labels"].numel() - count_tail_padding(batch["labels"]) for batch in batches),
+            dtype=torch.long,
+        )
+        num_tokens_in_batch = self._dp_allreduce(num_tokens_in_batch).item()
 
         num_batches = len(batches)
         for i, batch in enumerate(batches):
@@ -842,7 +847,7 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         if self.pp_enabled:
             self.pp.scale_grads_by_divisor(num_label_tokens / self._get_dp_group().size())
 
-        grad_norm = None
+        grad_norm = 0
         # Clip gradients **after** any rescaling.
         # TODO(@boxiangw): Fix TP gradient clipping
         if max_grad_norm is not None:
@@ -858,6 +863,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         [p for p in self.model_parts[0].parameters() if p.requires_grad], max_grad_norm
                     )
+                    if hasattr(grad_norm, "full_tensor"):
+                        grad_norm = grad_norm.full_tensor()  # collect the summed grad norm across ranks
 
             if isinstance(grad_norm, torch.Tensor):
                 grad_norm = grad_norm.item()
@@ -916,8 +923,8 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
             for mp in self.model_parts:
                 mp.eval()
 
-            total_loss = 0.0
-            total_tokens = 0
+            total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.dist_env.device)
+            total_num_label_tokens = 0
 
             for batch in self.val_dataloader:
                 loss_buffer = []
@@ -932,12 +939,12 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 )
 
                 total_loss += torch.sum(torch.stack(loss_buffer)).item()
-                total_tokens += num_label_tokens
+                total_num_label_tokens += num_label_tokens
 
-        total_loss = self._dp_allreduce(torch.FloatTensor([total_loss])).item()
-        total_tokens = self._dp_allreduce(torch.LongTensor([total_tokens])).item()
+        total_loss = self._dp_allreduce(total_loss).item()
+        total_num_label_tokens = self._dp_allreduce(torch.tensor(total_num_label_tokens, dtype=torch.long)).item()
 
-        val_loss = total_loss / max(total_tokens, 1e-8)
+        val_loss = total_loss / max(total_num_label_tokens, 1e-8)
         if self.dist_env.is_main:
             if wandb.run is not None:
                 wandb.log({"val_loss": val_loss, "step": self.step_scheduler.step, "epoch": self.step_scheduler.epoch})
@@ -945,8 +952,12 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         # assumes all model parts' optimizers have the same learning rate
         current_lr = self.optimizer[0].param_groups[0]["lr"]
         logging.info(
-            "[val] step {} | epoch {} | loss {:.4f} | lr {:.2e}".format(
-                self.step_scheduler.step, self.step_scheduler.epoch, val_loss, current_lr
+            "[val] step {} | epoch {} | loss {:.4f} | lr {:.2e} | num_label_tokens {}".format(
+                self.step_scheduler.step,
+                self.step_scheduler.epoch,
+                val_loss,
+                current_lr,
+                total_num_label_tokens,
             )
         )
 
