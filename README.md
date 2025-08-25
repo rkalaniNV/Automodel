@@ -44,39 +44,36 @@ NeMo Framework is NVIDIA's GPU accelerated, end-to-end training framework for la
 
 
 ## 🎛️ Supported Models
-NeMo AutoModel provides native support for a wide range of models available on the Hugging Face Hub, enabling efficient fine-tuning for various domains.
+NeMo AutoModel provides native support for a wide range of models available on the Hugging Face Hub, enabling efficient fine-tuning for various domains. Below is a comprehensive list of all supported models with their available recipes:
 
 ### Large Language Models
-NeMo AutoModel provides ready-to-use recipes for a wide range of popular language models. Below is a comprehensive list of all committed recipes:
+NeMo AutoModel provides ready-to-use recipes for a wide range of popular language models:
 
-| Model Family | Model recipe |
-|--------------|----------|
-| **LLaMA** | [`meta-llama/Llama-3.2-1B`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/llama_3_2_1b_hellaswag.yaml) |
-| | [`meta-llama/Llama-3.1-8B`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/llama_3_2_1b_hellaswag_fp8.yaml) |
-| **Qwen** | [`Qwen/Qwen2.5-7B`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/qwen2_5_7b_squad.yaml) |
-| | [`Qwen/Qwen3-0.6B`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/qwen_3_0p6b_hellaswag.yaml) |
-| **Mistral** | [`mistralai/Mistral-7B-v0.1`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/mistral_7b_squad.yaml) |
-| | [`mistralai/Mistral-Nemo-Base-2407`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/mistral_nemo_2407_squad.yaml) |
-| **Gemma** | [`google/gemma-2-9b-it`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/gemma_2_9b_it_squad.yaml) |
-| **Phi** | [`microsoft/Phi-3-mini-4k-instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/phi_3_mini_it_squad.yaml) |
-| | [`microsoft/phi-4`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/phi_4_squad.yaml) |
-| **GLM** | [`zai-org/glm-4-9b-chat-hf`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/glm_4_9b_chat_hf_squad.yaml) |
-| **Falcon** | [`tiiuae/Falcon-H1-1.5B-Base`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/falcon_h1_1_5b_base_squad.yaml) |
-| | [`tiiuae/Falcon3-7B-Instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/falcon3_7b_instruct_squad.yaml) |
-| **Granite** | [`ibm-granite/granite-3.3-2b-instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/granite_3_3_2b_instruct_squad.yaml) |
-| **InternLM** | [`internlm/internlm3-8b-instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/internlm3_8b_instruct_squad.yaml) |
-| **Seed** | [`ByteDance-Seed/Seed-Coder-8B-Instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/seed_coder_8b_instruct_squad.yaml) |
-| | [`ByteDance-Seed/Seed-OSS-36B-Instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/seed_oss_36B_hellaswag_peft.yaml) |
-| **OLMo** | [`allenai/OLMo-2-0425-1B-Instruct`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/olmo_2_0425_1b_instruct_squad.yaml) |
-| **Cohere** | [`CohereForAI/c4ai-command-r7b-12-2024`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/cohere_command_r_7b_squad.yaml) |
-| **StarCoder** | [`bigcode/starcoder2-7b`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/starcoder_2_7b_squad.yaml) |
-| **Baichuan** | [`baichuan-inc/Baichuan2-7B-Chat`](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/llm/baichuan_2_7b_squad.yaml) |
+| Domain | Model Family | Model ID | Recipes |
+|--------|--------------|----------|---------|
+| **LLM** |  **LLaMA** | `meta-llama/Llama-3.2-1B` | [SFT](llm_finetune/llama/llama3_2_1b_squad.yaml), [PEFT](llm_finetune/llama/llama3_2_1b_hellaswag_peft.yaml) |
+| | | `meta-llama/Llama-3.1-8B` | [SFT](llm_finetune/llama/llama3_1_8b_hellaswag_fp8.yaml) |
+| **LLM** | **Mistral** | `mistralai/Mistral-7B-v0.1` | [SFT](llm_finetune/mistral/mistral_7b_squad.yaml), [PEFT](llm_finetune/mistral/mistral_7b_squad_peft.yaml) |
+|  |  | `mistralai/Mistral-Nemo-Base-2407` | [SFT](llm_finetune/mistral/mistral_nemo_2407_squad.yaml), [PEFT](llm_finetune/mistral/mistral_nemo_2407_squad_peft.yaml) |
+| **LLM** | **Qwen** | `Qwen/Qwen2.5-7B` | [SFT](llm_finetune/qwen/qwen2_5_7b_squad.yaml), [PEFT](llm_finetune/qwen/qwen2_5_7b_squad_peft.yaml) |
+|  |  | `Qwen/Qwen3-0.6B` | [SFT](llm_finetune/qwen/qwen3_0p6b_hellaswag.yaml), [PEFT](llm_finetune/qwen/qwen3_0p6b_hellaswag_peft.yaml) |
+| **LLM** | **Gemma** | `google/gemma-2-9b-it` | [SFT](llm_finetune/gemma/gemma_2_9b_it_squad.yaml), [PEFT](llm_finetune/gemma/gemma_2_9b_it_squad_peft.yaml) |
+| **LLM** | **Phi** | `microsoft/Phi-3-mini-4k-instruct` | [SFT](llm_finetune/phi/phi_3_mini_it_squad.yaml), [PEFT](llm_finetune/phi/phi_3_mini_it_squad_peft.yaml) |
+|  |  | `microsoft/phi-4` | [SFT](llm_finetune/phi/phi_4_squad.yaml), [PEFT](llm_finetune/phi/phi_4_squad_peft.yaml) |
+| **LLM** | **Seed** | `ByteDance-Seed/Seed-Coder-8B-Instruct` | [SFT](llm_finetune/seed/seed_coder_8b_instruct_squad.yaml), [PEFT](llm_finetune/seed/seed_coder_8b_instruct_squad_peft.yaml) |
+|  |  | `ByteDance-Seed/Seed-OSS-36B-Instruct` | [PEFT](llm_finetune/seed/seed_oss_36B_hellaswag_peft.yaml) |
+| **LLM** | **Baichuan** | `baichuan-inc/Baichuan2-7B-Chat` | [SFT](llm_finetune/baichuan/baichuan_2_7b_squad.yaml), [PEFT](llm_finetune/baichuan/baichuan_2_7b_squad_peft.yaml) |
+| **LLM** | **StarCoder** | `bigcode/starcoder2-7b` | [SFT](llm_finetune/starcoder/starcoder_2_7b_squad.yaml), [PEFT](llm_finetune/starcoder/starcoder_2_7b_squad_peft.yaml) |
+| **LLM** | **Falcon** | `tiiuae/Falcon-H1-1.5B-Base` | [SFT](llm_finetune/falcon/falcon_h1_1_5b_base_squad.yaml), [PEFT](llm_finetune/falcon/falcon_h1_1_5b_base_squad_peft.yaml) |
+|  |  | `tiiuae/Falcon3-7B-Instruct` | [SFT](llm_finetune/falcon/falcon3_7b_instruct_squad.yaml), [PEFT](llm_finetune/falcon/falcon3_7b_instruct_squad_peft.yaml) |
+| **LLM** | **GLM** | `zai-org/glm-4-9b-chat-hf` | [SFT](llm_finetune/glm/glm_4_9b_chat_hf_squad.yaml), [PEFT](llm_finetune/glm/glm_4_9b_chat_hf_squad_peft.yaml) |
+| **LLM** | **InternLM** | `internlm/internlm3-8b-instruct` | [SFT](llm_finetune/internlm/internlm3_8b_instruct_squad.yaml), [PEFT](llm_finetune/internlm/internlm3_8b_instruct_squad_peft.yaml) |
+| **LLM** | **OLMo** | `allenai/OLMo-2-0425-1B-Instruct` | [SFT](llm_finetune/olmo/olmo_2_0425_1b_instruct_squad.yaml), [PEFT](llm_finetune/olmo/olmo_2_0425_1b_instruct_squad_peft.yaml) |
+| **LLM** | **Cohere** | `CohereForAI/c4ai-command-r7b-12-2024` | [SFT](llm_finetune/cohere/cohere_command_r_7b_squad.yaml), [PEFT](llm_finetune/cohere/cohere_command_r_7b_squad_peft.yaml) |
+| **LLM** | **Granite** | `ibm-granite/granite-3.3-2b-instruct` | [SFT](llm_finetune/granite/granite_3_3_2b_instruct_squad.yaml), [PEFT](llm_finetune/granite/granite_3_3_2b_instruct_squad_peft.yaml) |
 
 **And more**: Any causal LM on Hugging Face Hub can be used with the base recipe template!
 
-### Vision-Language Models
-- **Qwen2.5-VL**: All variants (3B, 7B, 72B)
-- **Gemma-3-VL**: 3B and other variants
 
 ### 📋 Ready-to-Use Recipes
 To get started quickly, NeMo AutoModel provides a collection of ready-to-use recipes for common LLM and VLM fine-tuning tasks. Simply select the recipe that matches your model and training setup (e.g., single-GPU, multi-GPU, or multi-node).
