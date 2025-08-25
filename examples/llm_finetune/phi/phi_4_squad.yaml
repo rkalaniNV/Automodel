@@ -15,9 +15,9 @@
 
 step_scheduler:
   grad_acc_steps: 1
-  ckpt_every_steps: 1000
-  val_every_steps: 1000  # will run every x number of gradient steps
-  max_steps: 1000
+  ckpt_every_steps: 50
+  val_every_steps: 50  # will run every x number of gradient steps
+  max_steps: 100
 
 dist_env:
   backend: nccl
@@ -37,7 +37,7 @@ model:
 checkpoint:
   enabled: false
   checkpoint_dir: checkpoints/
-  model_save_format: torch_save # torch_save or safetensors
+  model_save_format: safetensors
   save_consolidated: false 
 
 distributed:
