@@ -14,7 +14,7 @@
 
 import logging
 from dataclasses import dataclass
-from typing import Callable, Literal, Optional, Protocol
+from typing import Callable, Literal, Optional
 
 import torch
 import torch.nn as nn
@@ -22,11 +22,14 @@ from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.pipelining.schedules import _PipelineSchedule
 from torch.distributed.pipelining.stage import PipelineStage
 
-from nemo_automodel.components.distributed.autopipeline.functional import pipeline_model
-from nemo_automodel.components.distributed.autopipeline.hf_utils import (
+from nemo_automodel.components.distributed.pipelining.functional import (
+    ParallelizeFnProtocol,
+    pipeline_model,
+)
+from nemo_automodel.components.distributed.pipelining.hf_utils import (
     validate_hf_model_for_pipeline_support,
 )
-from nemo_automodel.components.distributed.autopipeline.training_utils import (
+from nemo_automodel.components.distributed.pipelining.training_utils import (
     pp_clip_grad_norm,
     pp_scale_grads_by_divisor,
 )
@@ -42,22 +45,6 @@ class PipelineInfo:
     has_last_stage: bool
     model_parts: Optional[list[nn.Module]]
     stages: Optional[list[PipelineStage]]
-
-
-class ParallelizeFnProtocol(Protocol):
-    def __call__(
-        self,
-        model: torch.nn.Module,
-        world_mesh: DeviceMesh,
-        moe_mesh: DeviceMesh,
-        *,
-        pp_enabled: bool,
-        dp_axis_names: tuple[str, ...],
-        cp_axis_name: str | None = None,
-        tp_axis_name: str | None = None,
-        ep_axis_name: str | None = None,
-        ep_shard_axis_names: tuple[str, ...] | None = None,
-    ) -> None: ...
 
 
 class AutoPipeline:

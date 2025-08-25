@@ -21,7 +21,7 @@ from torch.testing._internal.distributed.fake_pg import FakeStore
 from torch.distributed.device_mesh import DeviceMesh
 from transformers import AutoConfig, AutoModelForCausalLM
 
-from nemo_automodel.components.distributed.autopipeline.functional import (
+from nemo_automodel.components.distributed.pipelining.functional import (
     split_model_into_stages,
     generate_hf_model_fqn_per_model_part,
 )
@@ -101,7 +101,7 @@ class DummyPipelineStage:
 
 def _patch_pipeline_stage(monkeypatch):
     # Replace real PipelineStage with our dummy to avoid distributed setup
-    import nemo_automodel.components.distributed.autopipeline.functional as pipe
+    import nemo_automodel.components.distributed.pipelining.functional as pipe
 
     monkeypatch.setattr(pipe, "PipelineStage", DummyPipelineStage)
 

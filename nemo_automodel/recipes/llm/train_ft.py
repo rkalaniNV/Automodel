@@ -40,13 +40,13 @@ from nemo_automodel.components._peft.lora import apply_lora_to_linear_modules
 from nemo_automodel.components.checkpoint.checkpointing import CheckpointingConfig, load_model_from_base_checkpoint
 from nemo_automodel.components.config._arg_parser import parse_args_and_load_config
 from nemo_automodel.components.datasets.llm.packed_sequence import PackedSequence
-from nemo_automodel.components.distributed.autopipeline.core import AutoPipeline
 from nemo_automodel.components.distributed.cp_utils import make_cp_batch_and_ctx
 from nemo_automodel.components.distributed.init_utils import (
     get_rank_safe,
     initialize_distributed,
 )
 from nemo_automodel.components.distributed.nvfsdp import NVFSDPManager
+from nemo_automodel.components.distributed.pipelining import AutoPipeline
 from nemo_automodel.components.loggers.log_utils import setup_logging
 from nemo_automodel.components.loggers.wandb_utils import suppress_wandb_log_messages
 from nemo_automodel.components.loss.linear_ce import FusedLinearCrossEntropy

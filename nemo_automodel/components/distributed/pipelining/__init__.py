@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_automodel.components.distributed.autopipeline.core import AutoPipeline
+from nemo_automodel.components.distributed.pipelining.autopipeline import AutoPipeline
 
 __all__ = ["AutoPipeline"]

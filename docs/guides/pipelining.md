@@ -6,9 +6,11 @@ As large language models continue to grow in size, training and fine-tuning them
 
 Pipeline parallelism addresses these challenges by splitting a model's layers across different devices and processing them in a pipelined fashion. Each device processes a different stage of the model, enabling training of models that wouldn't fit on a single device while maintaining high GPU utilization through overlapped computation.
 
-AutoPipeline is NeMo AutoModel's high-level pipeline parallelism interface that makes implementing pipeline parallelism as simple as data parallelism. Built on PyTorch's native `torch.distributed.pipelining`, AutoPipeline provides seamless pipeline parallelism support for any HuggingFace decoder-only causal language model with minimal code changes.
+AutoPipeline is NeMo AutoModel's high-level pipeline parallelism interface specifically designed for HuggingFace models, making pipeline parallelism as simple as data parallelism. Built on PyTorch's native `torch.distributed.pipelining`, AutoPipeline provides seamless pipeline parallelism support for any HuggingFace decoder-only causal language model with minimal code changes.
 
-This guide walks you through the complete process of using AutoPipeline for pipeline-parallel training. You'll learn how to configure pipeline stages, integrate with existing training workflows, optimize performance, and combine pipeline parallelism with other parallelization strategies.
+For custom models and more granular control, the functional API in `nemo_automodel.components.distributed.pipelining.functional` provides modular, accessible building blocks that can be used with any PyTorch model architecture.
+
+This guide walks you through the complete process of using AutoPipeline for HuggingFace models and the functional API for custom models. You'll learn how to configure pipeline stages, integrate with existing training workflows, optimize performance, and combine pipeline parallelism with other parallelization strategies.
 
 :::{important}
 Before proceeding with this guide, please ensure that you have NeMo AutoModel installed on your machine.
@@ -38,16 +40,17 @@ AutoPipeline provides enterprise-grade pipeline parallelism with the following f
 - **PyTorch Native Integration**: Built on PyTorch's `torch.distributed.pipelining` for optimal performance
 - **Flexible Configuration**: Multiple scheduling strategies, configurable microbatch sizes, and automatic or manual layer splitting
 - **Mixed Parallelism Support**: Combine pipeline parallelism with data parallelism, tensor parallelism, and FSDP
+- **Modular Functional API**: For custom models, the functional module provides accessible, low-level building blocks
 - **Minimal Opinions**: Easy to extend and integrate with existing training workflows
 
-## Quick Start
+## Quick Start with AutoPipeline (HuggingFace Models)
 
-Here's a minimal example to get started with AutoPipeline using 2 pipeline stages:
+Here's a minimal example to get started with AutoPipeline using 2 pipeline stages with a HuggingFace model:
 
 ```python
 import torch
 from torch.distributed.device_mesh import init_device_mesh
-from nemo_automodel.components.distributed.autopipeline import AutoPipeline
+from nemo_automodel.components.distributed.pipelining import AutoPipeline
 from transformers import AutoModelForCausalLM
 
 # 1) Initialize device mesh with 2 pipeline stages
@@ -95,7 +98,7 @@ For a complete training example:
 uv run torchrun --nproc_per_node=2 examples/llm/finetune.py \
     --config examples/llm/llama_3_2_1b_squad.yaml \
     --distributed.pp_size 2 \
-    --autopipeline._target_ nemo_automodel.components.distributed.autopipeline.core.AutoPipeline \
+    --autopipeline._target_ nemo_automodel.components.distributed.pipelining.AutoPipeline \
     --dataloader.batch_size 8
 ```
 
@@ -145,7 +148,7 @@ ap = AutoPipeline(
 Specify exactly which modules go to each stage:
 
 ```python
-from nemo_automodel.components.distributed.autopipeline.functional import (
+from nemo_automodel.components.distributed.pipelining.functional import (
     generate_hf_model_fqn_per_model_part
 )
 
@@ -244,7 +247,7 @@ Key observations:
 
 ## Using the Functional API for Custom Models
 
-While AutoPipeline provides a high-level interface optimized for HuggingFace models, the functional API in `nemo_automodel.components.distributed.autopipeline.functional` offers lower-level building blocks that can be used with any PyTorch model, including custom architectures.
+While AutoPipeline is specifically designed as a high-level interface for HuggingFace models, the functional API in `nemo_automodel.components.distributed.pipelining.functional` provides more modular and accessible building blocks that can be used with any PyTorch model, including custom architectures. This separation allows for cleaner code organization where AutoPipeline handles HuggingFace-specific optimizations while the functional module remains model-agnostic.
 
 ### Key Functional API Components
 
@@ -252,7 +255,7 @@ The functional API provides several utilities for building custom pipeline paral
 
 #### 1. **Stage ID Calculation**
 ```python
-from nemo_automodel.components.distributed.autopipeline.functional import stage_ids_this_rank
+from nemo_automodel.components.distributed.pipelining.functional import stage_ids_this_rank
 
 # Calculate which stages run on this rank
 # For a "loop" style schedule (default)
@@ -266,7 +269,7 @@ stage_ids = stage_ids_this_rank(pp_rank=0, pp_size=4, num_stages=8, style="v")
 
 #### 2. **Module Name Generation**
 ```python
-from nemo_automodel.components.distributed.autopipeline.functional import (
+from nemo_automodel.components.distributed.pipelining.functional import (
     generate_hf_model_fqn_per_model_part
 )
 
@@ -283,7 +286,7 @@ module_names = generate_hf_model_fqn_per_model_part(
 
 #### 3. **Virtual Stage Calculation**
 ```python
-from nemo_automodel.components.distributed.autopipeline.functional import calculate_virtual_stages
+from nemo_automodel.components.distributed.pipelining.functional import calculate_virtual_stages
 
 # Calculate virtual stages for interleaved schedules
 num_virtual_stages, stages_per_rank = calculate_virtual_stages(
@@ -297,7 +300,7 @@ num_virtual_stages, stages_per_rank = calculate_virtual_stages(
 
 #### 4. **Pipeline Schedule Building**
 ```python
-from nemo_automodel.components.distributed.autopipeline.functional import build_pipeline_schedule
+from nemo_automodel.components.distributed.pipelining.functional import build_pipeline_schedule
 
 # Build a schedule for your stages
 schedule = build_pipeline_schedule(
@@ -320,7 +323,7 @@ import torch
 import torch.nn as nn
 from torch.distributed.device_mesh import init_device_mesh
 from torch.distributed.pipelining import PipelineStage
-from nemo_automodel.components.distributed.autopipeline.functional import (
+from nemo_automodel.components.distributed.pipelining.functional import (
     stage_ids_this_rank,
     build_pipeline_schedule,
     calculate_virtual_stages
@@ -439,7 +442,7 @@ def main():
 For more complex custom models, you can implement your own splitting logic:
 
 ```python
-from nemo_automodel.components.distributed.autopipeline.functional import pipeline_model
+from nemo_automodel.components.distributed.pipelining.functional import pipeline_model
 
 def custom_parallelize_fn(
     model, world_mesh, moe_mesh, *,
@@ -477,11 +480,15 @@ schedule, model_parts, has_first, has_last, stages = pipeline_model(
 
 ### Tips for Using Functional API with Custom Models
 
+The functional API is designed to be more accessible and modular than AutoPipeline:
+
 1. **Module Naming**: Ensure your model has consistent module naming that can be mapped to stages
 2. **State Management**: Handle model state (embeddings, buffers) carefully across stages
 3. **Communication**: First and last stages need special handling for inputs/outputs
-4. **Activation Checkpointing**: Can be combined with pipeline parallelism for memory savings
+4. **Flexibility**: The functional API gives you complete control over how models are split and parallelized
 5. **Testing**: Start with a small model and verify correct splitting before scaling up
+
+The functional module's modular design makes it easier to integrate pipeline parallelism into existing custom model training workflows without the HuggingFace-specific assumptions that AutoPipeline makes.
 
 ## Mixed Parallelism
 
@@ -572,7 +579,7 @@ uv run torchrun --nproc_per_node=2 examples/llm/finetune.py \
     --config examples/llm/llama_3_2_1b_squad.yaml \
     --distributed._target_ nemo_automodel.components.distributed.fsdp2.FSDP2Manager \
     --distributed.pp_size 2 \
-    --autopipeline._target_ nemo_automodel.components.distributed.autopipeline.core.AutoPipeline \
+    --autopipeline._target_ nemo_automodel.components.distributed.pipelining.AutoPipeline \
     --autopipeline.pp_schedule 1f1b \
     --autopipeline.pp_microbatch_size 1 \
     --autopipeline.round_virtual_stages_to_pp_multiple up \
@@ -601,7 +608,7 @@ distributed:
 
 # Add new autopipeline section
 autopipeline:
-  _target_: nemo_automodel.components.distributed.autopipeline.core.AutoPipeline
+  _target_: nemo_automodel.components.distributed.pipelining.AutoPipeline
   pp_schedule: 1f1b
   pp_microbatch_size: 1
   # pp_batch_size is automatically inferred from dataloader.batch_size
@@ -655,7 +662,7 @@ distributed:
   sequence_parallel: false
 
 autopipeline:
-  _target_: nemo_automodel.components.distributed.autopipeline.core.AutoPipeline
+  _target_: nemo_automodel.components.distributed.pipelining.AutoPipeline
   pp_schedule: 1f1b
   pp_microbatch_size: 1
   # pp_batch_size is automatically inferred from dataloader.batch_size
@@ -707,12 +714,13 @@ uv run torchrun --nproc_per_node=2 examples/llm/finetune.py --config config.yaml
 
 ## Conclusion
 
-AutoPipeline makes pipeline parallelism accessible and practical for training large language models. By abstracting the complexity of distributed training while providing flexibility where needed, it enables efficient scaling of model training across multiple GPUs.
+AutoPipeline and the functional API together provide a complete pipeline parallelism solution for both HuggingFace and custom models. AutoPipeline offers a high-level, optimized interface specifically for HuggingFace models, while the functional module provides modular, accessible building blocks for custom architectures.
 
 Key takeaways:
 - Pipeline parallelism enables training of models too large for a single GPU
-- AutoPipeline provides a simple API with powerful customization options
-- Combine with other parallelization strategies for optimal performance
+- AutoPipeline provides a simple API for HuggingFace models with powerful customization options
+- The functional API offers modular components for implementing pipeline parallelism with any PyTorch model
+- Both can be combined with other parallelization strategies for optimal performance
 - Use built-in monitoring tools to understand and optimize your pipeline
 
 For more examples and advanced usage patterns, see the [AutoPipeline examples](https://github.com/NVIDIA/NeMo-AutoModel/tree/main/examples/pipeline) in the NeMo AutoModel repository.

@@ -20,7 +20,7 @@ import torch.nn as nn
 from transformers.cache_utils import Cache
 from transformers.modeling_outputs import BaseModelOutputWithPast
 
-from nemo_automodel.components.distributed.autopipeline.hf_utils import (
+from nemo_automodel.components.distributed.pipelining.hf_utils import (
     create_pipeline_forward_inner,
     create_pipeline_forward_causal_lm,
     patch_hf_model_for_pp,
@@ -534,7 +534,7 @@ class TestValidateHfModelForPipelineSupport:
         inputs_embeds = torch.randn(1, 10, 768)
 
         # Should trigger warning and set use_cache=False
-        with patch('nemo_automodel.components.distributed.autopipeline.hf_utils.logger') as mock_logger:
+        with patch('nemo_automodel.components.distributed.pipelining.hf_utils.logger') as mock_logger:
             output = forward_fn(mock_model, inputs_embeds=inputs_embeds)
             mock_logger.warning_once.assert_called_once()
 

@@ -20,8 +20,8 @@ import pytest
 import torch
 import torch.nn as nn
 
-from nemo_automodel.components.distributed.autopipeline.core import AutoPipeline
-from nemo_automodel.components.distributed.autopipeline.functional import (
+from nemo_automodel.components.distributed.pipelining.autopipeline import AutoPipeline
+from nemo_automodel.components.distributed.pipelining.functional import (
     generate_hf_model_fqn_per_model_part,
 )
 
@@ -130,7 +130,7 @@ class FakeSchedule:
 
 def _patch_autopipeline_monkey(monkeypatch):
     # Replace real PipelineStage and schedule builder with our dummies
-    import nemo_automodel.components.distributed.autopipeline.functional as fn
+    import nemo_automodel.components.distributed.pipelining.functional as fn
 
     monkeypatch.setattr(fn, "PipelineStage", DummyPipelineStage)
 
@@ -397,7 +397,7 @@ class TestAutoPipelineBuildAndStep:
         mock_clip_grad_norm = Mock(return_value=torch.tensor(1.5))
         mock_scale_grads = Mock()
 
-        import nemo_automodel.components.distributed.autopipeline.core as core_mod
+        import nemo_automodel.components.distributed.pipelining.core as core_mod
         monkeypatch.setattr(core_mod, "pp_clip_grad_norm", mock_clip_grad_norm)
         monkeypatch.setattr(core_mod, "pp_scale_grads_by_divisor", mock_scale_grads)
 
@@ -690,7 +690,7 @@ class TestAutoPipelineDebugUtilities:
         mock_get_schedule_ops = Mock(return_value=[])
         mock_visualize_schedule = Mock()
 
-        import nemo_automodel.components.distributed.autopipeline.core as core_mod
+        import nemo_automodel.components.distributed.pipelining.core as core_mod
 
         # Patch the import inside visualize_current_schedule
         def mock_visualize_method(self, filename=None):

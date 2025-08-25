@@ -16,7 +16,7 @@ import copy
 import logging
 import math
 import os
-from typing import Callable, Optional
+from typing import Callable, Optional, Protocol
 
 import torch
 import torch.nn as nn
@@ -31,9 +31,25 @@ from torch.distributed.pipelining.schedules import (
     get_schedule_class,
 )
 
-from nemo_automodel.components.distributed.autopipeline.hf_utils import patch_hf_model_for_pp
+from nemo_automodel.components.distributed.pipelining.hf_utils import patch_hf_model_for_pp
 
 logger = logging.getLogger(__name__)
+
+
+class ParallelizeFnProtocol(Protocol):
+    def __call__(
+        self,
+        model: torch.nn.Module,
+        world_mesh: DeviceMesh,
+        moe_mesh: DeviceMesh,
+        *,
+        pp_enabled: bool,
+        dp_axis_names: tuple[str, ...],
+        cp_axis_name: str | None = None,
+        tp_axis_name: str | None = None,
+        ep_axis_name: str | None = None,
+        ep_shard_axis_names: tuple[str, ...] | None = None,
+    ) -> None: ...
 
 
 def stage_ids_this_rank(pp_rank: int, pp_size: int, num_stages: int, style: str = "loop") -> tuple[int]:

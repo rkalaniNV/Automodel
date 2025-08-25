@@ -51,7 +51,7 @@ guides/vlm/dataset.md
 :caption: Development
 :hidden:
 guides/checkpointing.md
-guides/autopipeline.md
+guides/pipelining.md
 guides/llm/dataset.md
 guides/vlm/dataset.md
 guides/llm/column-mapped-text-instruction-dataset.md

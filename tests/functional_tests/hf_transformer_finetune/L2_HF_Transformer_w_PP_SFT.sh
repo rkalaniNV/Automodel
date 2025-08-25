@@ -40,7 +40,7 @@ examples/llm/finetune.py \
     --distributed.cp_size 1 \
     --distributed.pp_size 2 \
     --distributed.sequence_parallel false \
-    --autopipeline._target_ nemo_automodel.components.distributed.autopipeline.core.AutoPipeline \
+    --autopipeline._target_ nemo_automodel.components.distributed.pipelining.AutoPipeline \
     --autopipeline.pp_schedule 1f1b \
     --autopipeline.pp_microbatch_size 1 \
     --autopipeline.pp_batch_size 8 \

@@ -14,12 +14,12 @@
 
 import logging
 import types
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Callable, Optional, Union
 
 import torch
 
 if TYPE_CHECKING:
-    from transformers import AutoConfig
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -259,9 +259,7 @@ def validate_hf_model_for_pipeline_support(model: torch.nn.Module) -> None:
                 "tie_word_embeddings=True is not supported for pipelining. Use separate input/output embeddings."
             )
         if getattr(config, "is_encoder_decoder", False):
-            issues.append(
-                "Encoder-Decoder models with cross-attention are not supported yet for pipeline parallelism."
-            )
+            issues.append("Encoder-Decoder models with cross-attention are not supported yet for pipeline parallelism.")
 
     if issues:
         error_msg = f"Model '{model_name}' is not compatible with pipeline parallelism:\n\n"
