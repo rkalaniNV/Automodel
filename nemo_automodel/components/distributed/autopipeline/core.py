@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Literal, Optional, Protocol
 
 import torch
@@ -60,67 +60,70 @@ class ParallelizeFnProtocol(Protocol):
     ) -> None: ...
 
 
-@dataclass
-class AutoPipelineConfig:
-    # Device Mesh
-    world_mesh: Optional[DeviceMesh] = None
-    moe_mesh: Optional[DeviceMesh] = None
-    pp_axis_name: str = "pp"
-    dp_axis_names: tuple[str, ...] = ("dp",)
-    cp_axis_name: Optional[str] = None
-    tp_axis_name: Optional[str] = None
-    ep_axis_name: Optional[str] = None
-    ep_shard_axis_names: Optional[tuple[str, ...]] = None
-
-    # Pipeline Parallel
-    pp_schedule: Optional[str] = "1f1b"
-    pp_schedule_csv: Optional[str] = None
-    pp_microbatch_size: int = 1
-    pp_batch_size: int = 1
-    layers_per_stage: Optional[int] = None
-    round_virtual_stages_to_pp_multiple: Optional[Literal["up", "down"]] = None
-    module_fqns_per_model_part: Optional[list[list[str]]] = None
-
-    # Patching
-    patch_inner_model: bool = True
-    patch_causal_lm_model: bool = True
-
-    # Runtime
-    device: torch.device = field(default_factory=lambda: torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-    dtype: Optional[torch.dtype] = None
-    scale_grads_in_schedule: bool = False
-
-    # Visualization
-    visualization_font_size_offset: int = 0
-
-    def validate(self) -> None:
-        if self.pp_schedule_csv is None and self.pp_schedule is None:
-            raise ValueError("Either pipeline_parallel_schedule or pipeline_parallel_schedule_csv must be provided")
-        if self.pp_batch_size % self.pp_microbatch_size != 0:
-            raise ValueError("local_batch_size must be divisible by microbatch_size")
-
-
 class AutoPipeline:
-    """Orchestrates pipeline-parallel training on top of torch.distributed.pipelining.
+    """Orchestrates pipeline-parallel training on top of torch.distributed.pipelining."""
 
-    Responsibilities:
-      0. Validation
-      1. Initialize model on meta device
-      2. Split model into pipeline stages
-      3. Materialize and load weights
-      4. Forward/backward step API
-    """
+    def __init__(
+        self,
+        # Device Mesh
+        world_mesh: Optional[DeviceMesh] = None,
+        moe_mesh: Optional[DeviceMesh] = None,
+        pp_axis_name: str = "pp",
+        dp_axis_names: tuple[str, ...] = ("dp",),
+        cp_axis_name: Optional[str] = None,
+        tp_axis_name: Optional[str] = None,
+        ep_axis_name: Optional[str] = None,
+        ep_shard_axis_names: Optional[tuple[str, ...]] = None,
+        # Pipeline Parallel
+        pp_schedule: Optional[str] = "1f1b",
+        pp_schedule_csv: Optional[str] = None,
+        pp_microbatch_size: int = 1,
+        pp_batch_size: int = 1,
+        layers_per_stage: Optional[int] = None,
+        round_virtual_stages_to_pp_multiple: Optional[Literal["up", "down"]] = None,
+        module_fqns_per_model_part: Optional[list[list[str]]] = None,
+        # Patching
+        patch_inner_model: bool = True,
+        patch_causal_lm_model: bool = True,
+        # Runtime
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+        scale_grads_in_schedule: bool = False,
+        # Visualization
+        visualization_font_size_offset: int = 0,
+    ):
+        # Validation
+        if pp_schedule_csv is None and pp_schedule is None:
+            raise ValueError("Either pipeline_parallel_schedule or pipeline_parallel_schedule_csv must be provided")
+        if pp_batch_size % pp_microbatch_size != 0:
+            raise ValueError("local_batch_size must be divisible by microbatch_size")
+        if world_mesh is None:
+            raise ValueError("world_mesh must be provided (DeviceMesh with 'pp' axis)")
 
-    def __init__(self, cfg: AutoPipelineConfig):
-        cfg.validate()
-        self.cfg = cfg
+        # Store config attributes
+        self.world_mesh: DeviceMesh = world_mesh
+        self.moe_mesh = moe_mesh
+        self.pp_axis_name = pp_axis_name
+        self.dp_axis_names = dp_axis_names
+        self.cp_axis_name = cp_axis_name
+        self.tp_axis_name = tp_axis_name
+        self.ep_axis_name = ep_axis_name
+        self.ep_shard_axis_names = ep_shard_axis_names
+        self.pp_schedule = pp_schedule
+        self.pp_schedule_csv = pp_schedule_csv
+        self.pp_microbatch_size = pp_microbatch_size
+        self.pp_batch_size = pp_batch_size
+        self.layers_per_stage = layers_per_stage
+        self.round_virtual_stages_to_pp_multiple = round_virtual_stages_to_pp_multiple
+        self.module_fqns_per_model_part = module_fqns_per_model_part
+        self.patch_inner_model = patch_inner_model
+        self.patch_causal_lm_model = patch_causal_lm_model
+        self._device: torch.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.dtype = dtype
+        self.scale_grads_in_schedule = scale_grads_in_schedule
+        self.visualization_font_size_offset = visualization_font_size_offset
 
-        if cfg.world_mesh is None:
-            raise ValueError("AutopipelineConfig.world_mesh must be provided (DeviceMesh with 'pp' axis)")
-
-        self.world_mesh: DeviceMesh = cfg.world_mesh
-        self.pp_mesh: DeviceMesh = self.world_mesh[cfg.pp_axis_name]
-        self._device: torch.device = cfg.device
+        self.pp_mesh: DeviceMesh = self.world_mesh[pp_axis_name]
 
         self._info = PipelineInfo(
             enabled=False,
@@ -148,25 +151,25 @@ class AutoPipeline:
         pp_schedule_obj, model_parts, pp_has_first_stage, pp_has_last_stage, stages = pipeline_model(
             model,
             world_mesh=self.world_mesh,
-            moe_mesh=self.cfg.moe_mesh,
-            pp_axis_name=self.cfg.pp_axis_name,
-            dp_axis_names=self.cfg.dp_axis_names,
-            cp_axis_name=self.cfg.cp_axis_name,
-            tp_axis_name=self.cfg.tp_axis_name,
-            ep_axis_name=self.cfg.ep_axis_name,
-            layers_per_stage=self.cfg.layers_per_stage,
-            pipeline_parallel_schedule_csv=self.cfg.pp_schedule_csv,
-            pipeline_parallel_schedule=self.cfg.pp_schedule,
-            microbatch_size=self.cfg.pp_microbatch_size,
-            local_batch_size=self.cfg.pp_batch_size,
+            moe_mesh=self.moe_mesh,
+            pp_axis_name=self.pp_axis_name,
+            dp_axis_names=self.dp_axis_names,
+            cp_axis_name=self.cp_axis_name,
+            tp_axis_name=self.tp_axis_name,
+            ep_axis_name=self.ep_axis_name,
+            layers_per_stage=self.layers_per_stage,
+            pipeline_parallel_schedule_csv=self.pp_schedule_csv,
+            pipeline_parallel_schedule=self.pp_schedule,
+            microbatch_size=self.pp_microbatch_size,
+            local_batch_size=self.pp_batch_size,
             device=self.device,
             loss_fn=loss_fn,
             parallelize_fn=parallelize_fn,
-            module_fqns_per_model_part=self.cfg.module_fqns_per_model_part,
-            patch_inner_model=self.cfg.patch_inner_model,
-            patch_causal_lm_model=self.cfg.patch_causal_lm_model,
-            scale_grads=self.cfg.scale_grads_in_schedule,
-            round_to_pp_multiple=self.cfg.round_virtual_stages_to_pp_multiple,
+            module_fqns_per_model_part=self.module_fqns_per_model_part,
+            patch_inner_model=self.patch_inner_model,
+            patch_causal_lm_model=self.patch_causal_lm_model,
+            scale_grads=self.scale_grads_in_schedule,
+            round_to_pp_multiple=self.round_virtual_stages_to_pp_multiple,
         )
 
         # Update PipelineInfo state
@@ -240,7 +243,7 @@ class AutoPipeline:
         from torch.distributed.pipelining._schedule_visualizer import get_schedule_ops, visualize_schedule
 
         schedule = self._info.schedule
-        ops = get_schedule_ops(schedule, self.pp_mesh.size(), self.cfg.pp_microbatch_size, len(self._info.stages))
+        ops = get_schedule_ops(schedule, self.pp_mesh.size(), self.pp_microbatch_size, len(self._info.stages))
         visualize_schedule(ops, filename)
 
     @staticmethod

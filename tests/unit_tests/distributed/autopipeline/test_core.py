@@ -20,10 +20,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from nemo_automodel.components.distributed.autopipeline.core import (
-    AutoPipeline,
-    AutoPipelineConfig,
-)
+from nemo_automodel.components.distributed.autopipeline.core import AutoPipeline
 from nemo_automodel.components.distributed.autopipeline.functional import (
     generate_hf_model_fqn_per_model_part,
 )
@@ -143,12 +140,12 @@ def _patch_autopipeline_monkey(monkeypatch):
     monkeypatch.setattr(fn, "build_pipeline_schedule", _fake_build_schedule)
 
 
-class TestAutoPipelineConfig:
-    """Test AutoPipelineConfig validation and properties."""
+class TestAutoPipelineValidation:
+    """Test AutoPipeline validation and properties."""
 
-    def test_valid_config(self):
+    def test_valid_autopipeline(self):
         world_mesh = FakeDeviceMesh()
-        config = AutoPipelineConfig(
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -157,48 +154,44 @@ class TestAutoPipelineConfig:
             device=torch.device("cpu"),
         )
 
-        assert config.world_mesh == world_mesh
-        assert config.pp_axis_name == "pp"
-        assert config.pp_schedule == "1f1b"
-        assert config.pp_microbatch_size == 1
-        assert config.pp_batch_size == 4
-        assert config.device == torch.device("cpu")
+        assert ap.world_mesh == world_mesh
+        assert ap.pp_axis_name == "pp"
+        assert ap.pp_schedule == "1f1b"
+        assert ap.pp_microbatch_size == 1
+        assert ap.pp_batch_size == 4
+        assert ap._device == torch.device("cpu")
 
     def test_invalid_batch_size(self):
         world_mesh = FakeDeviceMesh()
 
-        config = AutoPipelineConfig(
-            world_mesh=world_mesh,
-            pp_axis_name="pp",
-            pp_schedule="1f1b",
-            pp_microbatch_size=3,
-            pp_batch_size=4,  # 4 not divisible by 3
-            device=torch.device("cpu"),
-        )
-
-        # The validation happens when validate() is called
+        # The validation happens in __init__
         with pytest.raises(ValueError, match="local_batch_size must be divisible by microbatch_size"):
-            config.validate()
+            AutoPipeline(
+                world_mesh=world_mesh,
+                pp_axis_name="pp",
+                pp_schedule="1f1b",
+                pp_microbatch_size=3,
+                pp_batch_size=4,  # 4 not divisible by 3
+                device=torch.device("cpu"),
+            )
 
     def test_schedule_validation(self):
         world_mesh = FakeDeviceMesh()
 
         # Test missing schedule validation
-        config = AutoPipelineConfig(
-            world_mesh=world_mesh,
-            pp_axis_name="pp",
-            pp_schedule=None,  # Both pp_schedule and pp_schedule_csv are None
-            pp_schedule_csv=None,
-            pp_microbatch_size=1,
-            pp_batch_size=4,
-            device=torch.device("cpu"),
-        )
-
         with pytest.raises(ValueError, match="Either pipeline_parallel_schedule or pipeline_parallel_schedule_csv must be provided"):
-            config.validate()
+            AutoPipeline(
+                world_mesh=world_mesh,
+                pp_axis_name="pp",
+                pp_schedule=None,  # Both pp_schedule and pp_schedule_csv are None
+                pp_schedule_csv=None,
+                pp_microbatch_size=1,
+                pp_batch_size=4,
+                device=torch.device("cpu"),
+            )
 
         # Valid schedule should not raise
-        config = AutoPipelineConfig(
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -207,12 +200,12 @@ class TestAutoPipelineConfig:
             device=torch.device("cpu"),
         )
         # Should not raise
-        config.validate()
+        assert ap is not None
 
     def test_pp_mesh_extraction(self):
         world_mesh = FakeDeviceMesh()
 
-        config = AutoPipelineConfig(
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -221,9 +214,8 @@ class TestAutoPipelineConfig:
             device=torch.device("cpu"),
         )
 
-        assert config.world_mesh == world_mesh
-        # Note: AutoPipelineConfig doesn't have pp_mesh, pp_size, pp_rank properties
-        # Those are properties of AutoPipeline class
+        assert ap.world_mesh == world_mesh
+        assert ap.pp_mesh is not None
 
 
 # -----------------------------
@@ -236,7 +228,8 @@ class TestAutoPipelineBuildAndStep:
     def test_autopipeline_basic_creation(self):
         """Test basic AutoPipeline creation without full build process."""
         world_mesh = FakeDeviceMesh()
-        cfg = AutoPipelineConfig(
+        # Should be able to create AutoPipeline instance
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -244,9 +237,6 @@ class TestAutoPipelineBuildAndStep:
             pp_batch_size=4,
             device=torch.device("cpu"),
         )
-
-        # Should be able to create AutoPipeline instance
-        ap = AutoPipeline(cfg)
         assert ap.world_mesh == world_mesh
         assert ap.device == torch.device("cpu")
         assert ap._info.enabled is False  # Not built yet
@@ -276,7 +266,11 @@ class TestAutoPipelineBuildAndStep:
         world_mesh = FakeWorldMesh()
         world_mesh["pp"] = FakePPMesh(size=pp_size, local_rank=local_rank)
 
-        cfg = AutoPipelineConfig(
+        # trivial loss_fn; not used by FakeSchedule
+        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+            return torch.tensor(0.0)
+
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -286,12 +280,6 @@ class TestAutoPipelineBuildAndStep:
             module_fqns_per_model_part=module_fqns,
             device=torch.device("cpu"),
         )
-
-        # trivial loss_fn; not used by FakeSchedule
-        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-            return torch.tensor(0.0)
-
-        ap = AutoPipeline(cfg)
         ap.build(model, loss_fn=loss_fn, parallelize_fn=None)
 
         # Expect 2 local stages per rank
@@ -353,7 +341,10 @@ class TestAutoPipelineBuildAndStep:
         world_mesh = FakeWorldMesh()
         world_mesh["pp"] = FakePPMesh(size=2, local_rank=0)
 
-        cfg = AutoPipelineConfig(
+        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+            return torch.tensor(0.0)
+
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -362,11 +353,6 @@ class TestAutoPipelineBuildAndStep:
             module_fqns_per_model_part=module_fqns,
             device=torch.device("cpu"),
         )
-
-        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-            return torch.tensor(0.0)
-
-        ap = AutoPipeline(cfg)
         result = ap.build(model, loss_fn=loss_fn)
 
         # Should return self for method chaining
@@ -385,7 +371,7 @@ class TestAutoPipelineBuildAndStep:
         world_mesh = FakeWorldMesh()
         world_mesh["pp"] = FakePPMesh(size=2, local_rank=0)
 
-        cfg = AutoPipelineConfig(
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -393,8 +379,6 @@ class TestAutoPipelineBuildAndStep:
             pp_batch_size=2,
             device=torch.device("cpu"),
         )
-
-        ap = AutoPipeline(cfg)
         model = DummyQwenForCausalLM(num_layers=4)
 
         # Test missing loss_fn
@@ -432,7 +416,10 @@ class TestAutoPipelineBuildAndStep:
         world_mesh = FakeWorldMesh()
         world_mesh["pp"] = FakePPMesh(size=2, local_rank=0)
 
-        cfg = AutoPipelineConfig(
+        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+            return torch.tensor(0.0)
+
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -441,11 +428,6 @@ class TestAutoPipelineBuildAndStep:
             module_fqns_per_model_part=module_fqns,
             device=torch.device("cpu"),
         )
-
-        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-            return torch.tensor(0.0)
-
-        ap = AutoPipeline(cfg)
         ap.build(model, loss_fn=loss_fn)
 
         # Test gradient clipping
@@ -469,7 +451,7 @@ class TestAutoPipelineErrorHandling:
     def test_parts_before_build_error(self):
         """Test that accessing parts fails if build hasn't been called."""
         world_mesh = FakeDeviceMesh()
-        cfg = AutoPipelineConfig(
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -477,8 +459,6 @@ class TestAutoPipelineErrorHandling:
             pp_batch_size=4,
             device=torch.device("cpu"),
         )
-
-        ap = AutoPipeline(cfg)
 
         with pytest.raises(RuntimeError, match="Autopipeline not built"):
             _ = ap.parts
@@ -486,7 +466,7 @@ class TestAutoPipelineErrorHandling:
     def test_grad_operations_before_build_error(self):
         """Test that gradient operations fail if build hasn't been called."""
         world_mesh = FakeDeviceMesh()
-        cfg = AutoPipelineConfig(
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -494,8 +474,6 @@ class TestAutoPipelineErrorHandling:
             pp_batch_size=4,
             device=torch.device("cpu"),
         )
-
-        ap = AutoPipeline(cfg)
 
         with pytest.raises(RuntimeError, match="Autopipeline not built"):
             ap.clip_grad_norm(1.0)
@@ -510,7 +488,7 @@ class TestAutoPipelineProperties:
     def test_properties_before_build(self):
         """Test that properties work correctly before build."""
         world_mesh = FakeDeviceMesh()
-        cfg = AutoPipelineConfig(
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -518,8 +496,6 @@ class TestAutoPipelineProperties:
             pp_batch_size=8,
             device=torch.device("cpu"),
         )
-
-        ap = AutoPipeline(cfg)
 
         # Test basic properties that should work before build
         assert ap.device == torch.device("cpu")
@@ -537,17 +513,13 @@ class TestAutoPipelineProperties:
 
     def test_world_mesh_none_error(self):
         """Test that AutoPipeline raises error when world_mesh is None."""
-        cfg = AutoPipelineConfig(
-            world_mesh=None,  # This should trigger the error
-            pp_axis_name="pp",
-            pp_schedule="1f1b",
-            pp_microbatch_size=1,
-            pp_batch_size=4,
-            device=torch.device("cpu"),
-        )
-
-        with pytest.raises(ValueError, match="AutopipelineConfig.world_mesh must be provided"):
-            AutoPipeline(cfg)
+        with pytest.raises(ValueError, match="world_mesh must be provided"):
+            AutoPipeline(
+                world_mesh=None,
+                pp_schedule="1f1b",
+                pp_microbatch_size=1,
+                pp_batch_size=4,
+            )
 
 
 class TestAutoPipelineDebugUtilities:
@@ -556,7 +528,7 @@ class TestAutoPipelineDebugUtilities:
     def test_debug_utilities_before_build(self):
         """Test debug utilities work correctly before build."""
         world_mesh = FakeDeviceMesh()
-        cfg = AutoPipelineConfig(
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -564,8 +536,6 @@ class TestAutoPipelineDebugUtilities:
             pp_batch_size=4,
             device=torch.device("cpu"),
         )
-
-        ap = AutoPipeline(cfg)
 
         # Test methods that should work before build
         assert ap.list_stage_modules() == []
@@ -600,7 +570,10 @@ class TestAutoPipelineDebugUtilities:
         world_mesh = FakeWorldMesh()
         world_mesh["pp"] = FakePPMesh(size=2, local_rank=0)
 
-        cfg = AutoPipelineConfig(
+        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+            return torch.tensor(0.0)
+
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -609,11 +582,6 @@ class TestAutoPipelineDebugUtilities:
             module_fqns_per_model_part=module_fqns,
             device=torch.device("cpu"),
         )
-
-        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-            return torch.tensor(0.0)
-
-        ap = AutoPipeline(cfg)
         ap.build(model, loss_fn=loss_fn)
 
         # Test methods that work after build
@@ -670,7 +638,10 @@ class TestAutoPipelineDebugUtilities:
         world_mesh = FakeWorldMesh()
         world_mesh["pp"] = FakePPMesh(size=2, local_rank=0)
 
-        cfg = AutoPipelineConfig(
+        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+            return torch.tensor(0.0)
+
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -679,11 +650,6 @@ class TestAutoPipelineDebugUtilities:
             module_fqns_per_model_part=module_fqns,
             device=torch.device("cpu"),
         )
-
-        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-            return torch.tensor(0.0)
-
-        ap = AutoPipeline(cfg)
         ap.build(model, loss_fn=loss_fn)
 
         # Test log_debug_summary
@@ -730,7 +696,7 @@ class TestAutoPipelineDebugUtilities:
         def mock_visualize_method(self, filename=None):
             # This simulates the actual method with mocked imports
             schedule = self._info.schedule
-            ops = mock_get_schedule_ops(schedule, self.pp_mesh.size(), self.cfg.pp_microbatch_size, len(self._info.stages))
+            ops = mock_get_schedule_ops(schedule, self.pp_mesh.size(), self.pp_microbatch_size, len(self._info.stages))
             mock_visualize_schedule(ops, filename)
 
         monkeypatch.setattr(core_mod.AutoPipeline, "visualize_current_schedule", mock_visualize_method)
@@ -750,7 +716,10 @@ class TestAutoPipelineDebugUtilities:
         world_mesh = FakeWorldMesh()
         world_mesh["pp"] = FakePPMesh(size=2, local_rank=0)
 
-        cfg = AutoPipelineConfig(
+        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+            return torch.tensor(0.0)
+
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -759,11 +728,6 @@ class TestAutoPipelineDebugUtilities:
             module_fqns_per_model_part=module_fqns,
             device=torch.device("cpu"),
         )
-
-        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-            return torch.tensor(0.0)
-
-        ap = AutoPipeline(cfg)
         ap.build(model, loss_fn=loss_fn)
 
         # Test visualize_current_schedule - this should execute lines 236-240
@@ -793,7 +757,10 @@ class TestAutoPipelineDebugUtilities:
         world_mesh = FakeWorldMesh()
         world_mesh["pp"] = FakePPMesh(size=2, local_rank=0)
 
-        cfg = AutoPipelineConfig(
+        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+            return torch.tensor(0.0)
+
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -802,11 +769,6 @@ class TestAutoPipelineDebugUtilities:
             module_fqns_per_model_part=module_fqns,
             device=torch.device("cpu"),
         )
-
-        def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-            return torch.tensor(0.0)
-
-        ap = AutoPipeline(cfg)
         ap.build(model, loss_fn=loss_fn)
 
         # Create stages with is_first and is_last attributes to trigger line 268 coverage
@@ -917,7 +879,7 @@ class TestAutoPipelineIntegration:
             include_rotary_emb=True,
             fqn_prefix="model.",
         )
-        ap_cfg = AutoPipelineConfig(
+        autopipeline = AutoPipeline(
             world_mesh=world_mesh,
             pp_axis_name="pp",
             pp_schedule="1f1b",
@@ -926,7 +888,6 @@ class TestAutoPipelineIntegration:
             module_fqns_per_model_part=module_fqns,
             device=torch.device("cpu"),
         )
-        autopipeline = AutoPipeline(ap_cfg)
 
         # trivial loss fn and no-op parallelize
         def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -956,31 +917,31 @@ class TestAutoPipelineIntegration:
         for opt in optimizer:
             assert hasattr(opt, "param_groups")
 
-    def test_config_field_defaults(self):
-        """Test AutoPipelineConfig field defaults and device factory."""
-        # Test default device factory
-        config = AutoPipelineConfig(world_mesh=FakeDeviceMesh())
+    def test_autopipeline_field_defaults(self):
+        """Test AutoPipeline field defaults."""
+        # Test default device
+        ap = AutoPipeline(world_mesh=FakeDeviceMesh())
         # Should default to cuda if available, otherwise cpu
         expected_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        assert config.device == expected_device
+        assert ap._device == expected_device
 
         # Test other defaults
-        assert config.pp_axis_name == "pp"
-        assert config.dp_axis_names == ("dp",)
-        assert config.pp_schedule == "1f1b"
-        assert config.pp_microbatch_size == 1
-        assert config.pp_batch_size == 1
-        assert config.patch_inner_model is True
-        assert config.patch_causal_lm_model is True
-        assert config.scale_grads_in_schedule is False
-        assert config.visualization_font_size_offset == 0
+        assert ap.pp_axis_name == "pp"
+        assert ap.dp_axis_names == ("dp",)
+        assert ap.pp_schedule == "1f1b"
+        assert ap.pp_microbatch_size == 1
+        assert ap.pp_batch_size == 1
+        assert ap.patch_inner_model is True
+        assert ap.patch_causal_lm_model is True
+        assert ap.scale_grads_in_schedule is False
+        assert ap.visualization_font_size_offset == 0
 
-    def test_config_with_all_optional_fields(self):
-        """Test AutoPipelineConfig with all optional fields set."""
+    def test_autopipeline_with_all_optional_fields(self):
+        """Test AutoPipeline with all optional fields set."""
         world_mesh = FakeDeviceMesh()
         moe_mesh = FakeDeviceMesh()
 
-        config = AutoPipelineConfig(
+        ap = AutoPipeline(
             world_mesh=world_mesh,
             moe_mesh=moe_mesh,
             pp_axis_name="pipeline",
@@ -1005,24 +966,24 @@ class TestAutoPipelineIntegration:
         )
 
         # Verify all fields are set correctly
-        assert config.world_mesh == world_mesh
-        assert config.moe_mesh == moe_mesh
-        assert config.pp_axis_name == "pipeline"
-        assert config.dp_axis_names == ("dp1", "dp2")
-        assert config.cp_axis_name == "context"
-        assert config.tp_axis_name == "tensor"
-        assert config.ep_axis_name == "expert"
-        assert config.ep_shard_axis_names == ("shard1", "shard2")
-        assert config.pp_schedule == "interleaved1f1b"
-        assert config.pp_schedule_csv == "/path/to/schedule.csv"
-        assert config.pp_microbatch_size == 4
-        assert config.pp_batch_size == 16
-        assert config.layers_per_stage == 8
-        assert config.round_virtual_stages_to_pp_multiple == "up"
-        assert config.module_fqns_per_model_part == [["layer1"], ["layer2"]]
-        assert config.patch_inner_model is False
-        assert config.patch_causal_lm_model is False
-        assert config.device == torch.device("cuda:1")
-        assert config.dtype == torch.float16
-        assert config.scale_grads_in_schedule is True
-        assert config.visualization_font_size_offset == 2
+        assert ap.world_mesh == world_mesh
+        assert ap.moe_mesh == moe_mesh
+        assert ap.pp_axis_name == "pipeline"
+        assert ap.dp_axis_names == ("dp1", "dp2")
+        assert ap.cp_axis_name == "context"
+        assert ap.tp_axis_name == "tensor"
+        assert ap.ep_axis_name == "expert"
+        assert ap.ep_shard_axis_names == ("shard1", "shard2")
+        assert ap.pp_schedule == "interleaved1f1b"
+        assert ap.pp_schedule_csv == "/path/to/schedule.csv"
+        assert ap.pp_microbatch_size == 4
+        assert ap.pp_batch_size == 16
+        assert ap.layers_per_stage == 8
+        assert ap.round_virtual_stages_to_pp_multiple == "up"
+        assert ap.module_fqns_per_model_part == [["layer1"], ["layer2"]]
+        assert ap.patch_inner_model is False
+        assert ap.patch_causal_lm_model is False
+        assert ap._device == torch.device("cuda:1")
+        assert ap.dtype == torch.float16
+        assert ap.scale_grads_in_schedule is True
+        assert ap.visualization_font_size_offset == 2

@@ -176,7 +176,7 @@ def build_model_and_optimizer(
                 cfg_model.get("cache_dir", TRANSFORMERS_CACHE),
                 cfg_model.pretrained_model_name_or_path,
                 getattr(cfg_peft, "lora_A_init", None),
-                device_mesh=autopipeline.cfg.world_mesh,
+                device_mesh=autopipeline.world_mesh,
             )
 
         # Create optimizer for all model parts
@@ -598,11 +598,14 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
         self.pp_enabled: bool = False if self.model_wrapper.pp_size <= 1 else True
         autopipeline_cfg = self.cfg.get("autopipeline", None)
         if self.pp_enabled:
-            assert autopipeline_cfg is not None, "AutoPipelineConfig is required when pipeline parallelism is enabled"
+            assert autopipeline_cfg is not None, (
+                "AutoPipeline configuration is required when pipeline parallelism is enabled"
+            )
             assert not isinstance(self.model_wrapper, NVFSDPManager), (
                 "NVFSDPManager is not supported when pipeline parallelism is enabled"
             )
-            autopipeline_cfg = autopipeline_cfg.instantiate(
+            # Create AutoPipeline from config
+            autopipeline = autopipeline_cfg.instantiate(
                 world_mesh=self.device_mesh,
                 moe_mesh=None,
                 pp_axis_name="pp",
@@ -618,9 +621,10 @@ class FinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 ep_shard_axis_names=None,
                 pp_batch_size=self.cfg.dataloader.batch_size,
                 device=torch.cuda.current_device(),
-                dtype=torch.bfloat16,
             )
-            autopipeline = AutoPipeline(autopipeline_cfg)
+            assert isinstance(autopipeline, AutoPipeline), (
+                f"autopipeline {autopipeline.__class__} is not an instance of AutoPipeline"
+            )
         else:
             autopipeline = None
 

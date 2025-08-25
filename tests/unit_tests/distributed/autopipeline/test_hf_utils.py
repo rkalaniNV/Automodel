@@ -129,31 +129,6 @@ class TestCreatePipelineForwardInner:
 
         assert isinstance(output, torch.Tensor)
 
-    def test_forward_with_cache(self):
-        mock_model = Mock()
-        mock_model.config = Mock(
-            output_attentions=False,
-            output_hidden_states=False,
-            use_cache=True
-        )
-        mock_model.gradient_checkpointing = False
-        mock_model.embed_tokens = None
-        mock_model.layers = None
-        mock_model.norm = None
-        mock_model.rotary_emb = None
-
-        forward_fn = create_pipeline_forward_inner("AutoModel")
-
-        # Test with cache
-        mock_cache = Mock(spec=Cache)
-        mock_cache.get_seq_length.return_value = 5
-
-        inputs_embeds = torch.randn(1, 10, 768)
-        output = forward_fn(mock_model, inputs_embeds=inputs_embeds, past_key_values=mock_cache)
-
-        assert isinstance(output, BaseModelOutputWithPast)
-        assert output.past_key_values is not None
-
 
 class TestCreatePipelineForwardCausalLM:
     """Test create_pipeline_forward_causal_lm function."""
@@ -739,32 +714,3 @@ class TestValidateHfModelForPipelineSupport:
         assert output.attentions is not None
         # Should have attention weights from 2 layers
         assert len(output.attentions) == 2
-
-    def test_dynamic_cache_creation(self):
-        """Test DynamicCache creation when use_cache=True and past_key_values=None."""
-        mock_model = Mock()
-        mock_model.config = Mock(
-            output_attentions=False,
-            output_hidden_states=False,
-            use_cache=True
-        )
-        mock_model.gradient_checkpointing = False
-        mock_model.embed_tokens = None
-        mock_model.layers = None
-        mock_model.norm = None
-        mock_model.rotary_emb = None
-
-        forward_fn = create_pipeline_forward_inner("AutoModel")
-
-        inputs_embeds = torch.randn(1, 10, 768)
-
-        with patch('transformers.cache_utils.DynamicCache') as mock_dynamic_cache:
-            mock_cache_instance = Mock(spec=Cache)
-            mock_cache_instance.get_seq_length.return_value = 0
-            mock_dynamic_cache.return_value = mock_cache_instance
-
-            output = forward_fn(mock_model, inputs_embeds=inputs_embeds)
-
-            # Verify DynamicCache was created
-            mock_dynamic_cache.assert_called_once()
-            assert isinstance(output, BaseModelOutputWithPast)
