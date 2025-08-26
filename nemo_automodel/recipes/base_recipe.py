@@ -317,8 +317,8 @@ class BaseRecipe:
     def _log_model_and_optimizer_details(
         self,
         model: nn.Module | list[nn.Module] | None = None,
-        optimizer: Optimizer | None = None,
-        lr_scheduler: OptimizerParamScheduler | None = None,
+        optimizer: Optimizer | list[Optimizer] | None = None,
+        lr_scheduler: OptimizerParamScheduler | list[OptimizerParamScheduler] | None = None,
     ):
         """Log model repr, parameter stats, param norm, optimizer and lr scheduler with YAML markers."""
         # Model repr
@@ -340,15 +340,21 @@ class BaseRecipe:
 
         # Optimizer
         if optimizer:
-            for line in ("Optimizer:\n" + str(optimizer[0])).splitlines():
-                logging.info(line)
+            if not isinstance(optimizer, list):
+                optimizer = [optimizer]
+            for opt in optimizer:
+                for line in ("Optimizer:\n" + str(opt)).splitlines():
+                    logging.info(line)
         else:
             logging.info("Optimizer: <unavailable>")
 
         # LR scheduler
         if lr_scheduler:
-            for line in ("LR scheduler:\n" + str(lr_scheduler[0])).splitlines():
-                logging.info(line)
+            if not isinstance(lr_scheduler, list):
+                lr_scheduler = [lr_scheduler]
+            for sched in lr_scheduler:
+                for line in ("LR scheduler:\n" + str(sched)).splitlines():
+                    logging.info(line)
         else:
             logging.info("LR scheduler: <unavailable>")
 
