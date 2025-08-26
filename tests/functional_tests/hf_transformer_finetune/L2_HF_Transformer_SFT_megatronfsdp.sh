@@ -15,15 +15,9 @@
 #!/bin/bash
 set -xeuo pipefail # Exit immediately if a command exits with a non-zero status
 
-<<<<<<< HEAD:tests/functional_tests/hf_transformer_finetune/L2_HF_Transformer_SFT_nvfsdp.sh
 TRANSFORMERS_OFFLINE=1 coverage run --data-file=/workspace/.coverage --source=/workspace --parallel-mode \
 examples/llm_finetune/finetune.py \
-  --config examples/llm_finetune/llama3_2/llama3_2_1b_squad_nvfsdp.yaml \
-=======
-TRANSFORMERS_OFFLINE=1 coverage run -a --data-file=/workspace/.coverage --source=/workspace \
-examples/llm/finetune.py \
   --config examples/llm/llama_3_2_1b_squad_megatronfsdp.yaml \
->>>>>>> 68176f8 (rename nvFSDP to MegatronFSDP):tests/functional_tests/hf_transformer_finetune/L2_HF_Transformer_SFT_megatronfsdp.sh
   --model.pretrained_model_name_or_path /home/TestData/akoumparouli/hf_mixtral_2l/ \
   --step_scheduler.max_steps 3 \
   --step_scheduler.grad_acc_steps 1 \

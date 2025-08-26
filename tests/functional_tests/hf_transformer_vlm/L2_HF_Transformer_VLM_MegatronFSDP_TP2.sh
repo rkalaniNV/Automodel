@@ -16,13 +16,8 @@
 set -xeuo pipefail # Exit immediately if a command exits with a non-zero status
 
 TRANSFORMERS_OFFLINE=1 python -m torch.distributed.run --nproc_per_node=2 --nnodes=1 -m coverage run --data-file=/workspace/.coverage --source=/workspace/ --parallel-mode \
-<<<<<<< HEAD:tests/functional_tests/hf_transformer_vlm/L2_HF_Transformer_VLM_nvFSDP_TP2.sh
 -m pytest examples/vlm_finetune/finetune.py \
-  --config examples/vlm_finetune/gemma3/gemma3_vl_4b_cord_v2_nvfsdp.yaml \
-=======
--m pytest examples/vlm/finetune.py \
   --config examples/vlm/gemma_3_vl_4b_cord_v2_megatronfsdp.yaml \
->>>>>>> 68176f8 (rename nvFSDP to MegatronFSDP):tests/functional_tests/hf_transformer_vlm/L2_HF_Transformer_VLM_MegatronFSDP_TP2.sh
   --model.pretrained_model_name_or_path /home/TestData/huiyingl/hf_gemma3_2l_large/ \
   --step_scheduler.max_steps 3 \
   --step_scheduler.grad_acc_steps 1 \
