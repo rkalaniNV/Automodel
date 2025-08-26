@@ -84,7 +84,7 @@ def is_lr_scheduler(object):
     Returns:
         bool: returns True if object is an OptimizerParamScheduler.
     """
-    return (
+    return isinstance(object, OptimizerParamScheduler) or (
         isinstance(object, list)
         and all(isinstance(item, OptimizerParamScheduler) for item in object)
         and len(object) > 0

@@ -646,7 +646,7 @@ def test_hf_peft_checkpoint():
         OptimizerState(
             trainer.model,
             trainer.optimizer,
-            trainer.step_scheduler,
+            trainer.lr_scheduler,
         ).state_dict()["optim"]["state"]
     )
 
