@@ -387,7 +387,7 @@ def build_step_scheduler(cfg, dataloader):
     return StepScheduler(**default_kwargs)
 
 
-def build_lr_scheduler(cfg, optimizer, step_scheduler) -> OptimizerParamScheduler | None:  # noqa: F821
+def build_lr_scheduler(cfg, optimizer, step_scheduler) -> list[OptimizerParamScheduler] | None:  # noqa: F821
     """Build the learning rate scheduler.
 
     Args:
@@ -861,6 +861,10 @@ class TrainFinetuneRecipeForNextTokenPrediction(BaseRecipe):
         for opt in self.optimizer:
             opt.step()
             opt.zero_grad()
+
+        if self.lr_scheduler is not None:
+            for scheduler in self.lr_scheduler:
+                scheduler.step(1)
 
         # Precompute FP8 scales
         fp8_config = self.cfg.get("fp8", None)
