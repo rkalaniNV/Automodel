@@ -54,7 +54,7 @@ class TestCreatePipelineForwardInner:
         # Layers as nn.ModuleDict with nn.Module children (not plain Mocks)
         class DummyLayer(nn.Module):
             def forward(self, hidden_states, **kwargs):
-                return (hidden_states,)
+                return hidden_states
 
         mock_model.layers = nn.ModuleDict({"0": DummyLayer()})
 
@@ -65,7 +65,7 @@ class TestCreatePipelineForwardInner:
 
         # Mock rotary_emb
         mock_rotary = Mock()
-        mock_rotary.return_value = torch.randn(1, 10, 768)
+        mock_rotary.return_value = (torch.randn(1, 10, 768), torch.randn(1, 10, 768))
         mock_model.rotary_emb = mock_rotary
 
         # Setup mock arange
@@ -514,14 +514,10 @@ class TestValidateHfModelForPipelineSupport:
         # Should not raise any error (getattr with default False)
         validate_hf_model_for_pipeline_support(model)
 
-    def test_gradient_checkpointing_warning(self):
-        """Test gradient checkpointing warning when use_cache=True."""
+    def test_no_gradient_checkpointing_warning(self):
+        """No warning should be emitted; past_key_values remains None by default."""
         mock_model = Mock()
-        mock_model.config = Mock(
-            output_attentions=False,
-            output_hidden_states=False,
-            use_cache=True
-        )
+        mock_model.config = Mock()
         mock_model.gradient_checkpointing = True
         mock_model.training = True
         mock_model.embed_tokens = None
@@ -533,37 +529,13 @@ class TestValidateHfModelForPipelineSupport:
 
         inputs_embeds = torch.randn(1, 10, 768)
 
-        # Should trigger warning and set use_cache=False
         with patch('nemo_automodel.components.distributed.pipelining.hf_utils.logger') as mock_logger:
             output = forward_fn(mock_model, inputs_embeds=inputs_embeds)
-            mock_logger.warning_once.assert_called_once()
+            # No warning should be called in the new style
+            assert not mock_logger.warning_once.called
 
         assert isinstance(output, BaseModelOutputWithPast)
-        # Should have no past_key_values due to use_cache being set to False
         assert output.past_key_values is None
-
-    def test_invalid_past_key_values_error(self):
-        """Test error when past_key_values is not Cache or None."""
-        mock_model = Mock()
-        mock_model.config = Mock(
-            output_attentions=False,
-            output_hidden_states=False,
-            use_cache=False
-        )
-        mock_model.gradient_checkpointing = False
-        mock_model.embed_tokens = None
-        mock_model.layers = None
-        mock_model.norm = None
-        mock_model.rotary_emb = None
-
-        forward_fn = create_pipeline_forward_inner("AutoModel")
-
-        inputs_embeds = torch.randn(1, 10, 768)
-        invalid_cache = "not_a_cache"
-
-        # Should raise ValueError
-        with pytest.raises(ValueError, match="should be either a `Cache` object or `None`"):
-            forward_fn(mock_model, inputs_embeds=inputs_embeds, past_key_values=invalid_cache)
 
     def test_missing_input_error(self):
         """Test error when neither input_ids nor inputs_embeds provided with embed_tokens."""
@@ -608,23 +580,18 @@ class TestValidateHfModelForPipelineSupport:
         with pytest.raises(ValueError, match="inputs_embeds must be provided for pipeline stages without embed_tokens"):
             forward_fn(mock_model, input_ids=input_ids)
 
-    def test_output_hidden_states_collection(self):
-        """Test collection of hidden states when output_hidden_states=True."""
+    def test_hidden_states_not_collected(self):
+        """Hidden states are not collected in the new inner forward."""
         mock_model = Mock()
-        mock_model.config = Mock(
-            output_attentions=False,
-            output_hidden_states=True,  # Enable hidden states output
-            use_cache=False
-        )
+        mock_model.config = Mock()
         mock_model.gradient_checkpointing = False
         mock_model.embed_tokens = None
         mock_model.rotary_emb = None
         mock_model.norm = None
 
-        # Create layers that return tuple with hidden states
         class DummyLayer(nn.Module):
             def forward(self, hidden_states, **kwargs):
-                return (hidden_states + 1,)  # Modify hidden states to track progression
+                return hidden_states + 1
 
         mock_model.layers = nn.ModuleList([DummyLayer(), DummyLayer()])
 
@@ -634,19 +601,12 @@ class TestValidateHfModelForPipelineSupport:
         output = forward_fn(mock_model, inputs_embeds=inputs_embeds)
 
         assert isinstance(output, BaseModelOutputWithPast)
-        assert output.hidden_states is not None
-        # Should have initial + 2 layer outputs + final = 3 hidden states
-        # (initial inputs_embeds + 2 layer outputs)
-        assert len(output.hidden_states) == 3
+        assert output.hidden_states is None
 
     def test_attention_type_handling(self):
         """Test attention type handling for layers."""
         mock_model = Mock()
-        mock_model.config = Mock(
-            output_attentions=False,
-            output_hidden_states=False,
-            use_cache=False
-        )
+        mock_model.config = Mock()
         mock_model.gradient_checkpointing = False
         mock_model.embed_tokens = None
         mock_model.rotary_emb = None
@@ -659,8 +619,7 @@ class TestValidateHfModelForPipelineSupport:
                 self.attention_type = attention_type
 
             def forward(self, hidden_states, attention_mask=None, **kwargs):
-                # Verify the correct attention mask is passed
-                return (hidden_states,)
+                return hidden_states
 
         layer = DummyLayerWithAttentionType("sliding_attention")
         mock_model.layers = nn.ModuleList([layer])
@@ -684,24 +643,18 @@ class TestValidateHfModelForPipelineSupport:
 
             assert isinstance(output, BaseModelOutputWithPast)
 
-    def test_output_attentions_collection(self):
-        """Test collection of attention weights when output_attentions=True."""
+    def test_attentions_not_collected(self):
+        """Attentions are not collected in the new inner forward."""
         mock_model = Mock()
-        mock_model.config = Mock(
-            output_attentions=True,  # Enable attention output
-            output_hidden_states=False,
-            use_cache=False
-        )
+        mock_model.config = Mock()
         mock_model.gradient_checkpointing = False
         mock_model.embed_tokens = None
         mock_model.rotary_emb = None
         mock_model.norm = None
 
-        # Create layers that return tuple with attention weights
         class DummyLayer(nn.Module):
             def forward(self, hidden_states, **kwargs):
-                attention_weights = torch.randn(1, 8, 10, 10)  # Mock attention weights
-                return (hidden_states, attention_weights)
+                return hidden_states
 
         mock_model.layers = nn.ModuleList([DummyLayer(), DummyLayer()])
 
@@ -711,6 +664,4 @@ class TestValidateHfModelForPipelineSupport:
         output = forward_fn(mock_model, inputs_embeds=inputs_embeds)
 
         assert isinstance(output, BaseModelOutputWithPast)
-        assert output.attentions is not None
-        # Should have attention weights from 2 layers
-        assert len(output.attentions) == 2
+        assert output.attentions is None

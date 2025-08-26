@@ -96,7 +96,7 @@ def is_optimizer(object):
     Checks whether object is an optimizer.
     """
     return isinstance(object, Optimizer) or (
-        isinstance(object, list) and all(isinstance(item, Optimizer) for item in object) and len(object) > 0
+        isinstance(object, list) and len(object) > 0 and all(isinstance(item, Optimizer) for item in object)
     )
 
 
@@ -105,7 +105,7 @@ def is_model(object):
     Checks whether object is a model.
     """
     return isinstance(object, nn.Module) or (
-        isinstance(object, list) and all(isinstance(item, nn.Module) for item in object)
+        isinstance(object, list) and len(object) > 0 and all(isinstance(item, nn.Module) for item in object)
     )
 
 

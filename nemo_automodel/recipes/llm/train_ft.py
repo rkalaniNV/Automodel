@@ -89,7 +89,7 @@ def build_model_and_optimizer(
     autopipeline: AutoPipeline | None = None,
     loss_fn=None,
     parallelize_fn=None,
-) -> tuple[nn.Module | AutoPipeline, "Optimizer"]:  # noqa: F821
+) -> tuple[nn.Module | AutoPipeline, list["Optimizer"]]:  # noqa: F821
     """
     Build and initialize a model and optimizer.
 
@@ -180,7 +180,7 @@ def build_model_and_optimizer(
 
                 model, optimizer = model_wrapper.parallelize(model, optimizer)
 
-                return model, optimizer
+                return model, [optimizer]
 
             else:
                 model = model_wrapper.parallelize(model)
@@ -582,7 +582,9 @@ class TrainFinetuneRecipeForNextTokenPrediction(BaseRecipe):
         # Check if packed_sequence_size > 0 and use HF's flash_attention_2 for attn implementation.
         use_hf_fa2 = self.cfg.get("packed_sequence.packed_sequence_size", 0) > 0
 
-        self.pp_enabled: bool = False if self.model_wrapper.pp_size <= 1 else True
+        self.pp_enabled: bool = (
+            True if hasattr(self.model_wrapper, "pp_size") and self.model_wrapper.pp_size > 1 else False
+        )
         autopipeline_cfg = self.cfg.get("autopipeline", None)
         if self.pp_enabled:
             assert autopipeline_cfg is not None, (

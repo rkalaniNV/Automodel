@@ -36,26 +36,9 @@ def create_pipeline_forward_inner(model_class_name: str = "AutoModel") -> Callab
         past_key_values: Optional[Cache] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Union[torch.Tensor, BaseModelOutputWithPast]:
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        use_cache = use_cache if use_cache is not None else self.config.use_cache
-
-        if getattr(self, "gradient_checkpointing", False) and self.training and use_cache:
-            logger.warning_once(
-                "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`."
-            )
-            use_cache = False
-
-        if not isinstance(past_key_values, (type(None), Cache)):
-            raise ValueError("The `past_key_values` should be either a `Cache` object or `None`.")
-
         # Embeddings handling
         if inputs_embeds is None:
             if hasattr(self, "embed_tokens") and self.embed_tokens is not None:
@@ -96,6 +79,7 @@ def create_pipeline_forward_inner(model_class_name: str = "AutoModel") -> Callab
                 "attention_mask": attention_mask,
                 "cache_position": cache_position,
                 "past_key_values": past_key_values,
+                "position_ids": position_ids,
             }
             causal_mask_mapping = {"full_attention": create_causal_mask(**mask_kwargs)}
             if hasattr(self, "has_sliding_layers") and self.has_sliding_layers:
@@ -103,47 +87,34 @@ def create_pipeline_forward_inner(model_class_name: str = "AutoModel") -> Callab
 
         hidden_states = inputs_embeds
 
-        # Rotary embeddings
+        # Rotary embeddings precomputation (shared across layers)
         position_embeddings = None
         if hasattr(self, "rotary_emb") and self.rotary_emb is not None:
             position_embeddings = self.rotary_emb(hidden_states, position_ids)
-
-        all_hidden_states = () if output_hidden_states else None
-        all_self_attns = () if output_attentions else None
 
         if hasattr(self, "layers") and self.layers is not None:
             # Works for dict-like or list-like containers
             layer_iter = self.layers.values() if hasattr(self.layers, "values") else self.layers
             for decoder_layer in layer_iter:
-                if output_hidden_states:
-                    all_hidden_states += (hidden_states,)
-
                 layer_attention_mask = causal_mask_mapping.get("full_attention")
                 if hasattr(decoder_layer, "attention_type"):
                     layer_attention_mask = causal_mask_mapping.get(
                         getattr(decoder_layer, "attention_type"), causal_mask_mapping.get("full_attention")
                     )
 
-                layer_outputs = decoder_layer(
+                hidden_states = decoder_layer(
                     hidden_states,
                     attention_mask=layer_attention_mask,
                     position_ids=position_ids,
                     past_key_value=past_key_values,
-                    output_attentions=output_attentions,
                     use_cache=use_cache,
                     cache_position=cache_position,
                     position_embeddings=position_embeddings,
                     **kwargs,
                 )
-                hidden_states = layer_outputs[0]
-                if output_attentions:
-                    all_self_attns += (layer_outputs[1],)
 
         if hasattr(self, "norm") and self.norm is not None:
             hidden_states = self.norm(hidden_states)
-
-        if output_hidden_states:
-            all_hidden_states += (hidden_states,)
 
         if model_class_name == "PipelineStage":
             return hidden_states
@@ -151,8 +122,6 @@ def create_pipeline_forward_inner(model_class_name: str = "AutoModel") -> Callab
             return BaseModelOutputWithPast(
                 last_hidden_state=hidden_states,
                 past_key_values=past_key_values if use_cache else None,
-                hidden_states=all_hidden_states,
-                attentions=all_self_attns,
             )
 
     return pipeline_forward
@@ -210,9 +179,7 @@ def create_pipeline_forward_causal_lm() -> Callable:
             outputs = None
 
         if hasattr(self, "lm_head") and self.lm_head is not None:
-            slice_indices = (
-                slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) and logits_to_keep > 0 else slice(None)
-            )
+            slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
             logits = self.lm_head(hidden_states[:, slice_indices, :])
             return logits
         else:

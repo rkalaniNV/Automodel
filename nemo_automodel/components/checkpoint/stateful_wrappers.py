@@ -201,8 +201,8 @@ class OptimizerState:
                 alongside the optimizer. Pass ``None`` if no scheduler is used.
         """
         self.model = [model] if isinstance(model, torch.nn.Module) else model
-        self.optimizer = optimizer
-        self.scheduler = scheduler
+        self.optimizer = [optimizer] if isinstance(optimizer, torch.optim.Optimizer) else optimizer
+        self.scheduler = [scheduler] if isinstance(scheduler, torch.optim.lr_scheduler.LRScheduler) else scheduler
 
     def state_dict(self) -> dict[str, Any]:
         """

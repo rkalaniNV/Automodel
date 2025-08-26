@@ -56,6 +56,7 @@ _OVERRIDES = [
     "autopipeline.scale_grads_in_schedule",
     "dataset.seq_length",
     "validation_dataset.seq_length",
+    "freeze_config.freeze_language_model",
 ]
 
 
