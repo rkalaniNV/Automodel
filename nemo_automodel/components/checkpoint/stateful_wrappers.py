@@ -65,7 +65,9 @@ class ModelState:
         model: The PyTorch model to track.
     """
 
-    def __init__(self, model: torch.nn.Module | list[torch.nn.Module], is_peft: bool = False, is_init_step: bool = False):
+    def __init__(
+        self, model: torch.nn.Module | list[torch.nn.Module], is_peft: bool = False, is_init_step: bool = False
+    ):
         """
         Initialize a ModelState instance for distributed checkpointing.
 
@@ -100,9 +102,7 @@ class ModelState:
             options = StateDictOptions(full_state_dict=True, cpu_offload=True, ignore_frozen_params=True)
 
         func = partial(get_model_state_dict, options=options)
-        model_state_dict = {
-            k: v for sd in map(func, self.model) for k, v in sd.items()
-        }
+        model_state_dict = {k: v for sd in map(func, self.model) for k, v in sd.items()}
 
         if self.is_tied_lm_head:
             # PP models don't have tied embeddings. Safe to pass in model[0] here.
@@ -147,9 +147,7 @@ class ModelState:
         list(map(func, self.model))
 
     def _get_base_model_state_dict(self) -> dict[str, Any]:
-        model_state_dict = {
-            k: v for sd in map(get_model_state_dict, self.model) for k, v in sd.items()
-        }
+        model_state_dict = {k: v for sd in map(get_model_state_dict, self.model) for k, v in sd.items()}
         if self.is_tied_lm_head:
             # PP models don't have tied embeddings. Safe to pass in model[0] here.
             _, lm_head_param_name = _get_lm_head_weight_and_name(self.model[0])
@@ -219,11 +217,7 @@ class OptimizerState:
             get_optimizer_state_dict,
             options=StateDictOptions(flatten_optimizer_state_dict=True),
         )
-        optimizer_state_dict = {
-            k: v
-            for sd in map(func, self.model, self.optimizer)
-            for k, v in sd.items()
-        }
+        optimizer_state_dict = {k: v for sd in map(func, self.model, self.optimizer) for k, v in sd.items()}
 
         state_dict = {
             "optim": optimizer_state_dict,

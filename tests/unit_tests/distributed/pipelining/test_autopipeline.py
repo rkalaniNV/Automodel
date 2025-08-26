@@ -397,9 +397,9 @@ class TestAutoPipelineBuildAndStep:
         mock_clip_grad_norm = Mock(return_value=torch.tensor(1.5))
         mock_scale_grads = Mock()
 
-        import nemo_automodel.components.distributed.pipelining.core as core_mod
-        monkeypatch.setattr(core_mod, "pp_clip_grad_norm", mock_clip_grad_norm)
-        monkeypatch.setattr(core_mod, "pp_scale_grads_by_divisor", mock_scale_grads)
+        import nemo_automodel.components.distributed.pipelining.autopipeline as autopipeline_mod
+        monkeypatch.setattr(autopipeline_mod, "pp_clip_grad_norm", mock_clip_grad_norm)
+        monkeypatch.setattr(autopipeline_mod, "pp_scale_grads_by_divisor", mock_scale_grads)
 
         num_layers = 4
         model = DummyQwenForCausalLM(num_layers=num_layers)
@@ -690,7 +690,7 @@ class TestAutoPipelineDebugUtilities:
         mock_get_schedule_ops = Mock(return_value=[])
         mock_visualize_schedule = Mock()
 
-        import nemo_automodel.components.distributed.pipelining.core as core_mod
+        import nemo_automodel.components.distributed.pipelining.autopipeline as autopipeline_mod
 
         # Patch the import inside visualize_current_schedule
         def mock_visualize_method(self, filename=None):
@@ -699,7 +699,7 @@ class TestAutoPipelineDebugUtilities:
             ops = mock_get_schedule_ops(schedule, self.pp_mesh.size(), self.pp_microbatch_size, len(self._info.stages))
             mock_visualize_schedule(ops, filename)
 
-        monkeypatch.setattr(core_mod.AutoPipeline, "visualize_current_schedule", mock_visualize_method)
+        monkeypatch.setattr(autopipeline_mod.AutoPipeline, "visualize_current_schedule", mock_visualize_method)
 
         num_layers = 4
         model = DummyQwenForCausalLM(num_layers=num_layers)
@@ -834,7 +834,7 @@ class TestAutoPipelineIntegration:
         sys.modules.setdefault("torchao.float8", float8_mod)
 
         # patch init_empty_weights to a no-op to avoid accelerate dependency
-        import nemo_automodel.recipes.llm.finetune as ft_mod
+        import nemo_automodel.recipes.llm.train_ft as ft_mod
         monkeypatch.setattr(ft_mod, "init_empty_weights", lambda: contextlib.nullcontext())
         # also patch the imported symbol in finetune to avoid HF I/O for checkpoints
         monkeypatch.setattr(ft_mod, "load_model_from_base_checkpoint", lambda *args, **kwargs: None)
@@ -902,7 +902,6 @@ class TestAutoPipelineIntegration:
             model_wrapper=types.SimpleNamespace(),
             seed=1,
             tp_size=1,
-            freeze_embeddings=False,
             cfg_fp8=None,
             autopipeline=autopipeline,
             loss_fn=loss_fn,
