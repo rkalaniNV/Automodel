@@ -1,11 +1,16 @@
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Dict, List, Optional, Union
 from pathlib import Path
 from nemo_automodel.components.datasets.llm.megatron.gpt_dataset import GPTDataset, GPTDatasetConfig
-from nemo_automodel.components.datasets.llm.megatron.megatron_utils import get_blend_from_list
+from nemo_automodel.components.datasets.llm.megatron.megatron_utils import get_blend_from_list, compile_helper
 from torch.utils import data
 from torchdata.stateful_dataloader import StatefulDataLoader
 from nemo_automodel.components.datasets.llm.megatron.builder import BlendedMegatronDatasetBuilder
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+import os
+import logging
+from typing import Literal
+
+logger = logging.getLogger(__name__)
 
 class MegatronPretraining:
 
@@ -32,6 +37,10 @@ class MegatronPretraining:
         trainer_val_check_interval: int = 1000,
         trainer_limit_val_batches: Union[int, float] = 1.0,
         trainer_limit_test_batches: Union[int, float] = 1.0,
+        mmap_bin_files: bool = True,
+        dataloader_type: Optional[Literal["single", "cyclic", "batch"]] = "single",
+        init_consumed_samples: Optional[int] = 0,
+        init_global_step: Optional[int] = 0,
     ) -> None:
         """Pretraining dataset class for Megatron-LM datasets.
         Args:
@@ -78,13 +87,41 @@ class MegatronPretraining:
             trainer_limit_val_batches (Union[int, float]): Limit for validation batches.
             trainer_limit_test_batches (Union[int, float]): Limit for test batches.
         """
+        breakpoint()
+        try:
+            from nemo_automodel.components.datasets.llm.megatron import helpers_cpp
+        except ImportError:
+            try:
+                compile_helper()
+                from nemo_automodel.components.datasets.llm.megatron import helpers_cpp
+            except ImportError:
+                raise ImportError(
+                    "Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file."
+                )
+
+        if not isinstance(paths, (list, tuple, dict)):
+            paths = [paths]
+        validate_dataset_asset_accessibility(paths)
+
         self.dataset_cls = dataset_cls
         build_kwargs = {}
-        paths, weights = get_blend_from_list(paths)
-        if len(paths) == 1:
-            weights = None
-        build_kwargs["blend"] = [paths, weights]
-        build_kwargs["split"] = split
+        build_kwargs["mmap_bin_files"] = mmap_bin_files
+        if isinstance(paths, dict):
+            if split is not None:
+                logger.warning(
+                    f"{split=} will be ignored since datasets are being created from 3 separate distributions."
+                )
+            build_kwargs["blend_per_split"] = [
+                get_blend_from_list(paths["train"]),
+                get_blend_from_list(paths["validation"]),
+                get_blend_from_list(paths["test"]),
+            ]
+        else:
+            paths, weights = get_blend_from_list(paths)
+            if len(paths) == 1:
+                weights = None
+            build_kwargs["blend"] = [paths, weights]
+            build_kwargs["split"] = split
 
         self.build_kwargs = build_kwargs
         self.seq_length = seq_length
@@ -99,10 +136,12 @@ class MegatronPretraining:
         self.split = split
         self.index_mapping_dir = index_mapping_dir
         self.num_dataset_builder_threads = num_dataset_builder_threads
-        self.init_global_step = 0
+        self.init_global_step = init_global_step  # TODO: do we need this?
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
+        self.dataloader_type = dataloader_type
+        self.init_consumed_samples = init_consumed_samples
         
         # Store trainer arguments
         self.trainer_max_steps = trainer_max_steps
@@ -114,38 +153,25 @@ class MegatronPretraining:
         """
         Build the datasets using the trainer parameters provided during initialization.
         """
-        breakpoint()
-        # Support for building full dataset
-        if self.trainer_max_steps is None or self.trainer_max_steps == -1:
-            # Use None to indicate "use full dataset for one epoch"
-            num_train_samples = None
-            train_iters = float('inf')  # Placeholder for validation calculations
-        else:
-            train_iters = self.trainer_max_steps
-            assert train_iters > 0, f"max_steps {train_iters} should be greater than 0"
-            num_train_samples = int(train_iters * self.global_batch_size)
+        train_iters = self.trainer_max_steps
+        assert train_iters > 0, f"max_steps {train_iters} should be greater than 0"
+        num_train_samples = int(train_iters * self.global_batch_size)
 
-            if self.num_train_samples is not None:
-                assert (
-                    self.num_train_samples >= num_train_samples
-                ), f"num_train_samples must be greater than or equal to {num_train_samples}."
-                num_train_samples = self.num_train_samples
-                train_iters = int(num_train_samples / self.global_batch_size)
+        if self.num_train_samples is not None:
+            assert (
+                self.num_train_samples >= num_train_samples
+            ), f"num_train_samples must be greater than or equal to {num_train_samples}."
+            num_train_samples = self.num_train_samples
+            train_iters = int(num_train_samples / self.global_batch_size)
 
-        # Handle validation samples
-        if self.trainer_max_steps is None or self.trainer_max_steps == -1:
-            # For full dataset, use limit_val_batches directly
-            num_val_samples = None if self.trainer_limit_val_batches is None else int(self.trainer_limit_val_batches * self.global_batch_size)
-        else:
-            eval_iters = (train_iters // self.trainer_val_check_interval + 1) * self.trainer_limit_val_batches
-            num_val_samples = int(eval_iters * self.global_batch_size)
+        eval_iters = (train_iters // self.trainer_val_check_interval + 1) * self.trainer_limit_val_batches
+        num_val_samples = int(eval_iters * self.global_batch_size)
 
         test_iters = self.trainer_limit_test_batches
         num_test_samples = int(test_iters * self.global_batch_size)
 
         if self.num_val_samples is not None:
-            if num_val_samples is not None:
-                assert self.num_val_samples > num_val_samples, f"num_val_samples must be greater than {num_val_samples}."
+            assert self.num_val_samples > num_val_samples, f"num_val_samples must be greater than {num_val_samples}."
             num_val_samples = self.num_val_samples
         if self.num_test_samples is not None:
             assert (
@@ -180,7 +206,7 @@ class MegatronPretraining:
             config=self.gpt_dataset_config,
         ).build()
 
-    def _create_dataloader(self, dataset, mode, **kwargs) -> StatefulDataLoader:
+    def _create_dataloader(self, dataset, **kwargs) -> StatefulDataLoader:
         # self.init_global_step = self.trainer.global_step
         # self.data_sampler.init_global_step = self.init_global_step
         
@@ -194,6 +220,7 @@ class MegatronPretraining:
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
             collate_fn=getattr(dataset, "collate_fn", data.dataloader.default_collate),
+            # batch_sampler=batch_sampler,
             **kwargs,
         )
         return dataloader
@@ -202,19 +229,19 @@ class MegatronPretraining:
         """
         Get the train dataloader.
         """
-        return self._create_dataloader(self._train_ds, mode="train")
+        return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self):
         """
         Get the validation dataloader.
         """
-        return self._create_dataloader(self._validation_ds, mode="validation")
+        return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self):
         """
         Get the test dataloader.
         """
-        return self._create_dataloader(self._test_ds, mode="test")
+        return self._create_dataloader(self._test_ds)
     
     @property
     def gpt_dataset_config(self) -> "GPTDatasetConfig":
@@ -263,3 +290,67 @@ class MegatronPretraining:
     #         consistency_check=False,
     #     )
     #     self.data_sampler.if_first_step = 1
+
+def is_number_tryexcept(s):
+    """Returns True if string is a number."""
+    if s is None:
+        return False
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+def is_zipped_list(paths):
+    """
+    Check if the paths are zipped.
+    """
+    # ["30", "path/to/dataset_1_prefix", "70", "path/to/dataset_2_prefix"]
+    even = paths[::2]
+    if len(even) == 0:
+        return False
+    is_num = list(map(is_number_tryexcept, even))
+    if any(is_num):
+        assert all(is_num), "Got malformatted zipped list"
+    return is_num[0]
+
+def validate_dataset_asset_accessibility(paths):
+    """
+    Validate the accessibility of the dataset assets.
+    """
+    if paths is None:
+        raise ValueError("Expected path to have a value.")
+
+    if isinstance(paths, tuple) or isinstance(paths, list):
+        if is_zipped_list(paths):
+            # remove weights from paths.
+            paths = paths[1::2]
+        for p in paths:
+            validate_dataset_asset_accessibility(p)
+        return
+    elif isinstance(paths, dict):
+        for p in paths.values():
+            validate_dataset_asset_accessibility(p)
+        return
+
+    if not isinstance(paths, str) and not isinstance(paths, Path):
+        raise ValueError("Expected path to be of string or Path type.")
+
+    path = Path(paths)
+
+    suffices = (".bin", ".idx")
+    if path.is_dir():
+        if not os.access(path, os.R_OK):
+            raise PermissionError(f"Expected {str(path)} to be readable.")
+        # Will let the downstream class confirm contents are ok.
+        return
+    if path.exists():
+        if not os.access(path, os.R_OK):
+            raise PermissionError(f"Expected {str(path)} to be readable.")
+        return
+    for suffix in suffices:
+        file_path = path.with_name(path.name + suffix)
+        if not file_path.exists():
+            raise FileNotFoundError(f"Expected {str(file_path)} to exist.")
+        if not os.access(file_path, os.R_OK):
+            raise PermissionError(f"Expected {str(file_path)} to be readable.")

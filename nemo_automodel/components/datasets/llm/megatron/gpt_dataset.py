@@ -33,7 +33,6 @@ import json
 import hashlib
 from collections import OrderedDict
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-from megatron.core.datasets import helpers
 
 # taken and modified from https://github.com/NVIDIA/Megatron-LM/blob/5e798111e60f45e82c336ef7b89d8d793c93208f/megatron/core/datasets/gpt_dataset.py
 logger = logging.getLogger(__name__)
@@ -108,7 +107,6 @@ class BlendedMegatronDatasetConfig:
 
     def __post_init__(self) -> None:
         """Do asserts and set fields post init"""
-        breakpoint()
         if self.blend_per_split is not None and any(self.blend_per_split):
             assert self.blend is None, "blend and blend_per_split are incompatible"
             assert self.split is None, "split and blend_per_split are incompatible"
@@ -191,7 +189,7 @@ def parse_and_normalize_split(split: str) -> List[float]:
     assert len(split) == len(Split)
     assert all(map(lambda _: _ >= 0.0, split))
 
-    split = _normalize(split)
+    split = normalize(split)
 
     return split
 
@@ -602,6 +600,8 @@ class GPTDataset(torch.utils.data.Dataset):
                 sequence_lengths_for_cpp = self.dataset.sequence_lengths.copy()
             else:
                 sequence_lengths_for_cpp = self.dataset.sequence_lengths
+
+            from nemo_automodel.components.datasets.llm.megatron import helpers
             sample_index = helpers.build_sample_idx(
                 sequence_lengths_for_cpp,
                 document_index,
@@ -836,7 +836,7 @@ def _get_ltor_masks_and_position_ids(
     return attention_mask, loss_mask, position_ids
 
 
-def _normalize(weights: List[float]) -> List[float]:
+def normalize(weights: list[float]) -> list[float]:
     """Do non-exponentiated normalization
 
     Args:
