@@ -87,7 +87,6 @@ class MegatronPretraining:
             trainer_limit_val_batches (Union[int, float]): Limit for validation batches.
             trainer_limit_test_batches (Union[int, float]): Limit for test batches.
         """
-        breakpoint()
         try:
             from nemo_automodel.components.datasets.llm.megatron import helpers_cpp
         except ImportError:

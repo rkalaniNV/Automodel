@@ -306,68 +306,69 @@ class BlendedMegatronDatasetBuilder:
             List[Optional[GPTDataset]]: A list containing a dataset instance (or None) per
                 split
         """
-        prefixes, weights = self.config.blend
-        if weights is not None:
-            weights = normalize(weights)
+        if self.config.blend:
+            prefixes, weights = self.config.blend
+            if weights is not None:
+                weights = normalize(weights)
 
-        split = self.config.split_matrix
+            split = self.config.split_matrix
 
-        # Blend consists of a single prefix
-        if len(prefixes) == 1 and weights is None:
-            return self._build_megatron_dataset_splits(prefixes[0], split, self.sizes)
+            # Blend consists of a single prefix
+            if len(prefixes) == 1 and weights is None:
+                return self._build_megatron_dataset_splits(prefixes[0], split, self.sizes)
 
-        # Build the mid-level datasets
-        if weights is None:
-            # Build only one "epoch"
-            sizes_per_dataset_buffer = [[None for split in Split] for prefix in prefixes]
-        else:
-            # The number of samples we plan to use per dataset
-            sizes_per_dataset_target = _get_size_per_split_per_dataset(weights, self.sizes)
-            # The number of samples we plan to build per dataset
-            sizes_per_dataset_buffer = _get_size_per_split_per_dataset(
-                weights, self.sizes, surplus=self.config.mid_level_dataset_surplus
+            # Build the mid-level datasets
+            if weights is None:
+                # Build only one "epoch"
+                sizes_per_dataset_buffer = [[None for split in Split] for prefix in prefixes]
+            else:
+                # The number of samples we plan to use per dataset
+                sizes_per_dataset_target = _get_size_per_split_per_dataset(weights, self.sizes)
+                # The number of samples we plan to build per dataset
+                sizes_per_dataset_buffer = _get_size_per_split_per_dataset(
+                    weights, self.sizes, surplus=self.config.mid_level_dataset_surplus
+                )
+
+            # Build each dataset in parallel
+            megatron_datasets = self._build_megatron_datasets_parallel(
+                prefixes, split, sizes_per_dataset_buffer
             )
 
-        # Build each dataset in parallel
-        megatron_datasets = self._build_megatron_datasets_parallel(
-            prefixes, split, sizes_per_dataset_buffer
-        )
-
-        # Build the top-level datasets
-        blended_datasets = [None] * len(Split)
-        for i in range(len(Split)):
-            if split[i] is not None:
-                weights_i = weights
-                if weights_i is not None and self.sizes[i] is not None:
-                    # Blend according to client-specified weights and client-specified size
-                    size_per_dataset = list(zip(*sizes_per_dataset_target))[i]
-                    size_i = sum(size_per_dataset)
-                elif weights_i is None:
-                    # Blend according to dataset sizes as-is and (maybe) client-specified size
-                    try:
-                        weights_i = [
-                            len(megatron_dataset) for megatron_dataset in megatron_datasets[i]
-                        ]
-                    except TypeError:
-                        weights_i = [0 for _ in prefixes]
-                    if self.sizes[i] is not None:
-                        size_i = min(self.sizes[i], sum(weights_i))
+            # Build the top-level datasets
+            blended_datasets = [None] * len(Split)
+            for i in range(len(Split)):
+                if split[i] is not None:
+                    weights_i = weights
+                    if weights_i is not None and self.sizes[i] is not None:
+                        # Blend according to client-specified weights and client-specified size
+                        size_per_dataset = list(zip(*sizes_per_dataset_target))[i]
+                        size_i = sum(size_per_dataset)
+                    elif weights_i is None:
+                        # Blend according to dataset sizes as-is and (maybe) client-specified size
+                        try:
+                            weights_i = [
+                                len(megatron_dataset) for megatron_dataset in megatron_datasets[i]
+                            ]
+                        except TypeError:
+                            weights_i = [0 for _ in prefixes]
+                        if self.sizes[i] is not None:
+                            size_i = min(self.sizes[i], sum(weights_i))
+                        else:
+                            # Build exhaustive indices
+                            size_i = None
                     else:
-                        # Build exhaustive indices
-                        size_i = None
-                else:
-                    raise ValueError(
-                        "Using client-specified weights requires client-specified size"
+                        raise ValueError(
+                            "Using client-specified weights requires client-specified size"
+                        )
+                    blended_datasets[i] = self.build_generic_dataset(
+                        BlendedDataset,
+                        self.is_built_on_rank,
+                        True,  # synchronize_ranks, default behavior to build on rank-0 first
+                        megatron_datasets[i],
+                        weights_i,
+                        size_i,
+                        self.config,
                     )
-                blended_datasets[i] = self.build_generic_dataset(
-                    BlendedDataset,
-                    self.is_built_on_rank,
-                    True,  # synchronize_ranks, default behavior to build on rank-0 first
-                    megatron_datasets[i],
-                    weights_i,
-                    size_i,
-                    self.config,
-                )
 
             return blended_datasets
 
