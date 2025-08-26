@@ -629,12 +629,9 @@ class TrainFinetuneRecipeForNextTokenPrediction(BaseRecipe):
         num_label_tokens = self._dp_allreduce(num_label_tokens).item()
         loss_buffer = []
 
-        # number of tokens in the batch, excluding any tail padding.
-        num_tokens_in_batch = torch.tensor(
-            sum(batch["labels"].numel() - count_tail_padding(batch["labels"]) for batch in batches),
-            dtype=torch.long,
-        )
-        num_tokens_in_batch = self._dp_allreduce(num_tokens_in_batch).item()
+        num_tokens_in_batch = sum(batch["labels"].numel() - count_tail_padding(batch["labels"]) for batch in batches)
+        num_tokens_in_batch_global = torch.tensor(num_tokens_in_batch, dtype=torch.long)
+        num_tokens_in_batch_global = self._dp_allreduce(num_tokens_in_batch_global).item()
         dp_group_size = self._get_dp_group_size()
 
         num_batches = len(batches)
@@ -716,7 +713,7 @@ class TrainFinetuneRecipeForNextTokenPrediction(BaseRecipe):
         reporting_loss = torch.sum(torch.stack(loss_buffer))
         reporting_loss = self._dp_allreduce(reporting_loss).item()
         # fix reporting_loss, tps across ranks
-        return reporting_loss, grad_norm, tps, num_tokens_in_batch, num_label_tokens
+        return reporting_loss, grad_norm, tps, num_tokens_in_batch_global, num_label_tokens
 
     @torch.no_grad()
     def _run_validation_epoch(self):
