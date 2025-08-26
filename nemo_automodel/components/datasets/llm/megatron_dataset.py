@@ -2,6 +2,7 @@ from typing import Dict, List, Optional, Union
 from pathlib import Path
 from nemo_automodel.components.datasets.llm.megatron.gpt_dataset import GPTDataset, GPTDatasetConfig
 from nemo_automodel.components.datasets.llm.megatron.megatron_utils import get_blend_from_list, compile_helper
+from nemo_automodel.components.datasets.llm.megatron.sampler import create_megatron_sampler
 from torch.utils import data
 from torchdata.stateful_dataloader import StatefulDataLoader
 from nemo_automodel.components.datasets.llm.megatron.builder import BlendedMegatronDatasetBuilder
@@ -9,6 +10,7 @@ from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 import os
 import logging
 from typing import Literal
+import torch.distributed as dist
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +210,15 @@ class MegatronPretraining:
     def _create_dataloader(self, dataset, **kwargs) -> StatefulDataLoader:
         # self.init_global_step = self.trainer.global_step
         # self.data_sampler.init_global_step = self.init_global_step
+        batch_sampler = create_megatron_sampler(
+            dataset_len=len(dataset),
+            micro_batch_size=self.micro_batch_size,
+            global_batch_size=self.global_batch_size,
+            rampup_batch_size=None,
+            consumed_samples=self.init_consumed_samples,
+            rank=dist.get_rank(),
+            world_size=dist.get_world_size(),
+        )
         
         # Use 0 workers when debugging to enable breakpoints
         debug_mode = kwargs.pop('debug', False)
@@ -219,7 +230,7 @@ class MegatronPretraining:
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
             collate_fn=getattr(dataset, "collate_fn", data.dataloader.default_collate),
-            # batch_sampler=batch_sampler,
+            batch_sampler=batch_sampler,
             **kwargs,
         )
         return dataloader

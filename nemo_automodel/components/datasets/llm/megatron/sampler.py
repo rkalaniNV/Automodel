@@ -12,173 +12,296 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# import dataclasses
-# import logging
-# from typing import List, Literal, Optional
+import abc
+import logging
+from itertools import chain
+from typing import List, Literal, Optional
 
-# import lightning.pytorch as pl
-# from torch.utils.data import DataLoader
-
-# # from nemo.lightning.megatron_parallel import MegatronStep
+import torch
 
 
-# class MegatronDataSampler:
-#     def __init__(
-#         self,
-#         seq_len: int,
-#         micro_batch_size: int = 4,
-#         global_batch_size: int = 8,
-#         rampup_batch_size: Optional[List[int]] = None,
-#         dataloader_type: Literal["single", "cyclic", "batch"] = "single",
-#         init_consumed_samples: int = 0,
-#         init_global_step: int = 0,
-#         output_log: bool = True,
-#         decoder_seq_len: Optional[int] = None,
-#     ):
-#         self.seq_len = seq_len
-#         self.decoder_seq_len = decoder_seq_len
-#         self.output_log = output_log
-#         self.micro_batch_size = micro_batch_size
-#         self.global_batch_size = global_batch_size
-#         self.rampup_batch_size = rampup_batch_size
-#         self.dataloader_type = dataloader_type
-#         self.init_consumed_samples = init_consumed_samples
-#         self.prev_consumed_samples = self.init_consumed_samples
-#         self.if_first_step = 0
-#         self.prev_global_batch_size = None
-#         self.init_global_step = init_global_step
+class BaseMegatronSampler:
+    def __init__(
+        self,
+        total_samples: int,
+        consumed_samples: int,
+        micro_batch_size: int,
+        data_parallel_rank: int,
+        data_parallel_size: int,
+        drop_last: bool = True,
+        global_batch_size: Optional[int] = None,
+        rampup_batch_size: Optional[list] = None,
+        pad_samples_to_global_batch_size: Optional[bool] = False,
+    ) -> None:
+        # Sanity checks.
+        if total_samples <= 0:
+            raise RuntimeError(f"no sample to consume: {total_samples}")
+        if micro_batch_size <= 0:
+            raise RuntimeError(f"micro_batch_size size must be greater than 0, but {micro_batch_size}")
+        if data_parallel_size <= 0:
+            raise RuntimeError(f"data parallel size must be greater than 0, but {data_parallel_size}")
+        if data_parallel_rank >= data_parallel_size:
+            raise RuntimeError(
+                f"data_parallel_rank should be smaller than data size, but {data_parallel_rank} >= {data_parallel_size}"
+            )
+        if global_batch_size is not None and rampup_batch_size is None:
+            if global_batch_size % (micro_batch_size * data_parallel_size) != 0:
+                raise RuntimeError(
+                    f"`global_batch_size` ({global_batch_size}) is not divisible by "
+                    f"`micro_batch_size ({micro_batch_size}) x data_parallel_size "
+                    f"({data_parallel_size})`"
+                )
+        if pad_samples_to_global_batch_size and global_batch_size is None:
+            raise RuntimeError(
+                "`pad_samples_to_global_batch_size` can be `True` only when "
+                "`global_batch_size` is set to an integer value"
+            )
 
-    # def setup(self, global_rank: int) -> None:
-    #     from nemo.lightning.data import setup_microbatch_calculator
+        # Keep a copy of input params for later use.
+        self.total_samples = total_samples
+        self.consumed_samples = consumed_samples
+        self.micro_batch_size = micro_batch_size
+        self.data_parallel_rank = data_parallel_rank
+        self.micro_batch_times_data_parallel_size = self.micro_batch_size * data_parallel_size
+        self.drop_last = drop_last
+        self.global_batch_size = global_batch_size
+        self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
 
-    #     setup_microbatch_calculator(global_rank, self.micro_batch_size, self.global_batch_size, self.rampup_batch_size)
+        logging.info(
+            f"Instantiating MegatronPretrainingSampler with total_samples: {total_samples} and"
+            f" consumed_samples: {consumed_samples}"
+        )
 
-    # def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
-    #     from megatron.core import parallel_state
+    def __len__(self):
+        if self.global_batch_size is not None:
+            if self.drop_last:
+                num_global_batches = self.total_samples // self.global_batch_size
+            else:
+                num_global_batches = (self.total_samples + self.global_batch_size - 1) // self.global_batch_size
+            # return len of dataloader in terms of micro batches to avoid discrepancy between len of dataloader and
+            # num of batches fetched (as training step fetches in terms of micro batches)
+            return num_global_batches * (self.global_batch_size // self.micro_batch_times_data_parallel_size)
+        else:
+            return (self.total_samples - 1) // self.micro_batch_times_data_parallel_size + 1
 
-    #     from nemo.lightning.data import add_megatron_sampler
+    @abc.abstractmethod
+    def __iter__(self): ...
 
-    #     mode = getattr(dataloader, 'mode', 'train')
 
-    #     data_parallel_rank = parallel_state.get_data_parallel_rank()
-    #     data_parallel_size = parallel_state.get_data_parallel_world_size()
-    #     return add_megatron_sampler(
-    #         dataloader,
-    #         micro_batch_size=self.micro_batch_size,
-    #         global_batch_size=self.global_batch_size,
-    #         rampup_batch_size=self.rampup_batch_size,
-    #         consumed_samples=self.init_consumed_samples if mode == 'train' else 0,
-    #         dataloader_type=self.dataloader_type,
-    #         drop_last=mode not in ["test", "predict"],  # don't drop the incomplete batch in test and predict methods
-    #         dataloader_mode=mode,  # dataloader wrapped with nemo.lightning.data.WrappedDataLoader has mode attribute
-    #         rank=data_parallel_rank,
-    #         world_size=data_parallel_size,
-    #     )
+class MegatronPretrainingSampler(BaseMegatronSampler):
+    def __init__(
+        self,
+        total_samples: int,
+        consumed_samples: int,
+        micro_batch_size: int,
+        data_parallel_rank: int,
+        data_parallel_size: int,
+        drop_last: bool = True,
+        global_batch_size: Optional[int] = None,
+        rampup_batch_size: Optional[list] = None,
+        pad_samples_to_global_batch_size: Optional[bool] = False,
+    ):
+        super().__init__(
+            total_samples=total_samples,
+            consumed_samples=consumed_samples,
+            micro_batch_size=micro_batch_size,
+            data_parallel_rank=data_parallel_rank,
+            data_parallel_size=data_parallel_size,
+            drop_last=drop_last,
+            global_batch_size=global_batch_size,
+            rampup_batch_size=rampup_batch_size,
+            pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
+        )
+        if consumed_samples >= total_samples:
+            raise RuntimeError(f"no samples left to consume: {consumed_samples}, {total_samples}")
 
-    # def compute_consumed_samples(self, steps_since_resume=0) -> int:
-    #     from nemo.lightning.pytorch.strategies import MegatronStrategy
-    #     from nemo.utils import AppState
+    def get_start_end_idx(self):
+        start_idx = self.data_parallel_rank * self.micro_batch_size
+        end_idx = start_idx + self.micro_batch_size
+        return start_idx, end_idx
 
-    #     if not hasattr(self, "trainer") or not isinstance(self.trainer.strategy, MegatronStrategy):
-    #         return 0
+    def __iter__(self):
+        batch = []
+        # Last batch will be dropped if drop_last is not set False
+        indices = range(self.consumed_samples, self.total_samples)
+        if (not self.drop_last) and self.pad_samples_to_global_batch_size:
+            pad_samples_num = -len(indices) % self.global_batch_size
+            pad_indices = range(-1, -pad_samples_num - 1, -1)
+            indices = chain(indices, pad_indices)
 
-    #     app_state = AppState()
-    #     if self.rampup_batch_size is not None:
-    #         consumed_samples = self.prev_consumed_samples + self.if_first_step * self.current_global_batch_size
-    #     else:
-    #         consumed_samples = (
-    #             self.init_consumed_samples
-    #             + steps_since_resume * app_state.data_parallel_size * self.micro_batch_size * self.num_microbatches
-    #         )
+        for idx in indices:
+            batch.append(idx)
+            if len(batch) == self.micro_batch_times_data_parallel_size:
+                start_idx, end_idx = self.get_start_end_idx()
+                yield batch[start_idx:end_idx]
+                batch = []
 
-    #     return int(consumed_samples)
+        # Check the last partial batch and see drop_last is set
+        if len(batch) > 0 and not self.drop_last:
+            assert (
+                not self.pad_samples_to_global_batch_size
+            ), "with pad_samples_to_global_batch_size all batches should be complete"
+            start_idx, end_idx = self.get_start_end_idx()
+            yield batch[start_idx:end_idx]
 
-    # Megatron callbacks
 
-    # def on_megatron_step_start(self, step: MegatronStep) -> MegatronStep:
-    #     return dataclasses.replace(
-    #         step,
-    #         seq_length=self.seq_len,
-    #         micro_batch_size=self.micro_batch_size,
-    #         num_microbatches=self.num_microbatches,
-    #         decoder_seq_length=self.decoder_seq_len,
-    #     )
+class MegatronPretrainingRandomSampler(BaseMegatronSampler):
+    def __init__(
+        self,
+        total_samples: int,
+        consumed_samples: int,
+        micro_batch_size: int,
+        data_parallel_rank: int,
+        data_parallel_size: int,
+        drop_last: bool = True,
+        global_batch_size: Optional[int] = None,
+        pad_samples_to_global_batch_size: Optional[bool] = False,
+        seed: int = 0,
+    ) -> None:
+        super().__init__(
+            total_samples=total_samples,
+            consumed_samples=consumed_samples,
+            micro_batch_size=micro_batch_size,
+            data_parallel_rank=data_parallel_rank,
+            data_parallel_size=data_parallel_size,
+            drop_last=drop_last,
+            global_batch_size=global_batch_size,
+            pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
+        )
+        assert (
+            not pad_samples_to_global_batch_size
+        ), "`MegatronPretrainingRandomSampler` does not support sample padding"
+        if (not drop_last) and self.micro_batch_times_data_parallel_size > 1:
+            raise RuntimeError(
+                "`MegatronPretrainingRandomSampler` does not support drop_last=False when micro_batch_size * data_parallel_size > 1. \
+                  please reduce your MBS and data parallelism to 1 if you want to use drop_last=False, or switch to drop_last=True to avoid this error"
+            )
+        self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
+        self.seed = seed
 
-    # def on_megatron_microbatches_start(self, step: MegatronStep) -> None:
-    #     if not step.trainer:
-    #         return
+    def __len__(self):
+        active_total_samples = self.total_samples - (self.last_batch_size if self.drop_last else 0)
+        num_available_samples = active_total_samples - self.consumed_samples % active_total_samples
+        if self.global_batch_size is not None:
+            if self.drop_last:
+                num_global_batches = num_available_samples // self.global_batch_size
+            else:
+                num_global_batches = (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
+            # return len of dataloader in terms of micro batches to avoid discrepancy between len of dataloader and
+            # num of batches fetched (as training step fetches in terms of micro batches)
+            return num_global_batches * (self.global_batch_size // self.micro_batch_times_data_parallel_size)
+        else:
+            if self.drop_last:
+                return num_available_samples // self.micro_batch_times_data_parallel_size
+            else:
+                return (num_available_samples - 1) // self.micro_batch_times_data_parallel_size
 
-    #     # do validation and save the checkpoint when gbs is changed
-    #     if (
-    #         self.rampup_batch_size is not None
-    #         and self.prev_global_batch_size != self.current_global_batch_size
-    #         and self.prev_global_batch_size
-    #     ):
-    #         step.trainer.should_stop = True
+    def __iter__(self):
+        active_total_samples = self.total_samples - self.last_batch_size
+        self.epoch = self.consumed_samples // active_total_samples
+        current_epoch_samples = self.consumed_samples % active_total_samples
+        assert current_epoch_samples % self.micro_batch_times_data_parallel_size == 0
 
-    # def on_megatron_step_end(self, step: MegatronStep) -> None:
-    #     trainer = step.trainer
-    #     pl_module = step.pl_module
+        # data sharding and random sampling
+        data_parallel_size = self.micro_batch_times_data_parallel_size // self.micro_batch_size
+        bucket_size = (self.total_samples // self.micro_batch_times_data_parallel_size) * self.micro_batch_size
+        bucket_offset = current_epoch_samples // data_parallel_size
+        start_idx = self.data_parallel_rank * bucket_size
 
-    #     try:
-    #         from megatron.core.num_microbatches_calculator import update_num_microbatches
+        g = torch.Generator()
+        g.manual_seed(self.seed + self.epoch)
+        random_idx = torch.randperm(bucket_size, generator=g).tolist()
+        idx_range = [start_idx + x for x in random_idx[bucket_offset:]]
 
-    #     except (ImportError, ModuleNotFoundError):
-    #         logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    #         from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+        batch = []
+        # Last batch if not complete will be dropped.
+        for idx in idx_range:
+            batch.append(idx)
+            if len(batch) == self.micro_batch_size:
+                self.consumed_samples += self.micro_batch_times_data_parallel_size
+                yield batch
+                batch = []
 
-    #     self.prev_global_batch_size = self.current_global_batch_size
+        # Check the last partial batch and see drop_last is set
+        if len(batch) > 0 and not self.drop_last:
+            yield batch
 
-    #     if step.step_i:
-    #         consumed_samples = self.compute_consumed_samples(step.step_i + 1 - self.init_global_step)
-    #         if self.output_log and trainer and getattr(trainer, "training", False):
-    #             # You may need to turn off logging, for example when doing trainer.predict(model, data)
-    #             pl_module.log(
-    #                 'consumed_samples',
-    #                 consumed_samples,
-    #                 prog_bar=True,
-    #                 batch_size=1,
-    #             )
 
-    #         self.prev_consumed_samples = consumed_samples
+def create_megatron_sampler(
+    dataset_len: int,
+    micro_batch_size: int,
+    global_batch_size: int,
+    rampup_batch_size: Optional[List[int]] = None,
+    consumed_samples: int = 0,
+    dataloader_type: Literal["single", "cyclic", "batch"] = "single",
+    drop_last: bool = True,
+    pad_samples_to_global_batch_size: bool = False,
+    dataloader_mode: Literal["train", "validation", "test", "predict"] = "train",
+    rank: int = 0,
+    world_size: int = 1,
+) -> BaseMegatronSampler:
+    """
+    This function takes an existing PyTorch `DataLoader` and configures it to use a Megatron sampler.
+    The Megatron sampler is responsible for splitting the data into batches
+    during training with Megatron.
 
-    #         update_num_microbatches(
-    #             consumed_samples=consumed_samples,
-    #             consistency_check=False,
-    #         )
-    #     if self.output_log and trainer:
-    #         # You may need to turn off logging, for example when doing trainer.predict(model, data)
-    #         pl_module.log(
-    #             "global_batch_size",
-    #             self.current_global_batch_size,
-    #             prog_bar=True,
-    #             batch_size=1,
-    #         )
-    #     self.if_first_step = 1
+    Args:
+        dataloader (DataLoader): The original PyTorch DataLoader to wrap.
+        micro_batch_size (int): The size of each micro-batch.
+        global_batch_size (int): The effective size of the training batch across all data parallel devices.
+        rampup_batch_size (Optional[List[int]]): A list of target batch sizes for a gradual
+            rampup schedule during training (optional).
+        consumed_samples (int, optional): The number of samples consumed before
+            starting this iteration (defaults to 0).
+        dataloader_type (Literal["single", "cyclic", "batch"], optional): The type of
+            Megatron sampler to use. Valid options are:
+                - "single": Uses `MegatronPretrainingSampler` for single pass data sampling.
+                - "cyclic": Uses `MegatronPretrainingRandomSampler` for cyclic data sampling.
+                - "batch": Uses `MegatronPretrainingBatchSampler` for batch sampling. This is the option to
+                  use for fine-tuning workloads, where sequence lengths are variable between samples.
+                  Sampling the entire global batch together ensures that sequences in a global batch are
+                  padded to the same lengths.
+            Defaults to "single".
+        drop_last (bool, optional): Whether to drop the last incomplete batch
+            (defaults to True).
+        pad_samples_to_global_batch_size (bool, optional): Whether to pad the last incomplete
+            batch to the `global_batch_size`  (defaults to False, only applies when
+            `drop_last` is False).
+        dataloader_mode (Literal["train", "validation", "test", "predict"]): The mode of dataloader.
 
-    # @property
-    # def num_microbatches(self) -> int:
-    #     try:
-    #         from megatron.core.num_microbatches_calculator import get_num_microbatches
+    Returns:
+        BaseMegatronSampler: A new BaseMegatronSampler instance with the configured Megatron sampler.
+    """
+    if dataloader_type == 'single':
+        batch_sampler = MegatronPretrainingSampler(
+            total_samples=dataset_len,
+            consumed_samples=consumed_samples,
+            micro_batch_size=micro_batch_size,
+            global_batch_size=global_batch_size,
+            rampup_batch_size=rampup_batch_size,
+            data_parallel_rank=rank,
+            data_parallel_size=world_size,
+            drop_last=drop_last,
+            pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
+        )
+    elif dataloader_type == 'cyclic':
+        batch_sampler = MegatronPretrainingRandomSampler(
+            total_samples=dataset_len,
+            consumed_samples=consumed_samples,
+            micro_batch_size=micro_batch_size,
+            data_parallel_rank=rank,
+            data_parallel_size=world_size,
+            drop_last=drop_last,
+        )
+    else:
+        raise Exception(f'{dataloader_type} dataloader type is not supported.')
 
-    #     except (ImportError, ModuleNotFoundError):
-    #         logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    #         from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    #     return get_num_microbatches()
-
-    # @property
-    # def current_global_batch_size(self) -> int:
-    #     try:
-    #         from megatron.core.num_microbatches_calculator import get_current_global_batch_size
-
-    #     except (ImportError, ModuleNotFoundError):
-    #         logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    #         from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size
-
-    #     if get_current_global_batch_size():
-    #         current_global_batch_size = get_current_global_batch_size()
-    #     else:
-    #         current_global_batch_size = 1
-
-    #     return current_global_batch_size
+    # return DataLoader(
+    #     dataloader.dataset,
+    #     batch_sampler=batch_sampler,
+    #     num_workers=dataloader.num_workers,
+    #     pin_memory=dataloader.pin_memory,
+    #     persistent_workers=dataloader.persistent_workers,
+    #     collate_fn=dataloader.collate_fn,
+    # )
+    return batch_sampler
