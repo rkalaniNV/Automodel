@@ -269,7 +269,7 @@ def build_loss_fn(cfg_loss):
 
 
 def build_dataloader(
-    cfg_ds, cfg_dl, cfg_model, cfg_ps, device_mesh, seed
+    cfg_ds, cfg_dl, cfg_model, cfg_ps, device_mesh, seed, local_batch_size
 ) -> tuple[DataLoader, PreTrainedTokenizerBase]:
     """Build a DataLoader for the dataset.
 
@@ -280,6 +280,7 @@ def build_dataloader(
         cfg_ps: Packed sequence configuration.
         device_mesh: Device mesh.
         seed: Random seed.
+        local_batch_size: Local batch size.
 
     Returns:
         The instantiated DataLoader and tokenizer.
@@ -336,7 +337,7 @@ def build_dataloader(
             sampler = None
 
         # Handle collate_fn instantiation if it's a ConfigNode
-        dl_kwargs = {"dataset": ds, "sampler": sampler, "drop_last": True}
+        dl_kwargs = {"dataset": ds, "sampler": sampler, "batch_size": local_batch_size, "drop_last": True}
         if hasattr(cfg_dl, "collate_fn") and hasattr(cfg_dl.collate_fn, "_target_"):
             collate_cfg = cfg_dl.collate_fn
             dl_kwargs["collate_fn"] = lambda batch: collate_cfg.instantiate(batch=batch)
@@ -365,12 +366,14 @@ def build_distributed(cfg_dist: Dict[str, Any]) -> "DistInfo":  # noqa: F821
     return initialize_distributed(backend=backend, timeout_minutes=timeout)
 
 
-def build_step_scheduler(cfg, dataloader):
+def build_step_scheduler(cfg, dataloader, dp_group_size, local_batch_size):
     """Build the step scheduler.
 
     Args:
         cfg: configuration for the StepScheduler class.
         dataloader: the training dataloader, used for extracting the epoch_len (in batches).
+        dp_group_size: the size of the data parallel group.
+        micro_batch_size: the size of the micro batch.
 
     Returns:
         StepScheduler: the configured StepScheduler.
@@ -378,7 +381,9 @@ def build_step_scheduler(cfg, dataloader):
     assert "_target_" not in cfg, "_target_ not permitted in step scheduler"
     default_kwargs = dict(
         num_epochs=10,
-        grad_acc_steps=10,
+        global_batch_size=32,
+        local_batch_size=local_batch_size,
+        dp_size=dp_group_size,
         ckpt_every_steps=100,
         dataloader=dataloader,
     )
@@ -651,6 +656,7 @@ class TrainFinetuneRecipeForNextTokenPrediction(BaseRecipe):
             self.cfg.get("packed_sequence", None),
             device_mesh=self.device_mesh,
             seed=self.cfg.get("seed", 42),
+            local_batch_size=self.cfg.get("step_scheduler.local_batch_size", 1),
         )
 
         # Build validation dataloader if the config provides it
@@ -665,10 +671,16 @@ class TrainFinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 cfg_ps=None,  # Use unpacked config for validation
                 device_mesh=self.device_mesh,
                 seed=self.cfg.get("seed", 42),
+                local_batch_size=self.cfg.get("step_scheduler.local_batch_size", 1),
             )
 
         # Scheduler
-        self.step_scheduler = build_step_scheduler(self.cfg.get("step_scheduler", None), self.dataloader)
+        self.step_scheduler = build_step_scheduler(
+            self.cfg.get("step_scheduler", None),
+            self.dataloader,
+            self._get_dp_group_size(),
+            local_batch_size=self.cfg.get("step_scheduler.local_batch_size", 1),
+        )
 
         # Build learning rate scheduler
         self.lr_scheduler = build_lr_scheduler(self.cfg.get("lr_scheduler", None), self.optimizer, self.step_scheduler)
