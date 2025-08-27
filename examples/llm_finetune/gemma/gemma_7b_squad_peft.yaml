@@ -31,7 +31,7 @@ rng:
 
 model:
   _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
-  pretrained_model_name_or_path: google/gemma-3-270m
+  pretrained_model_name_or_path: google/gemma-7b
   torch_dtype: bf16
   attn_implementation: eager
 

@@ -16,7 +16,8 @@
 # git@github.com:Fazziekey/transformers.git@seed-oss
 
 step_scheduler:
-  grad_acc_steps: 8
+  global_batch_size: 128
+  local_batch_size: 8
   ckpt_every_steps: 50
   val_every_steps: 50  # will run every x number of gradient steps
   max_steps: 100
@@ -64,7 +65,6 @@ packed_sequence:
 dataloader:
   _target_: torchdata.stateful_dataloader.StatefulDataLoader
   collate_fn: nemo_automodel.components.datasets.utils.default_collater
-  batch_size: 8
   shuffle: false
 
 validation_dataset:
@@ -76,7 +76,6 @@ validation_dataset:
 validation_dataloader:
   _target_: torchdata.stateful_dataloader.StatefulDataLoader
   collate_fn: nemo_automodel.components.datasets.utils.default_collater
-  batch_size: 8
 
 optimizer:
   _target_: torch.optim.Adam

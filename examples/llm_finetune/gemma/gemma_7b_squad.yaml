@@ -31,21 +31,14 @@ rng:
 
 model:
   _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
-  pretrained_model_name_or_path: google/gemma-3-270m
+  pretrained_model_name_or_path: google/gemma-7b
   torch_dtype: bf16
   attn_implementation: eager
-
-peft:
-  _target_: nemo_automodel.components._peft.lora.PeftConfig
-  match_all_linear: True
-  dim: 8
-  alpha: 32
-  use_triton: True
 
 checkpoint:
   enabled: false
   checkpoint_dir: checkpoints/
-  model_save_format: safetensors # torch_save or safetensors
+  model_save_format: torch_save # torch_save or safetensors
   save_consolidated: false 
 
 distributed:
