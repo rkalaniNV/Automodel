@@ -43,5 +43,4 @@ examples/llm/finetune.py \
     --autopipeline._target_ nemo_automodel.components.distributed.pipelining.AutoPipeline \
     --autopipeline.pp_schedule 1f1b \
     --autopipeline.pp_microbatch_size 1 \
-    --autopipeline.pp_batch_size 8 \
     --autopipeline.scale_grads_in_schedule false

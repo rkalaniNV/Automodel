@@ -45,6 +45,5 @@ TRANSFORMERS_OFFLINE=1 python -m torch.distributed.run --nproc_per_node=2 --nnod
     --autopipeline._target_ nemo_automodel.components.distributed.pipelining.AutoPipeline \
     --autopipeline.pp_schedule 1f1b \
     --autopipeline.pp_microbatch_size 1 \
-    --autopipeline.pp_batch_size 8 \
     --autopipeline.round_virtual_stages_to_pp_multiple up \
     --autopipeline.scale_grads_in_schedule false

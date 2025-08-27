@@ -613,7 +613,7 @@ class TrainFinetuneRecipeForNextTokenPrediction(BaseRecipe):
                 tp_axis_name="tp" if "tp" in self.device_mesh.mesh_dim_names else None,
                 ep_axis_name=None,
                 ep_shard_axis_names=None,
-                pp_batch_size=self.cfg.dataloader.batch_size,
+                pp_batch_size=self.cfg.get("step_scheduler.local_batch_size", 1),
                 device=torch.cuda.current_device(),
             )
             assert isinstance(autopipeline, AutoPipeline), (
