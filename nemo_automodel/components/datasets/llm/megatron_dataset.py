@@ -1,3 +1,17 @@
+# Copyright (c) 2025 NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import Dict, List, Optional, Union
 from pathlib import Path
 from nemo_automodel.components.datasets.llm.megatron.gpt_dataset import GPTDataset, GPTDatasetConfig
@@ -34,15 +48,12 @@ class MegatronPretraining:
         num_train_samples: Optional[int] = None,
         num_val_samples: Optional[int] = None,
         num_test_samples: Optional[int] = None,
-        dataset_cls = GPTDataset,
         trainer_max_steps: Optional[int] = None,
         trainer_val_check_interval: int = 1000,
         trainer_limit_val_batches: Union[int, float] = 1,
         trainer_limit_test_batches: Union[int, float] = 1,
         mmap_bin_files: bool = True,
         dataloader_type: Optional[Literal["single", "cyclic", "batch"]] = "single",
-        init_consumed_samples: Optional[int] = 0,
-        init_global_step: Optional[int] = 0,
         splits_to_build: Optional[Union[str, List[str]]] = None,
     ) -> None:
         """Pretraining dataset class for Megatron-LM datasets.
@@ -84,11 +95,11 @@ class MegatronPretraining:
                 validation steps times global batch size.
             num_test_samples (Optional[int]): The number of samples to use for testing, defaults to total
                 test steps times global batch size.
-            dataset_cls (Optional[Type[MegatronDataset]]): The dataset class to use for the data module.
             trainer_max_steps (Optional[int]): Maximum training steps. If None or -1, uses full dataset for one epoch.
             trainer_val_check_interval (int): Interval for validation checks.
             trainer_limit_val_batches (Union[int, float]): Limit for validation batches.
             trainer_limit_test_batches (Union[int, float]): Limit for test batches.
+            splits_to_build (Optional[Union[str, List[str]]]): Splits to build. If None, builds all splits.
         """
         try:
             from nemo_automodel.components.datasets.llm.megatron import helpers_cpp
@@ -105,7 +116,6 @@ class MegatronPretraining:
             paths = [paths]
         validate_dataset_asset_accessibility(paths)
 
-        self.dataset_cls = dataset_cls
         build_kwargs = {}
         build_kwargs["mmap_bin_files"] = mmap_bin_files
         if isinstance(paths, dict):
@@ -138,12 +148,10 @@ class MegatronPretraining:
         self.split = split
         self.index_mapping_dir = index_mapping_dir
         self.num_dataset_builder_threads = num_dataset_builder_threads
-        self.init_global_step = init_global_step  # TODO: do we need this?
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
         self.dataloader_type = dataloader_type
-        self.init_consumed_samples = init_consumed_samples
         if isinstance(splits_to_build, str):
             assert splits_to_build in ["train", "validation", "test"], f"Invalid split: {splits_to_build}"
         elif isinstance(splits_to_build, list):
@@ -207,7 +215,6 @@ class MegatronPretraining:
 
         train_valid_test_num_samples = [num_train_samples, num_val_samples, num_test_samples]
         self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-            self.dataset_cls,
             train_valid_test_num_samples,
             is_built_on_rank=lambda: True,
             config=self.gpt_dataset_config,
@@ -215,14 +222,10 @@ class MegatronPretraining:
         ).build()
 
     def _create_dataloader(self, dataset, **kwargs) -> StatefulDataLoader:
-        # self.init_global_step = self.trainer.global_step
-        # self.data_sampler.init_global_step = self.init_global_step
         batch_sampler = create_megatron_sampler(
             dataset_len=len(dataset),
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
-            rampup_batch_size=None,
-            consumed_samples=self.init_consumed_samples,
             rank=dist.get_rank(),
             world_size=dist.get_world_size(),
         )
@@ -287,34 +290,6 @@ class MegatronPretraining:
             **self.build_kwargs,
         )
 
-    # def state_dict(self) -> Dict[str, Any]:
-    #     """Called when saving a checkpoint, implement to generate and save datamodule state.
-
-    #     Returns:
-    #         A dictionary containing datamodule state.
-
-    #     """
-    #     consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
-    #     return {"consumed_samples": consumed_samples}
-
-    # def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-    #     """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
-
-    #     Args:
-    #         state_dict: the datamodule state returned by ``state_dict``.
-
-    #     """
-    #     from megatron.core.num_microbatches_calculator import update_num_microbatches
-
-    #     consumed_samples = state_dict["consumed_samples"]
-    #     self.data_sampler.init_consumed_samples = consumed_samples
-    #     self.data_sampler.prev_consumed_samples = consumed_samples
-
-    #     update_num_microbatches(
-    #         consumed_samples=consumed_samples,
-    #         consistency_check=False,
-    #     )
-    #     self.data_sampler.if_first_step = 1
 
 def is_number_tryexcept(s):
     """Returns True if string is a number."""

@@ -1,8 +1,19 @@
-# Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import logging
-from typing import Any, Callable, Iterable, List, Optional, Type, Union, Set
-from enum import Enum
+from typing import Any, Callable, Iterable, List, Optional, Type, Union
 import hashlib
 import json
 import os
@@ -15,14 +26,9 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy
 import torch
 
-from nemo_automodel.components.datasets.llm.megatron.gpt_dataset import normalize, GPTDataset, GPTDatasetConfig
+from nemo_automodel.components.datasets.llm.megatron.gpt_dataset import normalize, GPTDataset, GPTDatasetConfig, Split
 
 logger = logging.getLogger(__name__)
-
-class Split(Enum):
-    train = 0
-    valid = 1
-    test = 2
 
 _VERBOSE = False
 
@@ -206,7 +212,6 @@ class BlendedMegatronDatasetBuilder:
     """Builder class for the BlendedDataset and MegatronDataset classes
 
     Args:
-        cls (Type[MegatronDataset]): The class to instantiate, must inherit from MegatronDataset
 
         sizes (List[Optional[int]]): The minimum total number of samples to draw, or None, per split
 
@@ -219,19 +224,17 @@ class BlendedMegatronDatasetBuilder:
 
     def __init__(
         self,
-        cls: GPTDataset,
         sizes: list[int],
         is_built_on_rank: Callable,
         config: GPTDatasetConfig,
         enabled_splits: Optional[list[str]] = None,
     ):
-        self.cls = cls
         self.sizes = sizes
         self.is_built_on_rank = is_built_on_rank
         self.config = config
         self.enabled_splits_names = enabled_splits
 
-        logger.info(f"Building {cls.__name__} splits with sizes={self.sizes} and config={self.config}")
+        logger.info(f"Building {GPTDataset.__name__} splits with sizes={self.sizes} and config={self.config}")
 
         if torch.distributed.is_initialized():
             gb_rank = torch.distributed.get_rank()
@@ -474,7 +477,7 @@ class BlendedMegatronDatasetBuilder:
         split: List[float],
         sizes: List[int],
         synchronize_ranks: bool = True,
-    ) -> List[Optional["MidLevelDataset"]]:
+    ) -> List[Optional[GPTDataset]]:
         """Build each MidLevelDataset split from a single LowLevelDataset
 
         Args:
@@ -489,7 +492,7 @@ class BlendedMegatronDatasetBuilder:
                 behavior. Set to False when we enforce this behavior at higher level.
 
         Returns:
-            List[Optional[MidLevelDataset]]: The MidLevelDataset (or None) per split
+            List[Optional[GPTDataset]]: The GPTDataset (or None) per split
         """
         # short-cut if we are not building on this rank
         if torch.distributed.is_initialized() and not self.is_built_on_rank():
@@ -499,10 +502,10 @@ class BlendedMegatronDatasetBuilder:
             return [None] * len(Split)
 
         # Build the low level dataset
-        low_level_dataset = self.cls.build_low_level_dataset(dataset_path, self.config)
+        low_level_dataset = GPTDataset.build_low_level_dataset(dataset_path, self.config)
 
         # Build the split indices for the low level dataset
-        num_elements = self.cls.numel_low_level_dataset(low_level_dataset)
+        num_elements = GPTDataset.numel_low_level_dataset(low_level_dataset)
         split_indices = []
         for i, _ in enumerate(Split):
             if split[i] is not None:
@@ -520,7 +523,7 @@ class BlendedMegatronDatasetBuilder:
             else:
                 mid_level_datasets.append(
                     self.build_generic_dataset(
-                        self.cls,
+                        GPTDataset,
                         self.is_built_on_rank,
                         synchronize_ranks,
                         low_level_dataset,
@@ -618,18 +621,18 @@ class BlendedMegatronDatasetBuilder:
 
     @staticmethod
     def build_generic_dataset(
-        cls: Union[Type["DistributedDataset"], Callable],
+        cls: Union[Type[GPTDataset | BlendedDataset], Callable],
         is_built_on_rank: Callable,
         synchronize_ranks: bool,
         *args: Any,
-    ) -> Optional[Union["DistributedDataset", Iterable]]:
-        """Build the DistributedDataset
+    ) -> Optional[Union[GPTDataset | BlendedDataset, Iterable]]:
+        """Build the GPTDataset or BlendedDataset
 
         Return None if and only if the underlying dataset class is not built on the current rank
         and torch.distributed is initialized.
 
         Args:
-            cls (Union[Type[DistributedDataset], Callable]): The DistributedDataset class to be
+            cls (Union[Type[GPTDataset | BlendedDataset], Callable]): The GPTDataset or BlendedDataset class to be
                 built. In special cases, e.g. when we are building the low level dataset for a
                 RawMegatronDataset instance, we can accept a Callable which returns an Iterable.
 
@@ -637,13 +640,13 @@ class BlendedMegatronDatasetBuilder:
                 behavior. Set to False when we enforce this behavior at higher level.
 
             args (Tuple[Any]): The positional arguments used to build the provided
-                DistributedDataset class
+                GPTDataset or BlendedDataset class
 
         Raises:
             Exception: When the dataset constructor raises an OSError
 
         Returns:
-            Optional[Union[DistributedDataset, Iterable]]: The DistributedDataset instantion, the
+            Optional[Union[GPTDataset | BlendedDataset, Iterable]]: The GPTDataset or BlendedDataset instantion, the
                 Iterable instantiation, or None
         """
         if torch.distributed.is_initialized():

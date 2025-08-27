@@ -18,11 +18,8 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Optional, Tuple
-import logging
 import os
 import time
-from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
 
 import numpy
 import torch
@@ -161,9 +158,6 @@ class GPTDatasetConfig(BlendedMegatronDatasetConfig):
        output tokens are both of the desired sequence length
     """
 
-    object_storage_cache_path: Optional[str] = None
-    """Path for caching indices for s3 or msc dataloading."""
-
     def __post_init__(self) -> None:
         """Do asserts and set fields post init"""
         super().__post_init__()
@@ -287,7 +281,7 @@ class GPTDataset(torch.utils.data.Dataset):
         self.unique_description = json.dumps(
             self.unique_identifiers, indent=4, default=lambda obj: obj.unique_identifiers
         )
-        self.unique_description_hash = hashlib.md5(self.unique_description.encode("utf-8")).hexdigest()
+        self.unique_description_hash = hashlib.md5(self.unique_description.encode("utf-8"), usedforsecurity=False).hexdigest()
         self.masks_and_position_ids_are_cacheable = not any(
             [
                 self.config.reset_position_ids,
@@ -356,14 +350,14 @@ class GPTDataset(torch.utils.data.Dataset):
         """
         return self.sample_index.shape[0] - 1
 
-    def __getitem__(self, idx: Optional[int]) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: Optional[int]) -> dict[str, torch.Tensor]:
         """Abstract method implementation
 
         Args:
             idx (Optioal[int]): The index into the dataset
 
         Returns:
-            Dict[str, torch.Tensor]: The sample information wrapped in a dictionary
+            dict[str, torch.Tensor]: The sample information wrapped in a dictionary
         """
         if idx is None:
             # Batch padding sequence so the index does not matter

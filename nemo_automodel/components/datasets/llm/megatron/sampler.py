@@ -15,22 +15,42 @@
 import abc
 import logging
 from itertools import chain
-from typing import List, Literal, Optional
+from typing import Literal, Optional
 
 import torch
 
 
 class BaseMegatronSampler:
+    """Base class for Megatron batch samplers.
+
+    Provides common validation and shared behavior for Megatron samplers.
+    Implementations must yield lists of dataset indices that correspond to
+    one micro-batch for a single data-parallel rank.
+
+    Args:
+        total_samples: Total available samples in the dataset.
+        micro_batch_size: Number of samples per micro-batch on each data-parallel
+            rank.
+        data_parallel_rank: Rank id in the data-parallel group that this sampler
+            will serve.
+        data_parallel_size: World size of the data-parallel group.
+        drop_last: If True, drop incomplete batches. If False, implementations
+            may yield a final partial micro-batch (subject to their constraints).
+        global_batch_size: Effective global batch size across all data-parallel
+            ranks; when provided, length is computed in global-batch units and
+            converted to micro-batches.
+        pad_samples_to_global_batch_size: If True and supported by the sampler,
+            the last incomplete global batch will be padded to `global_batch_size`
+            when `drop_last` is False.
+    """
     def __init__(
         self,
         total_samples: int,
-        consumed_samples: int,
         micro_batch_size: int,
         data_parallel_rank: int,
         data_parallel_size: int,
         drop_last: bool = True,
         global_batch_size: Optional[int] = None,
-        rampup_batch_size: Optional[list] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
     ) -> None:
         # Sanity checks.
@@ -44,7 +64,7 @@ class BaseMegatronSampler:
             raise RuntimeError(
                 f"data_parallel_rank should be smaller than data size, but {data_parallel_rank} >= {data_parallel_size}"
             )
-        if global_batch_size is not None and rampup_batch_size is None:
+        if global_batch_size is not None:
             if global_batch_size % (micro_batch_size * data_parallel_size) != 0:
                 raise RuntimeError(
                     f"`global_batch_size` ({global_batch_size}) is not divisible by "
@@ -59,7 +79,6 @@ class BaseMegatronSampler:
 
         # Keep a copy of input params for later use.
         self.total_samples = total_samples
-        self.consumed_samples = consumed_samples
         self.micro_batch_size = micro_batch_size
         self.data_parallel_rank = data_parallel_rank
         self.micro_batch_times_data_parallel_size = self.micro_batch_size * data_parallel_size
@@ -68,11 +87,16 @@ class BaseMegatronSampler:
         self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
 
         logging.info(
-            f"Instantiating MegatronPretrainingSampler with total_samples: {total_samples} and"
-            f" consumed_samples: {consumed_samples}"
+            f"Instantiating MegatronPretrainingSampler with total_samples: {total_samples}"
         )
 
     def __len__(self):
+        """Return the number of micro-batches this sampler will yield.
+
+        If `global_batch_size` is provided, the length is computed in terms of
+        global batches and converted to micro-batches to align with training
+        loops that iterate by micro-batch.
+        """
         if self.global_batch_size is not None:
             if self.drop_last:
                 num_global_batches = self.total_samples // self.global_batch_size
@@ -89,41 +113,58 @@ class BaseMegatronSampler:
 
 
 class MegatronPretrainingSampler(BaseMegatronSampler):
+    """Deterministic sequential sampler with per-rank slicing.
+
+    Iterates deterministically over sample indices, splits each global batch
+    across data-parallel ranks, and yields per-rank micro-batches. When
+    `drop_last` is False and `pad_samples_to_global_batch_size` is True, the
+    final global batch is padded to a full size so that all ranks emit complete
+    micro-batches.
+
+    Raises:
+        RuntimeError: If there are no samples left to consume.
+    """
     def __init__(
         self,
         total_samples: int,
-        consumed_samples: int,
         micro_batch_size: int,
         data_parallel_rank: int,
         data_parallel_size: int,
         drop_last: bool = True,
         global_batch_size: Optional[int] = None,
-        rampup_batch_size: Optional[list] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
     ):
         super().__init__(
             total_samples=total_samples,
-            consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
             data_parallel_rank=data_parallel_rank,
             data_parallel_size=data_parallel_size,
             drop_last=drop_last,
             global_batch_size=global_batch_size,
-            rampup_batch_size=rampup_batch_size,
             pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
-        if consumed_samples >= total_samples:
-            raise RuntimeError(f"no samples left to consume: {consumed_samples}, {total_samples}")
 
     def get_start_end_idx(self):
+        """Return slice boundaries for this rank within a global batch.
+
+        Returns:
+            Tuple of `(start_idx, end_idx)` used to extract this rank's
+            micro-batch from a concatenated global batch buffer.
+        """
         start_idx = self.data_parallel_rank * self.micro_batch_size
         end_idx = start_idx + self.micro_batch_size
         return start_idx, end_idx
 
     def __iter__(self):
+        """Yield lists of indices forming per-rank micro-batches.
+
+        Iterates up to `total_samples`. Optionally pads
+        the last global batch when `drop_last` is False and
+        `pad_samples_to_global_batch_size` is True.
+        """
         batch = []
         # Last batch will be dropped if drop_last is not set False
-        indices = range(self.consumed_samples, self.total_samples)
+        indices = range(0, self.total_samples)
         if (not self.drop_last) and self.pad_samples_to_global_batch_size:
             pad_samples_num = -len(indices) % self.global_batch_size
             pad_indices = range(-1, -pad_samples_num - 1, -1)
@@ -146,10 +187,18 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
 
 
 class MegatronPretrainingRandomSampler(BaseMegatronSampler):
+    """Randomized sampler with per-epoch shuffling and per-rank slicing.
+
+    Uses a deterministic seed schedule `seed + epoch` to randomize indices
+    within each data-parallel shard (bucket). Notably, this sampler:
+
+    - Does not support padding the last global batch.
+    - Requires `drop_last=True` when the product `micro_batch_size *
+      data_parallel_size > 1`.
+    """
     def __init__(
         self,
         total_samples: int,
-        consumed_samples: int,
         micro_batch_size: int,
         data_parallel_rank: int,
         data_parallel_size: int,
@@ -160,7 +209,6 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
     ) -> None:
         super().__init__(
             total_samples=total_samples,
-            consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
             data_parallel_rank=data_parallel_rank,
             data_parallel_size=data_parallel_size,
@@ -178,8 +226,15 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
             )
         self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
         self.seed = seed
+        self.consumed_samples = 0
 
     def __len__(self):
+        """Return the number of micro-batches that will be produced.
+
+        Accounts for `drop_last` by excluding a trailing incomplete global batch.
+        When `global_batch_size` is provided, converts global batches to
+        micro-batches.
+        """
         active_total_samples = self.total_samples - (self.last_batch_size if self.drop_last else 0)
         num_available_samples = active_total_samples - self.consumed_samples % active_total_samples
         if self.global_batch_size is not None:
@@ -197,6 +252,12 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
                 return (num_available_samples - 1) // self.micro_batch_times_data_parallel_size
 
     def __iter__(self):
+        """Yield randomized micro-batches for this rank.
+
+        Each epoch shuffles indices within the per-rank bucket using
+        `torch.randperm` seeded by `seed + epoch`. The sampler then emits
+        contiguous micro-batches of size `micro_batch_size` for this rank.
+        """
         active_total_samples = self.total_samples - self.last_batch_size
         self.epoch = self.consumed_samples // active_total_samples
         current_epoch_samples = self.consumed_samples % active_total_samples
@@ -231,54 +292,48 @@ def create_megatron_sampler(
     dataset_len: int,
     micro_batch_size: int,
     global_batch_size: int,
-    rampup_batch_size: Optional[List[int]] = None,
-    consumed_samples: int = 0,
     dataloader_type: Literal["single", "cyclic", "batch"] = "single",
     drop_last: bool = True,
     pad_samples_to_global_batch_size: bool = False,
-    dataloader_mode: Literal["train", "validation", "test", "predict"] = "train",
     rank: int = 0,
     world_size: int = 1,
 ) -> BaseMegatronSampler:
-    """
-    This function takes an existing PyTorch `DataLoader` and configures it to use a Megatron sampler.
-    The Megatron sampler is responsible for splitting the data into batches
-    during training with Megatron.
+    """Factory for Megatron samplers.
+
+    Constructs and returns a Megatron-compatible sampler for a dataset of a
+    given length and batch configuration. The returned sampler yields lists of
+    indices per micro-batch for a single data-parallel rank.
 
     Args:
-        dataloader (DataLoader): The original PyTorch DataLoader to wrap.
-        micro_batch_size (int): The size of each micro-batch.
-        global_batch_size (int): The effective size of the training batch across all data parallel devices.
-        rampup_batch_size (Optional[List[int]]): A list of target batch sizes for a gradual
-            rampup schedule during training (optional).
-        consumed_samples (int, optional): The number of samples consumed before
-            starting this iteration (defaults to 0).
-        dataloader_type (Literal["single", "cyclic", "batch"], optional): The type of
-            Megatron sampler to use. Valid options are:
-                - "single": Uses `MegatronPretrainingSampler` for single pass data sampling.
-                - "cyclic": Uses `MegatronPretrainingRandomSampler` for cyclic data sampling.
-                - "batch": Uses `MegatronPretrainingBatchSampler` for batch sampling. This is the option to
-                  use for fine-tuning workloads, where sequence lengths are variable between samples.
-                  Sampling the entire global batch together ensures that sequences in a global batch are
-                  padded to the same lengths.
-            Defaults to "single".
-        drop_last (bool, optional): Whether to drop the last incomplete batch
-            (defaults to True).
-        pad_samples_to_global_batch_size (bool, optional): Whether to pad the last incomplete
-            batch to the `global_batch_size`  (defaults to False, only applies when
-            `drop_last` is False).
-        dataloader_mode (Literal["train", "validation", "test", "predict"]): The mode of dataloader.
+        dataset_len: Number of samples in the underlying dataset.
+        micro_batch_size: Number of samples per micro-batch on each
+            data-parallel rank.
+        global_batch_size: Effective global batch size across all
+            data-parallel ranks (`micro_batch_size * world_size * grad_accum`).
+        dataloader_type: Sampler type to construct. Supported values:
+            - "single": Deterministic sequential sampling
+              (`MegatronPretrainingSampler`).
+            - "cyclic": Randomized per-epoch sampling
+              (`MegatronPretrainingRandomSampler`).
+            The value "batch" is not supported in this implementation.
+        drop_last: When True, drop a trailing incomplete batch.
+        pad_samples_to_global_batch_size: When True and supported by the sampler,
+            pad the final global batch to `global_batch_size` if `drop_last` is
+            False.
+        rank: Data-parallel rank id for this process.
+        world_size: Number of data-parallel ranks.
 
     Returns:
-        BaseMegatronSampler: A new BaseMegatronSampler instance with the configured Megatron sampler.
+        BaseMegatronSampler: Configured sampler instance for the requested type.
+
+    Raises:
+        Exception: If an unsupported `dataloader_type` is provided.
     """
     if dataloader_type == 'single':
         batch_sampler = MegatronPretrainingSampler(
             total_samples=dataset_len,
-            consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
-            rampup_batch_size=rampup_batch_size,
             data_parallel_rank=rank,
             data_parallel_size=world_size,
             drop_last=drop_last,
@@ -287,7 +342,6 @@ def create_megatron_sampler(
     elif dataloader_type == 'cyclic':
         batch_sampler = MegatronPretrainingRandomSampler(
             total_samples=dataset_len,
-            consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
             data_parallel_rank=rank,
             data_parallel_size=world_size,
@@ -295,13 +349,4 @@ def create_megatron_sampler(
         )
     else:
         raise Exception(f'{dataloader_type} dataloader type is not supported.')
-
-    # return DataLoader(
-    #     dataloader.dataset,
-    #     batch_sampler=batch_sampler,
-    #     num_workers=dataloader.num_workers,
-    #     pin_memory=dataloader.pin_memory,
-    #     persistent_workers=dataloader.persistent_workers,
-    #     collate_fn=dataloader.collate_fn,
-    # )
     return batch_sampler
