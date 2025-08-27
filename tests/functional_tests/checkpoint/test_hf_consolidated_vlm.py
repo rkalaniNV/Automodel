@@ -428,7 +428,7 @@ def test_consolidated_vlm_checkpoint():
             trainer.model,
             trainer.optimizer,
             trainer.lr_scheduler,
-        ).state_dict()["optim"]["state"]
+        ).state_dict()["optim"]
     )
 
     # assert the correct paths exist
@@ -558,7 +558,7 @@ def test_consolidated_vlm_checkpoint():
     #     "optim.state.model.layers.0.self_attn.q_proj.weight.step": ...
     # }
     # so we flatten the in-memory optimizer state dictionary to match the on-disk view
-    flattened_optim_dict = _flatten(optimizer_state_dict, parent_key="optim.state")
+    flattened_optim_dict = _flatten(optimizer_state_dict, parent_key="optim")
 
     # ---------------------------------------------------------------------
     # Compare the flattened in-memory model state with the on-disk view

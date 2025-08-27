@@ -647,7 +647,7 @@ def test_hf_peft_checkpoint():
             trainer.model,
             trainer.optimizer,
             trainer.lr_scheduler,
-        ).state_dict()["optim"]["state"]
+        ).state_dict()["optim"]
     )
 
     model_keys_fixture = {}
@@ -657,7 +657,7 @@ def test_hf_peft_checkpoint():
         # PEFT model state is consolidated - use FULL tensor shape (no splitting)
         curr_shard = v
         model_keys_fixture[k] = (list(curr_shard.shape), curr_shard.dtype, str(curr_shard.device))
-    flattened_optim_dict = _flatten(optimizer_state_dict, parent_key="optim.state")
+    flattened_optim_dict = _flatten(optimizer_state_dict, parent_key="optim")
     optim_keys_fixture = {}
     for k, v in flattened_optim_dict.items():
         if isinstance(v, torch.distributed.tensor.DTensor):
