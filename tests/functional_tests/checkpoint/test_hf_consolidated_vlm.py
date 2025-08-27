@@ -96,7 +96,7 @@ def to_cpu(
     """
     Converts a state dictionary to CPU.
     """
-    return {k: v.cpu() if isinstance(v, torch.Tensor) else to_cpu(v) for k, v in state_dict.items()}
+    return {k: v.cpu() for k, v in state_dict.items() if isinstance(v, torch.Tensor)}
 
 
 def get_validation_loss(

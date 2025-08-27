@@ -106,10 +106,7 @@ def save_model(
         ):
             os.makedirs(consolidated_model_path, exist_ok=True)
             # save the config.json file
-            if isinstance(model, list):
-                model_part = model[0]
-            else:
-                model_part = model
+            model_part = model[0] if isinstance(model, list) else model
 
             if hasattr(model_part, "config"):
                 with open(os.path.join(consolidated_model_path, "config.json"), "w") as f:
@@ -267,7 +264,8 @@ def load_model(
 
     if checkpoint_config.is_peft:
         # no PP support for PEFT models
-        state_dict = model[0].state_dict()
+        model = model[0] if isinstance(model, list) else model
+        state_dict = model.state_dict()
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             with safe_open(os.path.join(model_path, "adapter_model.safetensors"), framework="pt") as f:
                 state_dict = {k: f.get_tensor(k) for k in f.keys()}
