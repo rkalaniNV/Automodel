@@ -1,7 +1,7 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 import logging
-from typing import Any, Callable, Iterable, List, Optional, Type, Union
+from typing import Any, Callable, Iterable, List, Optional, Type, Union, Set
 from enum import Enum
 import hashlib
 import json
@@ -223,11 +223,13 @@ class BlendedMegatronDatasetBuilder:
         sizes: list[int],
         is_built_on_rank: Callable,
         config: GPTDatasetConfig,
+        enabled_splits: Optional[list[str]] = None,
     ):
         self.cls = cls
         self.sizes = sizes
         self.is_built_on_rank = is_built_on_rank
         self.config = config
+        self.enabled_splits_names = enabled_splits
 
         logger.info(f"Building {cls.__name__} splits with sizes={self.sizes} and config={self.config}")
 
@@ -311,7 +313,7 @@ class BlendedMegatronDatasetBuilder:
             if weights is not None:
                 weights = normalize(weights)
 
-            split = self.config.split_matrix
+            split = self._masked_split_matrix(self.config.split_matrix)
 
             # Blend consists of a single prefix
             if len(prefixes) == 1 and weights is None:
@@ -378,6 +380,9 @@ class BlendedMegatronDatasetBuilder:
         else:
             blended_datasets = [None] * len(Split)
             for i in range(len(Split)):
+                # Skip building if this split is disabled
+                if not self._is_enabled_index(i):
+                    continue
                 split_spoof = [None] * len(Split)
                 split_spoof[i] = (0.0, 1.0)
                 sizes_spoof = [0] * len(Split)
@@ -669,6 +674,28 @@ class BlendedMegatronDatasetBuilder:
             return dataset
 
         return cls(*args)
+
+    def _is_enabled_index(self, idx: int) -> bool:
+        """Return True if a given split index should be built.
+
+        If no enabled_splits were provided, all splits are enabled.
+        """
+        if self.enabled_splits_names is None:
+            return True
+        name_map = {Split.train.value: "train", Split.valid.value: "validation", Split.test.value: "test"}
+        return name_map.get(idx) in self.enabled_splits_names
+
+    def _masked_split_matrix(self, split_matrix: List[Optional[tuple]]) -> List[Optional[tuple]]:
+        """Mask splits that are not enabled by setting their bookends to None.
+
+        This preserves the original split ratios while skipping construction for disabled splits.
+        """
+        if self.enabled_splits_names is None:
+            return split_matrix
+        masked = []
+        for i, val in enumerate(split_matrix):
+            masked.append(val if self._is_enabled_index(i) else None)
+        return masked
 
 
 def _get_size_per_split_per_dataset(

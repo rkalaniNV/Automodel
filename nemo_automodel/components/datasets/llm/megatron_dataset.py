@@ -37,12 +37,13 @@ class MegatronPretraining:
         dataset_cls = GPTDataset,
         trainer_max_steps: Optional[int] = None,
         trainer_val_check_interval: int = 1000,
-        trainer_limit_val_batches: Union[int, float] = 1.0,
-        trainer_limit_test_batches: Union[int, float] = 1.0,
+        trainer_limit_val_batches: Union[int, float] = 1,
+        trainer_limit_test_batches: Union[int, float] = 1,
         mmap_bin_files: bool = True,
         dataloader_type: Optional[Literal["single", "cyclic", "batch"]] = "single",
         init_consumed_samples: Optional[int] = 0,
         init_global_step: Optional[int] = 0,
+        splits_to_build: Optional[Union[str, List[str]]] = None,
     ) -> None:
         """Pretraining dataset class for Megatron-LM datasets.
         Args:
@@ -143,6 +144,11 @@ class MegatronPretraining:
         self.num_test_samples = num_test_samples
         self.dataloader_type = dataloader_type
         self.init_consumed_samples = init_consumed_samples
+        if isinstance(splits_to_build, str):
+            assert splits_to_build in ["train", "validation", "test"], f"Invalid split: {splits_to_build}"
+        elif isinstance(splits_to_build, list):
+            assert all(s in ["train", "validation", "test"] for s in splits_to_build), f"Invalid splits: {splits_to_build}"
+        self.splits_to_build = splits_to_build
         
         # Store trainer arguments
         self.trainer_max_steps = trainer_max_steps
@@ -165,7 +171,7 @@ class MegatronPretraining:
             num_train_samples = self.num_train_samples
             train_iters = int(num_train_samples / self.global_batch_size)
 
-        eval_iters = (train_iters // self.trainer_val_check_interval + 1) * self.trainer_limit_val_batches
+        eval_iters = (train_iters // self.trainer_val_check_interval) * self.trainer_limit_val_batches
         num_val_samples = int(eval_iters * self.global_batch_size)
 
         test_iters = self.trainer_limit_test_batches
@@ -205,6 +211,7 @@ class MegatronPretraining:
             train_valid_test_num_samples,
             is_built_on_rank=lambda: True,
             config=self.gpt_dataset_config,
+            enabled_splits=self.splits_to_build,
         ).build()
 
     def _create_dataloader(self, dataset, **kwargs) -> StatefulDataLoader:
@@ -239,18 +246,26 @@ class MegatronPretraining:
         """
         Get the train dataloader.
         """
+        if not hasattr(self, "_train_ds") or self._train_ds is None:
+            raise RuntimeError("Train dataset was not built. Include 'train' in splits_to_build to enable it.")
         return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self):
         """
         Get the validation dataloader.
         """
+        if not hasattr(self, "_validation_ds") or self._validation_ds is None:
+            raise RuntimeError(
+                "Validation dataset was not built. Include 'validation' in splits_to_build to enable it."
+            )
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self):
         """
         Get the test dataloader.
         """
+        if not hasattr(self, "_test_ds") or self._test_ds is None:
+            raise RuntimeError("Test dataset was not built. Include 'test' in splits_to_build to enable it.")
         return self._create_dataloader(self._test_ds)
     
     @property
